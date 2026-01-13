@@ -1,8 +1,10 @@
 import { useTimeBlock } from '@/hooks/useTimeBlock';
 import { useTasks } from '@/hooks/useTasks';
+import { useProjects } from '@/hooks/useProjects';
 import { CurrentTask } from '@/components/CurrentTask';
 import { OpeningBlock } from '@/components/OpeningBlock';
 import { ClosingBlock } from '@/components/ClosingBlock';
+import { TrackingBlock } from '@/components/TrackingBlock';
 import { EmptyState } from '@/components/EmptyState';
 import { CaptureButton } from '@/components/CaptureButton';
 import { BacklogAccess } from '@/components/BacklogAccess';
@@ -23,8 +25,22 @@ const Index = () => {
     resetSkippedToday,
   } = useTasks();
 
+  const {
+    projects,
+    addProject,
+    markChecked,
+    setNextAction,
+    completeProject,
+    deleteProject,
+    getUncheckedToday,
+  } = useProjects();
+
   const handleCapture = (text: string) => {
     addTask(text, 'light');
+  };
+
+  const handleCreateProject = (name: string, owner?: string) => {
+    addProject(name, owner);
   };
 
   const handleCreateCritical = (text: string) => {
@@ -37,7 +53,6 @@ const Index = () => {
   };
 
   const handleDeleteTask = (id: string) => {
-    // For now, we'll mark as completed (could add actual delete later)
     completeTask(id);
   };
 
@@ -50,6 +65,21 @@ const Index = () => {
           suggestedTask={getSuggestedCritical()}
           onSelectCritical={handleSelectCritical}
           onCreateCritical={handleCreateCritical}
+        />
+      );
+    }
+
+    // Tracking block
+    if (block === 'tracking') {
+      const uncheckedProjects = getUncheckedToday();
+      return (
+        <TrackingBlock
+          phrase={phrase}
+          projects={uncheckedProjects}
+          onMarkChecked={markChecked}
+          onSetNextAction={setNextAction}
+          onSkipTracking={() => {}} // Just stays on empty state
+          allChecked={uncheckedProjects.length === 0}
         />
       );
     }
@@ -99,13 +129,22 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <BacklogAccess tasks={tasks} onDeleteTask={handleDeleteTask} />
+      <BacklogAccess 
+        tasks={tasks} 
+        projects={projects}
+        onDeleteTask={handleDeleteTask} 
+        onDeleteProject={deleteProject}
+        onCompleteProject={completeProject}
+      />
       
       <main className="max-w-lg mx-auto min-h-screen flex flex-col">
         {renderContent()}
       </main>
       
-      <CaptureButton onCapture={handleCapture} />
+      <CaptureButton 
+        onCapture={handleCapture} 
+        onCreateProject={handleCreateProject}
+      />
     </div>
   );
 };
