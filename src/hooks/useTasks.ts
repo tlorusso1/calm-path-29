@@ -34,9 +34,14 @@ function loadDayState(): DayState {
         criticalCompleted: false,
         openItems: '',
         skippedToday: [],
+        projectsCheckedToday: [],
       };
     }
-    return { ...state, skippedToday: state.skippedToday || [] };
+    return { 
+      ...state, 
+      skippedToday: state.skippedToday || [],
+      projectsCheckedToday: state.projectsCheckedToday || [],
+    };
   } catch {
     return {
       date: getTodayDate(),
@@ -44,6 +49,7 @@ function loadDayState(): DayState {
       criticalCompleted: false,
       openItems: '',
       skippedToday: [],
+      projectsCheckedToday: [],
     };
   }
 }

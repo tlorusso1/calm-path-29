@@ -42,6 +42,16 @@ const BLOCK_CONFIGS: Record<TimeBlock, BlockConfig> = {
       'Isso fica comigo ou não?',
     ],
   },
+  tracking: {
+    type: 'tracking',
+    title: 'Acompanhamento',
+    phrases: [
+      'O que ficou com os outros?',
+      'Onde eu preciso cobrar?',
+      'Status rápido, sem absorver.',
+      'Delegar é confiar, mas verificar.',
+    ],
+  },
   closing: {
     type: 'closing',
     title: 'Encerramento',
@@ -80,6 +90,8 @@ function getCurrentBlock(): TimeBlock {
   if (minutes >= 660 && minutes < 690) return 'responses';
   // 14:00–15:30 (840-930)
   if (minutes >= 840 && minutes < 930) return 'meetings';
+  // 15:30–16:00 (930-960)
+  if (minutes >= 930 && minutes < 960) return 'tracking';
   // 16:30–16:45 (990-1005)
   if (minutes >= 990 && minutes < 1005) return 'closing';
   
@@ -101,7 +113,7 @@ export function useTimeBlock() {
     };
 
     updateBlock();
-    const interval = setInterval(updateBlock, 60000); // Check every minute
+    const interval = setInterval(updateBlock, 60000);
 
     return () => clearInterval(interval);
   }, []);
