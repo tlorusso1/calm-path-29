@@ -14,6 +14,7 @@ export interface DayState {
   criticalCompleted: boolean;
   openItems: string;
   dayClosedAt?: string;
+  skippedToday: string[];
 }
 
 export type TimeBlock = 

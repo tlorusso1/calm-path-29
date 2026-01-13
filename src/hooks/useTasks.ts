@@ -33,15 +33,17 @@ function loadDayState(): DayState {
         criticalTaskId: null,
         criticalCompleted: false,
         openItems: '',
+        skippedToday: [],
       };
     }
-    return state;
+    return { ...state, skippedToday: state.skippedToday || [] };
   } catch {
     return {
       date: getTodayDate(),
       criticalTaskId: null,
       criticalCompleted: false,
       openItems: '',
+      skippedToday: [],
     };
   }
 }
@@ -96,6 +98,13 @@ export function useTasks() {
           : task
       )
     );
+    // Add to skipped today list
+    setDayState(prev => ({
+      ...prev,
+      skippedToday: prev.skippedToday.includes(id) 
+        ? prev.skippedToday 
+        : [...prev.skippedToday, id]
+    }));
   }, []);
 
   const setCriticalTask = useCallback((id: string) => {
@@ -111,10 +120,13 @@ export function useTasks() {
   }, []);
 
   const getNextTask = useCallback((block: TimeBlock): Task | null => {
-    const pending = tasks.filter(t => !t.completed);
+    // Filter out completed and skipped-today tasks
+    const pending = tasks.filter(t => !t.completed && !dayState.skippedToday.includes(t.id));
     
     if (block === 'focus' && dayState.criticalTaskId) {
-      return pending.find(t => t.id === dayState.criticalTaskId) || null;
+      // Critical task should always show in focus, even if skipped elsewhere
+      const criticalTask = tasks.find(t => t.id === dayState.criticalTaskId && !t.completed);
+      return criticalTask || null;
     }
     
     if (block === 'responses') {
@@ -133,13 +145,17 @@ export function useTasks() {
     if (operational) return operational;
     
     return pending[0] || null;
-  }, [tasks, dayState.criticalTaskId]);
+  }, [tasks, dayState.criticalTaskId, dayState.skippedToday]);
 
   const getSuggestedCritical = useCallback((): Task | null => {
     const pending = tasks.filter(t => !t.completed);
     // Suggest the oldest non-completed task or one with highest skip count
     return pending.sort((a, b) => b.skippedCount - a.skippedCount)[0] || null;
   }, [tasks]);
+
+  const resetSkippedToday = useCallback(() => {
+    setDayState(prev => ({ ...prev, skippedToday: [] }));
+  }, []);
 
   return {
     tasks,
@@ -152,5 +168,6 @@ export function useTasks() {
     closeDay,
     getNextTask,
     getSuggestedCritical,
+    resetSkippedToday,
   };
 }

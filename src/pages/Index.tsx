@@ -20,6 +20,7 @@ const Index = () => {
     closeDay,
     getNextTask,
     getSuggestedCritical,
+    resetSkippedToday,
   } = useTasks();
 
   const handleCapture = (text: string) => {
@@ -41,8 +42,8 @@ const Index = () => {
   };
 
   const renderContent = () => {
-    // Opening block - choose critical task
-    if (block === 'opening' && !dayState.criticalTaskId) {
+    // Opening block - choose critical task (also allow in 'free' block if no critical set)
+    if ((block === 'opening' || block === 'free') && !dayState.criticalTaskId) {
       return (
         <OpeningBlock
           phrase={phrase}
@@ -70,8 +71,19 @@ const Index = () => {
     // Get next task based on current block
     const nextTask = getNextTask(block);
 
+    // Check if we have pending tasks but all are skipped
+    const pendingTasks = tasks.filter(t => !t.completed);
+    const allSkipped = pendingTasks.length > 0 && !nextTask;
+
     if (!nextTask) {
-      return <EmptyState phrase={phrase} blockTitle={config.title} />;
+      return (
+        <EmptyState 
+          phrase={phrase} 
+          blockTitle={config.title} 
+          allSkipped={allSkipped}
+          onResetSkipped={allSkipped ? resetSkippedToday : undefined}
+        />
+      );
     }
 
     return (

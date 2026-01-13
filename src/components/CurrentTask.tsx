@@ -11,7 +11,7 @@ interface CurrentTaskProps {
 
 export function CurrentTask({ task, phrase, onComplete, onSkip, showSkip = true }: CurrentTaskProps) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 animate-fade-in">
+    <div key={task.id} className="flex flex-col items-center justify-center min-h-[60vh] px-6 animate-fade-in">
       <p className="text-sm text-muted-foreground mb-8 tracking-wide">
         {phrase}
       </p>
