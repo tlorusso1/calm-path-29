@@ -27,6 +27,20 @@ const VENCIMENTO_SOURCES = [
 const CLASSIFICATIONS = ['A', 'B', 'C'] as const;
 const DECISIONS = ['pagar', 'segurar', 'renegociar'] as const;
 
+const DEFAULT_DATA: FinanceiroStage = {
+  caixaAtual: '',
+  vencimentos: {
+    dda: false,
+    email: false,
+    whatsapp: false,
+    cobrancas: false,
+    planilha: false,
+  },
+  itensVencimento: [],
+  agendamentoConfirmado: false,
+  decisaoFinal: undefined,
+};
+
 export function FinanceiroMode({
   mode,
   onUpdateFinanceiroData,
@@ -36,7 +50,7 @@ export function FinanceiroMode({
   onRemoveItem,
 }: FinanceiroModeProps) {
   const [newItemText, setNewItemText] = useState('');
-  const data = mode.financeiroData!;
+  const data = mode.financeiroData ?? DEFAULT_DATA;
   
   const allSourcesChecked = Object.values(data.vencimentos).every(v => v);
   const hasItems = data.itensVencimento.length > 0;
