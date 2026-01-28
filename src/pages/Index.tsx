@@ -22,6 +22,10 @@ const Index = () => {
     toggleFinanceiroItemComplete,
     setFinanceiroItemClassification,
     removeFinanceiroItem,
+    // Marketing-specific
+    updateMarketingData,
+    // Supply Chain-specific
+    updateSupplyChainData,
   } = useFocusModes();
 
   return (
@@ -49,6 +53,10 @@ const Index = () => {
             onToggleFinanceiroItem={toggleFinanceiroItemComplete}
             onSetFinanceiroItemClassification={setFinanceiroItemClassification}
             onRemoveFinanceiroItem={removeFinanceiroItem}
+            // Marketing-specific
+            onUpdateMarketingData={updateMarketingData}
+            // Supply Chain-specific
+            onUpdateSupplyChainData={updateSupplyChainData}
           />
         ) : (
           <NoModeSelected lastCompletedMode={lastCompletedMode} />

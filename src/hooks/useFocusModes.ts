@@ -6,9 +6,13 @@ import {
   ChecklistItem,
   ModeStatus,
   FinanceiroStage,
+  MarketingStage,
+  SupplyChainStage,
   MODE_CONFIGS, 
   DEFAULT_CHECKLISTS,
-  DEFAULT_FINANCEIRO_DATA
+  DEFAULT_FINANCEIRO_DATA,
+  DEFAULT_MARKETING_DATA,
+  DEFAULT_SUPPLYCHAIN_DATA
 } from '@/types/focus-mode';
 
 const FOCUS_MODES_KEY = 'focoagora_focus_modes';
@@ -45,6 +49,14 @@ function createDefaultMode(id: FocusModeId): FocusMode {
 
   if (id === 'financeiro') {
     mode.financeiroData = { ...DEFAULT_FINANCEIRO_DATA, itensVencimento: [] };
+  }
+  
+  if (id === 'marketing') {
+    mode.marketingData = { ...DEFAULT_MARKETING_DATA };
+  }
+  
+  if (id === 'supplychain') {
+    mode.supplyChainData = { ...DEFAULT_SUPPLYCHAIN_DATA };
   }
 
   return mode;
@@ -360,6 +372,40 @@ export function useFocusModes() {
     }));
   }, []);
 
+  // Marketing-specific functions
+  const updateMarketingData = useCallback((data: Partial<MarketingStage>) => {
+    setState(prev => ({
+      ...prev,
+      modes: {
+        ...prev.modes,
+        marketing: {
+          ...prev.modes.marketing,
+          marketingData: {
+            ...prev.modes.marketing.marketingData!,
+            ...data,
+          },
+        },
+      },
+    }));
+  }, []);
+
+  // Supply Chain-specific functions
+  const updateSupplyChainData = useCallback((data: Partial<SupplyChainStage>) => {
+    setState(prev => ({
+      ...prev,
+      modes: {
+        ...prev.modes,
+        supplychain: {
+          ...prev.modes.supplychain,
+          supplyChainData: {
+            ...prev.modes.supplychain.supplyChainData!,
+            ...data,
+          },
+        },
+      },
+    }));
+  }, []);
+
   return {
     activeMode: state.activeMode,
     modes: state.modes,
@@ -379,5 +425,9 @@ export function useFocusModes() {
     toggleFinanceiroItemComplete,
     setFinanceiroItemClassification,
     removeFinanceiroItem,
+    // Marketing-specific
+    updateMarketingData,
+    // Supply Chain-specific
+    updateSupplyChainData,
   };
 }
