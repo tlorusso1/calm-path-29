@@ -16,12 +16,19 @@ const Index = () => {
     addItem,
     removeItem,
     completeMode,
+    // Financeiro-specific
+    updateFinanceiroData,
+    addFinanceiroItem,
+    toggleFinanceiroItemComplete,
+    setFinanceiroItemClassification,
+    removeFinanceiroItem,
   } = useFocusModes();
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <ModeSelector
         activeMode={activeMode}
+        modes={modes}
         onSelectMode={setActiveMode}
       />
 
@@ -36,6 +43,12 @@ const Index = () => {
             onSetNotes={(itemId, n) => setItemNotes(activeMode, itemId, n)}
             onAddItem={(text) => addItem(activeMode, text)}
             onRemoveItem={(itemId) => removeItem(activeMode, itemId)}
+            // Financeiro-specific
+            onUpdateFinanceiroData={updateFinanceiroData}
+            onAddFinanceiroItem={addFinanceiroItem}
+            onToggleFinanceiroItem={toggleFinanceiroItemComplete}
+            onSetFinanceiroItemClassification={setFinanceiroItemClassification}
+            onRemoveFinanceiroItem={removeFinanceiroItem}
           />
         ) : (
           <NoModeSelected lastCompletedMode={lastCompletedMode} />
