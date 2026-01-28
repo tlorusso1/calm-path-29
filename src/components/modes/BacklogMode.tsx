@@ -60,7 +60,9 @@ export function BacklogMode({
   const [novaIdeia, setNovaIdeia] = useState('');
 
   const backlogData = mode.backlogData || { tempoDisponivelHoje: 480, tarefas: [], ideias: [] };
-  const { tempoDisponivelHoje, tarefas, ideias } = backlogData;
+  const tempoDisponivelHoje = backlogData.tempoDisponivelHoje ?? 480;
+  const tarefas = backlogData.tarefas ?? [];
+  const ideias = backlogData.ideias ?? [];
 
   const tempoHoje = calcularTempoHoje(tarefas);
   const percentual = tempoDisponivelHoje > 0 ? (tempoHoje / tempoDisponivelHoje) * 100 : 0;
