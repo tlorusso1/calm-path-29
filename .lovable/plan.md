@@ -1,380 +1,237 @@
 
 
-# Reestruturacao do Modo Backlog (Tarefas + Ideias)
+# Calculo Automatico de Status dos Modos
 
-## Resumo
+## Problema Atual
 
-Transformar o modo Backlog em um sistema de protecao mental com dois blocos distintos: Tarefas (com capacidade do dia) e Ideias (deposito mental sem obrigacao).
+O status dos modos (neutro/em andamento/concluido) esta sendo definido apenas quando:
+- Usuario **entra** no modo → status = `in-progress`
+- Usuario clica **"Concluido por agora"** → status = `completed`
+
+Isso ignora completamente o estado real de preenchimento dos campos.
+
+## Comportamento Esperado
+
+- **Neutro (cinza)**: Nenhum campo preenchido
+- **Em andamento (amarelo)**: Alguns campos preenchidos, mas nao todos
+- **Concluido (verde)**: Todos os campos preenchidos
 
 ---
 
-## Nova Estrutura do Backlog
+## Solucao
 
+Criar funcoes que calculam o status de cada modo baseado nos seus dados especificos.
+
+### Logica por Modo
+
+#### Financeiro
 ```text
-+------------------------------------------+
-|  CAPACIDADE DO DIA                       |
-|                                          |
-|  Tempo disponível hoje: [___] horas      |
-|                                          |
-|  Tarefas de HOJE: 2h 30min               |
-|                                          |
-|  [========🟢========] Cabe no dia        |
-|  ou                                      |
-|  [==========🟡======] Estourando         |
-|  ou                                      |
-|  [==============🔴==] Passou do limite   |
-|                                          |
-|  "Se não couber hoje, fica para outro    |
-|   dia. Isso é decisão, não atraso."      |
-|                                          |
-+------------------------------------------+
-|                                          |
-|  📋 BACKLOG DE TAREFAS                   |
-|                                          |
-|  [+ Adicionar tarefa]                    |
-|                                          |
-|  +--------------------------------------+|
-|  | Tarefa X                         [x] ||
-|  | ⏱️ 30min  ⭐ Urgente                  ||
-|  | 🗓️ [Hoje] [Próximo] [Mais pra frente]||
-|  +--------------------------------------+|
-|                                          |
-+------------------------------------------+
-|                                          |
-|  💡 BACKLOG DE IDEIAS                    |
-|                                          |
-|  "Ideia não é tarefa.                    |
-|   Registrar já é suficiente."            |
-|                                          |
-|  [+ Adicionar ideia]                     |
-|                                          |
-|  +--------------------------------------+|
-|  | Ideia livre aqui...              [x] ||
-|  +--------------------------------------+|
-|                                          |
-+------------------------------------------+
+Campos obrigatorios:
+- caixaNiceFoods (nao vazio)
+- caixaEcommerce (nao vazio)
+- pelo menos 1 vencimento verificado (dda, email, whatsapp ou planilha)
+- agendamentoConfirmado = true
+
+Neutro: todos vazios
+Em andamento: alguns preenchidos
+Concluido: todos preenchidos
 ```
 
----
+#### Marketing
+```text
+Campos obrigatorios:
+- mesFechouPositivo (nao null)
+- verbaAds (nao vazio)
+- focoSemana (nao vazio)
+- pelo menos 1 verificacao marcada
+- decisaoSemana (nao null)
 
-## Alteracoes nos Arquivos
-
-### 1. `src/types/focus-mode.ts`
-
-Adicionar novas interfaces para o Backlog:
-
-```typescript
-// Backlog Task item
-export type BacklogQuandoFazer = 'hoje' | 'proximo' | 'depois';
-export type BacklogTempoEstimado = '15min' | '30min' | '1h' | '2h' | '+2h';
-
-export interface BacklogTarefa {
-  id: string;
-  descricao: string;
-  tempoEstimado: BacklogTempoEstimado;
-  urgente: boolean;
-  quandoFazer: BacklogQuandoFazer;
-  completed: boolean;
-}
-
-export interface BacklogIdeia {
-  id: string;
-  texto: string;
-}
-
-export interface BacklogStage {
-  // Capacidade do dia
-  tempoDisponivelHoje: number; // em minutos
-  
-  // Listas
-  tarefas: BacklogTarefa[];
-  ideias: BacklogIdeia[];
-}
+Neutro: todos vazios/null
+Em andamento: alguns preenchidos
+Concluido: todos preenchidos
 ```
 
-Atualizar `FocusMode`:
+#### Supply Chain
+```text
+Avaliar apenas o ritmo selecionado:
+- semanal: 3 checkboxes
+- quinzenal: 3 checkboxes
+- mensal: 3 checkboxes
 
-```typescript
-export interface FocusMode {
-  // ... campos existentes
-  backlogData?: BacklogStage;
-}
+Neutro: 0 checkboxes marcados
+Em andamento: 1-2 checkboxes marcados
+Concluido: todos os 3 checkboxes marcados
 ```
 
-Adicionar default:
-
-```typescript
-export const DEFAULT_BACKLOG_DATA: BacklogStage = {
-  tempoDisponivelHoje: 480, // 8 horas default
-  tarefas: [],
-  ideias: [],
-};
+#### Backlog
+```text
+Nao usa status automatico - funciona diferente
+(backlog e deposito, nao tem "conclusao")
+Manter como neutro sempre ou usar logica especifica
 ```
 
----
-
-### 2. `src/hooks/useFocusModes.ts`
-
-Atualizar `createDefaultMode`:
-
-```typescript
-if (id === 'backlog') {
-  mode.backlogData = { ...DEFAULT_BACKLOG_DATA };
-}
-```
-
-**IMPORTANTE**: Nao resetar backlog diariamente - manter dados persistentes.
-
-Adicionar funcoes especificas:
-
-```typescript
-// Backlog-specific functions
-const updateBacklogData = useCallback((data: Partial<BacklogStage>) => {
-  // Update tempoDisponivelHoje
-}, []);
-
-const addBacklogTarefa = useCallback((tarefa: Omit<BacklogTarefa, 'id'>) => {
-  // Add new task
-}, []);
-
-const updateBacklogTarefa = useCallback((id: string, data: Partial<BacklogTarefa>) => {
-  // Update task (tempo, urgente, quandoFazer, completed)
-}, []);
-
-const removeBacklogTarefa = useCallback((id: string) => {
-  // Remove task
-}, []);
-
-const addBacklogIdeia = useCallback((texto: string) => {
-  // Add new idea
-}, []);
-
-const removeBacklogIdeia = useCallback((id: string) => {
-  // Remove idea
-}, []);
-```
-
----
-
-### 3. `src/components/modes/BacklogMode.tsx`
-
-Reescrever completamente com a nova estrutura:
-
-#### Secao 1: Capacidade do Dia (fixa no topo)
-
-- Input numerico para definir horas disponiveis
-- Calculo automatico do tempo das tarefas marcadas como "Hoje"
-- Barra de progresso visual com cores:
-  - Verde: usado < 80% do disponivel
-  - Amarelo: usado entre 80% e 100%
-  - Vermelho: usado > 100%
-- Texto ancora fixo
-
-#### Funcao de conversao de tempo:
-
-```typescript
-const TEMPO_EM_MINUTOS: Record<BacklogTempoEstimado, number> = {
-  '15min': 15,
-  '30min': 30,
-  '1h': 60,
-  '2h': 120,
-  '+2h': 180, // considerar 3h para calculo
-};
-
-const calcularTempoHoje = (tarefas: BacklogTarefa[]): number => {
-  return tarefas
-    .filter(t => t.quandoFazer === 'hoje' && !t.completed)
-    .reduce((acc, t) => acc + TEMPO_EM_MINUTOS[t.tempoEstimado], 0);
-};
-
-const formatarTempo = (minutos: number): string => {
-  const horas = Math.floor(minutos / 60);
-  const mins = minutos % 60;
-  if (horas === 0) return `${mins}min`;
-  if (mins === 0) return `${horas}h`;
-  return `${horas}h ${mins}min`;
-};
-```
-
-#### Secao 2: Backlog de Tarefas
-
-- Input para adicionar nova tarefa
-- Lista de tarefas com:
-  - Checkbox de concluido
-  - Descricao
-  - Seletor de tempo estimado (chips: 15min / 30min / 1h / 2h / +2h)
-  - Toggle de urgente (estrela)
-  - Seletor de quando fazer (chips: Hoje / Proximo / Mais pra frente)
-  - Botao de remover
-- Ordenacao: urgentes primeiro, depois por "quandoFazer"
-
-#### Secao 3: Backlog de Ideias
-
-- Bloco visualmente distinto (cor de fundo diferente)
-- Texto ancora no topo
-- Input simples para adicionar ideia
-- Lista de ideias (apenas texto + botao remover)
-- Sem checkbox, sem tempo, sem urgencia
-
----
-
-### 4. `src/components/ModeContent.tsx`
-
-Atualizar props e switch case:
-
-```typescript
-// Adicionar props
-onUpdateBacklogData?: (data: Partial<BacklogStage>) => void;
-onAddBacklogTarefa?: (tarefa: Omit<BacklogTarefa, 'id'>) => void;
-onUpdateBacklogTarefa?: (id: string, data: Partial<BacklogTarefa>) => void;
-onRemoveBacklogTarefa?: (id: string) => void;
-onAddBacklogIdeia?: (texto: string) => void;
-onRemoveBacklogIdeia?: (id: string) => void;
-
-// Atualizar switch case
-case 'backlog':
-  return (
-    <BacklogMode 
-      mode={mode}
-      onUpdateBacklogData={onUpdateBacklogData!}
-      onAddTarefa={onAddBacklogTarefa!}
-      onUpdateTarefa={onUpdateBacklogTarefa!}
-      onRemoveTarefa={onRemoveBacklogTarefa!}
-      onAddIdeia={onAddBacklogIdeia!}
-      onRemoveIdeia={onRemoveBacklogIdeia!}
-    />
-  );
-```
-
----
-
-### 5. `src/pages/Index.tsx`
-
-Adicionar handlers:
-
-```typescript
-const {
-  // ... existentes
-  updateBacklogData,
-  addBacklogTarefa,
-  updateBacklogTarefa,
-  removeBacklogTarefa,
-  addBacklogIdeia,
-  removeBacklogIdeia,
-} = useFocusModes();
-```
-
----
-
-### 6. Ajuste de Persistencia
-
-**IMPORTANTE**: O backlog NAO deve ser resetado diariamente.
-
-Modificar `loadState()` em `useFocusModes.ts`:
-
-```typescript
-// Ao resetar modos diarios, PRESERVAR backlogData
-if (state.date !== today) {
-  (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
-    if (MODE_CONFIGS[id].frequency === 'daily') {
-      if (id === 'backlog') {
-        // Preservar dados do backlog, apenas resetar status
-        updatedModes[id] = {
-          ...createDefaultMode(id),
-          backlogData: state.modes.backlog?.backlogData ?? DEFAULT_BACKLOG_DATA,
-        };
-      } else {
-        updatedModes[id] = createDefaultMode(id);
-      }
-      needsUpdate = true;
-    }
-  });
-}
+#### Pre-Reuniao (geral, ads, verter)
+```text
+Usa checklist generico (items[]):
+Neutro: 0 items completed
+Em andamento: alguns items completed
+Concluido: todos items completed
 ```
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/types/focus-mode.ts` | Adicionar BacklogStage, BacklogTarefa, BacklogIdeia e defaults |
-| `src/hooks/useFocusModes.ts` | Adicionar funcoes de backlog e preservar dados |
-| `src/components/modes/BacklogMode.tsx` | Reescrever com nova estrutura |
-| `src/components/ModeContent.tsx` | Adicionar novas props e case |
-| `src/pages/Index.tsx` | Conectar novos handlers |
+### 1. `src/hooks/useFocusModes.ts`
+
+Criar funcao `calculateModeStatus`:
+
+```typescript
+function calculateModeStatus(mode: FocusMode): ModeStatus {
+  switch (mode.id) {
+    case 'financeiro':
+      return calculateFinanceiroStatus(mode.financeiroData);
+    case 'marketing':
+      return calculateMarketingStatus(mode.marketingData);
+    case 'supplychain':
+      return calculateSupplyChainStatus(mode.supplyChainData);
+    case 'backlog':
+      return 'neutral'; // Backlog nao usa status
+    default:
+      return calculateChecklistStatus(mode.items);
+  }
+}
+```
+
+Implementar cada funcao de calculo:
+
+```typescript
+function calculateFinanceiroStatus(data?: FinanceiroStage): ModeStatus {
+  if (!data) return 'neutral';
+  
+  const fields = [
+    data.caixaNiceFoods.trim() !== '',
+    data.caixaEcommerce.trim() !== '',
+    data.vencimentos.dda || data.vencimentos.email || 
+      data.vencimentos.whatsapp || data.vencimentos.planilha,
+    data.agendamentoConfirmado,
+  ];
+  
+  const filled = fields.filter(Boolean).length;
+  if (filled === 0) return 'neutral';
+  if (filled === fields.length) return 'completed';
+  return 'in-progress';
+}
+
+function calculateMarketingStatus(data?: MarketingStage): ModeStatus {
+  if (!data) return 'neutral';
+  
+  const fields = [
+    data.mesFechouPositivo !== null,
+    data.verbaAds.trim() !== '',
+    data.focoSemana.trim() !== '',
+    Object.values(data.verificacoes).some(Boolean),
+    data.decisaoSemana !== null,
+  ];
+  
+  const filled = fields.filter(Boolean).length;
+  if (filled === 0) return 'neutral';
+  if (filled === fields.length) return 'completed';
+  return 'in-progress';
+}
+
+function calculateSupplyChainStatus(data?: SupplyChainStage): ModeStatus {
+  if (!data) return 'neutral';
+  
+  const ritmo = data[data.ritmoAtual];
+  const checks = Object.values(ritmo).filter(Boolean).length;
+  const total = Object.keys(ritmo).length;
+  
+  if (checks === 0) return 'neutral';
+  if (checks === total) return 'completed';
+  return 'in-progress';
+}
+
+function calculateChecklistStatus(items: ChecklistItem[]): ModeStatus {
+  if (items.length === 0) return 'neutral';
+  
+  const completed = items.filter(i => i.completed).length;
+  if (completed === 0) return 'neutral';
+  if (completed === items.length) return 'completed';
+  return 'in-progress';
+}
+```
+
+### 2. Atualizar logica de persistencia
+
+Modificar as funcoes de update para recalcular o status apos cada mudanca:
+
+```typescript
+// Exemplo em updateFinanceiroData
+const updateFinanceiroData = useCallback((data: Partial<FinanceiroStage>) => {
+  setState(prev => {
+    const newFinanceiroData = {
+      ...prev.modes.financeiro.financeiroData!,
+      ...data,
+    };
+    
+    return {
+      ...prev,
+      modes: {
+        ...prev.modes,
+        financeiro: {
+          ...prev.modes.financeiro,
+          financeiroData: newFinanceiroData,
+          status: calculateFinanceiroStatus(newFinanceiroData),
+        },
+      },
+    };
+  });
+}, []);
+```
+
+Aplicar o mesmo padrao para:
+- `updateMarketingData`
+- `updateSupplyChainData`
+- `toggleItemComplete` (para modos pre-reuniao)
+- `addItem` / `removeItem`
+- Funcoes do financeiro (toggle, add, remove)
+
+### 3. `src/components/ModeSelector.tsx`
+
+Nenhuma mudanca necessaria - ja usa `mode.status` para exibir as cores.
 
 ---
 
-## Detalhes de UI
+## Resultado Esperado
 
-### Indicador Visual de Capacidade
-
-```text
-Tempo disponivel: 8h
-Tarefas de hoje: 6h 30min
-
-[████████████████░░░░] 81% - Estourando 🟡
-```
-
-Cores:
-- `bg-green-500` para < 80%
-- `bg-yellow-500` para 80-100%
-- `bg-red-500` para > 100%
-
-### Card de Tarefa
-
-```text
-+------------------------------------------+
-| [x] Revisar contrato do fornecedor   [🗑]|
-|                                          |
-| ⏱️ [15m] [30m] [1h●] [2h] [+2h]          |
-| ⭐ Urgente                               |
-| 🗓️ [Hoje●] [Próximo] [Depois]            |
-+------------------------------------------+
-```
-
-### Bloco de Ideias (visual distinto)
-
-```text
-+------------------------------------------+
-| 💡 IDEIAS                                |
-| "Ideia não é tarefa.                     |
-|  Registrar já é suficiente."             |
-+------------------------------------------+
-| [+ Adicionar ideia...]                   |
-+------------------------------------------+
-| • Testar novo fornecedor de embalagem [🗑]|
-| • App de controle de producao         [🗑]|
-+------------------------------------------+
-```
-
-Usar `bg-muted/30` ou similar para diferenciar visualmente.
+| Acao | Status |
+|------|--------|
+| Entrar no modo vazio | Neutro (cinza) |
+| Preencher 1 campo | Em andamento (amarelo) |
+| Preencher metade | Em andamento (amarelo) |
+| Preencher tudo | Concluido (verde) |
+| Limpar campos | Volta para neutro/andamento |
 
 ---
 
-## Textos Ancora
+## Detalhes Tecnicos
 
-Capacidade do dia:
-> "Se nao couber hoje, fica para outro dia. Isso e decisao, nao atraso."
-
-Backlog de Ideias:
-> "Ideia nao e tarefa. Registrar ja e suficiente."
-
-Titulo do modo:
-> "Backlog e onde o cerebro descansa."
+1. As funcoes `calculate*Status` serao puras e determinisitcas
+2. O status sera recalculado em toda atualizacao de dados
+3. O botao "Concluido por agora" ainda funciona, mas o status ja estara verde se tudo estiver preenchido
+4. Nao depende de `activeMode` para determinar status - e baseado puramente nos dados
 
 ---
 
-## Resultado Final
+## Casos Especiais
 
-O modo Backlog tera:
+### Supply Chain
+O status e calculado apenas para o ritmo atualmente selecionado (`ritmoAtual`). Se o usuario trocar de ritmo, o status reflete o novo ritmo.
 
-1. **Capacidade do dia** - Controle visual de quanto tempo voce tem vs quanto esta alocado
-2. **Tarefas** - Com tempo, urgencia e agendamento (Hoje/Proximo/Depois)
-3. **Ideias** - Deposito mental sem obrigacao
+### Backlog
+Backlog nao tem "conclusao" - e um deposito. Manter sempre como neutro ou criar logica especifica (ex: verde se tiver pelo menos 1 tarefa concluida hoje).
 
-**Regra principal**: Se nao cabe hoje, nao entra hoje.
-
-**Objetivo**: Reduzir ansiedade provando que tudo esta guardado e o dia cabe dentro do possivel.
+### Pre-Reuniao (geral, ads, verter)
+Usa o array `items[]` padrao - status baseado na proporcao de items completados.
 
