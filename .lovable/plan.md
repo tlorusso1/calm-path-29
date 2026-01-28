@@ -1,237 +1,178 @@
 
+# Migração para Banco de Dados com Supabase
 
-# Calculo Automatico de Status dos Modos
+## Visão Geral
 
-## Problema Atual
-
-O status dos modos (neutro/em andamento/concluido) esta sendo definido apenas quando:
-- Usuario **entra** no modo → status = `in-progress`
-- Usuario clica **"Concluido por agora"** → status = `completed`
-
-Isso ignora completamente o estado real de preenchimento dos campos.
-
-## Comportamento Esperado
-
-- **Neutro (cinza)**: Nenhum campo preenchido
-- **Em andamento (amarelo)**: Alguns campos preenchidos, mas nao todos
-- **Concluido (verde)**: Todos os campos preenchidos
+Migrar todos os dados do localStorage para o Supabase (banco de dados na nuvem), adicionando autenticação para que você possa:
+- **Fazer login** e ter seus dados seguros
+- **Acessar de qualquer dispositivo** com a mesma conta
+- **Nunca perder dados** mesmo limpando o navegador
 
 ---
 
-## Solucao
+## O Que Vai Mudar Para Você
 
-Criar funcoes que calculam o status de cada modo baseado nos seus dados especificos.
-
-### Logica por Modo
-
-#### Financeiro
-```text
-Campos obrigatorios:
-- caixaNiceFoods (nao vazio)
-- caixaEcommerce (nao vazio)
-- pelo menos 1 vencimento verificado (dda, email, whatsapp ou planilha)
-- agendamentoConfirmado = true
-
-Neutro: todos vazios
-Em andamento: alguns preenchidos
-Concluido: todos preenchidos
-```
-
-#### Marketing
-```text
-Campos obrigatorios:
-- mesFechouPositivo (nao null)
-- verbaAds (nao vazio)
-- focoSemana (nao vazio)
-- pelo menos 1 verificacao marcada
-- decisaoSemana (nao null)
-
-Neutro: todos vazios/null
-Em andamento: alguns preenchidos
-Concluido: todos preenchidos
-```
-
-#### Supply Chain
-```text
-Avaliar apenas o ritmo selecionado:
-- semanal: 3 checkboxes
-- quinzenal: 3 checkboxes
-- mensal: 3 checkboxes
-
-Neutro: 0 checkboxes marcados
-Em andamento: 1-2 checkboxes marcados
-Concluido: todos os 3 checkboxes marcados
-```
-
-#### Backlog
-```text
-Nao usa status automatico - funciona diferente
-(backlog e deposito, nao tem "conclusao")
-Manter como neutro sempre ou usar logica especifica
-```
-
-#### Pre-Reuniao (geral, ads, verter)
-```text
-Usa checklist generico (items[]):
-Neutro: 0 items completed
-Em andamento: alguns items completed
-Concluido: todos items completed
-```
+| Antes | Depois |
+|-------|--------|
+| Abre o app e usa direto | Faz login uma vez (email ou Google) |
+| Dados somem se limpar navegador | Dados ficam salvos na nuvem |
+| Só funciona neste navegador | Funciona em qualquer dispositivo |
 
 ---
+
+## Etapas da Implementação
+
+### Etapa 1: Habilitar Supabase Cloud
+
+Primeiro passo é conectar o projeto ao Supabase Cloud, que vai criar automaticamente:
+- Banco de dados PostgreSQL
+- Sistema de autenticação
+- APIs seguras
+
+### Etapa 2: Criar Tabelas no Banco
+
+Duas tabelas principais:
+
+```text
+TABELA: focus_mode_states
++------------------+------------------+
+| Campo            | Tipo             |
++------------------+------------------+
+| id               | uuid (primário)  |
+| user_id          | uuid (referência)|
+| date             | text             |
+| week_start       | text             |
+| active_mode      | text             |
+| modes            | jsonb            |
+| updated_at       | timestamp        |
++------------------+------------------+
+
+TABELA: projects
++------------------+------------------+
+| Campo            | Tipo             |
++------------------+------------------+
+| id               | uuid (primário)  |
+| user_id          | uuid (referência)|
+| name             | text             |
+| owner            | text             |
+| status           | text             |
+| next_action      | text             |
+| last_checked_at  | timestamp        |
+| created_at       | timestamp        |
++------------------+------------------+
+```
+
+### Etapa 3: Políticas de Segurança (RLS)
+
+Cada usuário só vê e edita seus próprios dados:
+- SELECT: apenas user_id = auth.uid()
+- INSERT: user_id = auth.uid()
+- UPDATE: apenas user_id = auth.uid()
+- DELETE: apenas user_id = auth.uid()
+
+### Etapa 4: Tela de Login
+
+Uma tela simples com:
+- Login com email/senha
+- Opção de login com Google (opcional)
+- Cadastro de nova conta
+- "Esqueci minha senha"
+
+### Etapa 5: Adaptar os Hooks
+
+Modificar os hooks existentes para:
+1. Buscar dados do Supabase ao fazer login
+2. Salvar mudanças no Supabase (não mais localStorage)
+3. Manter sincronizado em tempo real
+
+### Etapa 6: Migração de Dados Existentes
+
+Ao fazer primeiro login:
+- Verificar se tem dados no localStorage
+- Perguntar se quer importar para a conta
+- Migrar automaticamente
+
+---
+
+## Arquivos a Criar
+
+| Arquivo | Propósito |
+|---------|-----------|
+| `src/pages/Auth.tsx` | Tela de login/cadastro |
+| `src/contexts/AuthContext.tsx` | Gerenciar estado de autenticação |
+| `src/hooks/useSupabaseFocusModes.ts` | Hook para buscar/salvar modos |
+| `src/hooks/useSupabaseProjects.ts` | Hook para buscar/salvar projetos |
 
 ## Arquivos a Modificar
 
-### 1. `src/hooks/useFocusModes.ts`
-
-Criar funcao `calculateModeStatus`:
-
-```typescript
-function calculateModeStatus(mode: FocusMode): ModeStatus {
-  switch (mode.id) {
-    case 'financeiro':
-      return calculateFinanceiroStatus(mode.financeiroData);
-    case 'marketing':
-      return calculateMarketingStatus(mode.marketingData);
-    case 'supplychain':
-      return calculateSupplyChainStatus(mode.supplyChainData);
-    case 'backlog':
-      return 'neutral'; // Backlog nao usa status
-    default:
-      return calculateChecklistStatus(mode.items);
-  }
-}
-```
-
-Implementar cada funcao de calculo:
-
-```typescript
-function calculateFinanceiroStatus(data?: FinanceiroStage): ModeStatus {
-  if (!data) return 'neutral';
-  
-  const fields = [
-    data.caixaNiceFoods.trim() !== '',
-    data.caixaEcommerce.trim() !== '',
-    data.vencimentos.dda || data.vencimentos.email || 
-      data.vencimentos.whatsapp || data.vencimentos.planilha,
-    data.agendamentoConfirmado,
-  ];
-  
-  const filled = fields.filter(Boolean).length;
-  if (filled === 0) return 'neutral';
-  if (filled === fields.length) return 'completed';
-  return 'in-progress';
-}
-
-function calculateMarketingStatus(data?: MarketingStage): ModeStatus {
-  if (!data) return 'neutral';
-  
-  const fields = [
-    data.mesFechouPositivo !== null,
-    data.verbaAds.trim() !== '',
-    data.focoSemana.trim() !== '',
-    Object.values(data.verificacoes).some(Boolean),
-    data.decisaoSemana !== null,
-  ];
-  
-  const filled = fields.filter(Boolean).length;
-  if (filled === 0) return 'neutral';
-  if (filled === fields.length) return 'completed';
-  return 'in-progress';
-}
-
-function calculateSupplyChainStatus(data?: SupplyChainStage): ModeStatus {
-  if (!data) return 'neutral';
-  
-  const ritmo = data[data.ritmoAtual];
-  const checks = Object.values(ritmo).filter(Boolean).length;
-  const total = Object.keys(ritmo).length;
-  
-  if (checks === 0) return 'neutral';
-  if (checks === total) return 'completed';
-  return 'in-progress';
-}
-
-function calculateChecklistStatus(items: ChecklistItem[]): ModeStatus {
-  if (items.length === 0) return 'neutral';
-  
-  const completed = items.filter(i => i.completed).length;
-  if (completed === 0) return 'neutral';
-  if (completed === items.length) return 'completed';
-  return 'in-progress';
-}
-```
-
-### 2. Atualizar logica de persistencia
-
-Modificar as funcoes de update para recalcular o status apos cada mudanca:
-
-```typescript
-// Exemplo em updateFinanceiroData
-const updateFinanceiroData = useCallback((data: Partial<FinanceiroStage>) => {
-  setState(prev => {
-    const newFinanceiroData = {
-      ...prev.modes.financeiro.financeiroData!,
-      ...data,
-    };
-    
-    return {
-      ...prev,
-      modes: {
-        ...prev.modes,
-        financeiro: {
-          ...prev.modes.financeiro,
-          financeiroData: newFinanceiroData,
-          status: calculateFinanceiroStatus(newFinanceiroData),
-        },
-      },
-    };
-  });
-}, []);
-```
-
-Aplicar o mesmo padrao para:
-- `updateMarketingData`
-- `updateSupplyChainData`
-- `toggleItemComplete` (para modos pre-reuniao)
-- `addItem` / `removeItem`
-- Funcoes do financeiro (toggle, add, remove)
-
-### 3. `src/components/ModeSelector.tsx`
-
-Nenhuma mudanca necessaria - ja usa `mode.status` para exibir as cores.
+| Arquivo | Mudança |
+|---------|---------|
+| `src/App.tsx` | Adicionar rotas protegidas |
+| `src/pages/Index.tsx` | Verificar autenticação |
+| `src/hooks/useFocusModes.ts` | Integrar com Supabase |
+| `src/hooks/useProjects.ts` | Integrar com Supabase |
 
 ---
 
-## Resultado Esperado
+## Fluxo do Usuário
 
-| Acao | Status |
-|------|--------|
-| Entrar no modo vazio | Neutro (cinza) |
-| Preencher 1 campo | Em andamento (amarelo) |
-| Preencher metade | Em andamento (amarelo) |
-| Preencher tudo | Concluido (verde) |
-| Limpar campos | Volta para neutro/andamento |
-
----
-
-## Detalhes Tecnicos
-
-1. As funcoes `calculate*Status` serao puras e determinisitcas
-2. O status sera recalculado em toda atualizacao de dados
-3. O botao "Concluido por agora" ainda funciona, mas o status ja estara verde se tudo estiver preenchido
-4. Nao depende de `activeMode` para determinar status - e baseado puramente nos dados
+```text
+1. Abre o app
+   ↓
+2. Não está logado?
+   → Vai para tela de login
+   ↓
+3. Faz login (email ou Google)
+   ↓
+4. Primeira vez?
+   → Pergunta se quer importar dados do localStorage
+   ↓
+5. Usa o app normalmente
+   → Todas as mudanças são salvas automaticamente na nuvem
+```
 
 ---
 
-## Casos Especiais
+## Detalhes Técnicos
 
-### Supply Chain
-O status e calculado apenas para o ritmo atualmente selecionado (`ritmoAtual`). Se o usuario trocar de ritmo, o status reflete o novo ritmo.
+### Estrutura do Supabase
 
-### Backlog
-Backlog nao tem "conclusao" - e um deposito. Manter sempre como neutro ou criar logica especifica (ex: verde se tiver pelo menos 1 tarefa concluida hoje).
+Tipo de conexão: **Lovable Cloud** (recomendado)
+- Não precisa criar conta separada no Supabase
+- Integração automática
+- Mais simples de configurar
 
-### Pre-Reuniao (geral, ads, verter)
-Usa o array `items[]` padrao - status baseado na proporcao de items completados.
+### Autenticação
 
+Provider inicial: **Email/Senha**
+- Pode adicionar Google depois se quiser
+
+### Sincronização
+
+Estratégia: **Salvar a cada mudança**
+- Cada alteração atualiza o banco imediatamente
+- Usa debounce de 1 segundo para evitar excesso de requisições
+
+### Fallback Offline
+
+Se não tiver internet:
+- Continua usando localStorage temporariamente
+- Sincroniza quando voltar online
+
+---
+
+## Segurança
+
+- Senhas são gerenciadas pelo Supabase Auth (bcrypt)
+- Row Level Security (RLS) garante isolamento de dados
+- HTTPS em todas as comunicações
+- Tokens JWT com expiração
+
+---
+
+## Próximos Passos Após Implementação
+
+1. Testar login/cadastro
+2. Verificar se dados estão sendo salvos
+3. Testar em outro navegador/dispositivo
+4. Opcional: Adicionar login com Google
