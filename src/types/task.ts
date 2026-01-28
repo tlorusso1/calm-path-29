@@ -8,6 +8,8 @@ export interface Task {
   skippedCount: number;
   projectId?: string;
   delegatedTo?: string;
+  isUrgent?: boolean;
+  estimatedTime?: '15min' | '30min' | '1h';
 }
 
 export interface Project {
