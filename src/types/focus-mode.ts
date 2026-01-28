@@ -45,6 +45,60 @@ export interface FinanceiroStage {
   decisaoRenegociar: string;
 }
 
+// Marketing Mode specific structure
+export interface MarketingStage {
+  // Contexto mensal
+  mesFechouPositivo: boolean | null;
+  verbaAds: string;
+  
+  // Foco semanal
+  focoSemana: string;
+  
+  // Checklist de verificacao
+  verificacoes: {
+    campanhasAtivas: boolean;
+    remarketingRodando: boolean;
+    conteudoPublicado: boolean;
+    emailEnviado: boolean;
+    influencersVerificados: boolean;
+  };
+  
+  // O que nao fazer
+  naoFazerSemana: string;
+  
+  // Decisao
+  decisaoSemana: 'manter' | 'ajuste' | 'pausar' | null;
+  observacaoDecisao: string;
+}
+
+// Supply Chain Mode specific structure
+export type SupplyChainRitmo = 'semanal' | 'quinzenal' | 'mensal';
+
+export interface SupplyChainStage {
+  ritmoAtual: SupplyChainRitmo;
+  
+  // Semanal
+  semanal: {
+    saidaEstoque: boolean;
+    verificarBling: boolean;
+    produtoForaPadrao: boolean;
+  };
+  
+  // Quinzenal
+  quinzenal: {
+    planejamentoProducao: boolean;
+    producaoFazSentido: boolean;
+    ajustarSeNecessario: boolean;
+  };
+  
+  // Mensal
+  mensal: {
+    saidaEstoqueMensal: boolean;
+    saldoFinalEstoque: boolean;
+    avaliarComportamento: boolean;
+  };
+}
+
 export interface FocusMode {
   id: FocusModeId;
   icon: string;
@@ -54,6 +108,8 @@ export interface FocusMode {
   status: ModeStatus;
   items: ChecklistItem[];
   financeiroData?: FinanceiroStage;
+  marketingData?: MarketingStage;
+  supplyChainData?: SupplyChainStage;
   completedAt?: string;
 }
 
@@ -168,4 +224,39 @@ export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
   decisaoPagar: '',
   decisaoSegurar: '',
   decisaoRenegociar: '',
+};
+
+export const DEFAULT_MARKETING_DATA: MarketingStage = {
+  mesFechouPositivo: null,
+  verbaAds: '',
+  focoSemana: '',
+  verificacoes: {
+    campanhasAtivas: false,
+    remarketingRodando: false,
+    conteudoPublicado: false,
+    emailEnviado: false,
+    influencersVerificados: false,
+  },
+  naoFazerSemana: '',
+  decisaoSemana: null,
+  observacaoDecisao: '',
+};
+
+export const DEFAULT_SUPPLYCHAIN_DATA: SupplyChainStage = {
+  ritmoAtual: 'semanal',
+  semanal: {
+    saidaEstoque: false,
+    verificarBling: false,
+    produtoForaPadrao: false,
+  },
+  quinzenal: {
+    planejamentoProducao: false,
+    producaoFazSentido: false,
+    ajustarSeNecessario: false,
+  },
+  mensal: {
+    saidaEstoqueMensal: false,
+    saldoFinalEstoque: false,
+    avaliarComportamento: false,
+  },
 };

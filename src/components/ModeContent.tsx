@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage } from '@/types/focus-mode';
 import { Button } from '@/components/ui/button';
 import { FinanceiroMode } from '@/components/modes/FinanceiroMode';
 import { MarketingMode } from '@/components/modes/MarketingMode';
@@ -23,6 +23,10 @@ interface ModeContentProps {
   onToggleFinanceiroItem?: (itemId: string) => void;
   onSetFinanceiroItemClassification?: (itemId: string, classification: 'A' | 'B' | 'C') => void;
   onRemoveFinanceiroItem?: (itemId: string) => void;
+  // Marketing-specific
+  onUpdateMarketingData?: (data: Partial<MarketingStage>) => void;
+  // Supply Chain-specific
+  onUpdateSupplyChainData?: (data: Partial<SupplyChainStage>) => void;
 }
 
 export function ModeContent({
@@ -39,6 +43,8 @@ export function ModeContent({
   onToggleFinanceiroItem,
   onSetFinanceiroItemClassification,
   onRemoveFinanceiroItem,
+  onUpdateMarketingData,
+  onUpdateSupplyChainData,
 }: ModeContentProps) {
   const renderModeContent = () => {
     const commonProps = {
@@ -64,9 +70,19 @@ export function ModeContent({
           />
         );
       case 'marketing':
-        return <MarketingMode {...commonProps} />;
+        return (
+          <MarketingMode 
+            mode={mode}
+            onUpdateMarketingData={onUpdateMarketingData!}
+          />
+        );
       case 'supplychain':
-        return <SupplyChainMode {...commonProps} />;
+        return (
+          <SupplyChainMode 
+            mode={mode}
+            onUpdateSupplyChainData={onUpdateSupplyChainData!}
+          />
+        );
       case 'pre-reuniao-geral':
         return <PreReuniaoGeralMode {...commonProps} />;
       case 'pre-reuniao-ads':
