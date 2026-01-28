@@ -1,49 +1,145 @@
 
-# Reestruturacao do Modo Financeiro
 
-## Resumo das Mudancas
+# Reestruturacao dos Modos Marketing e Supply Chain
 
-Reorganizar o modo Financeiro para ser mais claro e pratico, com campos separados para cada empresa, soma automatica e campos de texto para decisoes.
+## Resumo
+
+Transformar os modos Marketing e Supply Chain em roteiros estruturados com dados proprios, seguindo o padrao do modo Financeiro. Isso reduz carga mental e cria ritmo claro de execucao.
 
 ---
 
-## Nova Estrutura do Modo Financeiro
+## PARTE 1: Modo Marketing
+
+### Nova Estrutura
 
 ```text
 +------------------------------------------+
-|  1. CAIXA HOJE                           |
+|  CONTEXTO MENSAL (atualizar 1x por mes)  |
 |                                          |
-|     NICE FOODS         R$ [________]     |
-|     NICE FOODS ECOM    R$ [________]     |
-|     --------------------------------     |
-|     TOTAL              R$ XX.XXX,XX      |
+|  Mês fechou positivo?   [Sim] [Não]      |
 |                                          |
-+------------------------------------------+
-|  2. O QUE VENCE ATE DOMINGO              |
+|  Verba liberada para Ads R$ [________]   |
 |                                          |
-|     [x] Verifiquei DDA                   |
-|     [x] Verifiquei E-mail                |
-|     [x] Verifiquei WhatsApp              |
-|     [x] Coloquei na planilha             |
-|                                          |
-|     + [Adicionar item de vencimento]     |
-|                                          |
-|     [x] Confirmei o que foi/nao agendado |
+|  "Este valor não será revisto até o      |
+|   próximo fechamento."                   |
 |                                          |
 +------------------------------------------+
-|  3. CLASSIFICACAO A/B/C                  |
-|     (aparece apenas se tiver itens)      |
+|  FOCO DA SEMANA                          |
+|                                          |
+|  Qual é o foco desta semana?             |
+|  [_______________________________]       |
+|  (apenas um foco)                        |
+|                                          |
 +------------------------------------------+
-|  4. DECISOES DA SEMANA                   |
+|  O QUE PRECISO VER / COBRAR              |
 |                                          |
-|     Pagar:                               |
-|     [________________________]           |
+|  [x] Campanhas ativas                    |
+|  [x] Remarketing rodando                 |
+|  [x] Conteúdo publicado/programado       |
+|  [x] E-mail/promoção enviado/agendado    |
+|  [x] Influencers/parcerias verificados   |
 |                                          |
-|     Segurar:                             |
-|     [________________________]           |
++------------------------------------------+
+|  O QUE NÃO VAMOS FAZER ESTA SEMANA       |
 |                                          |
-|     Renegociar:                          |
-|     [________________________]           |
+|  [_______________________________]       |
+|                                          |
++------------------------------------------+
+|  DECISÃO DA SEMANA                       |
+|                                          |
+|  (o) Manter                              |
+|  (o) Ajuste pequeno                      |
+|  (o) Pausar algo específico              |
+|                                          |
+|  Observação (opcional):                  |
+|  [_______________________________]       |
+|                                          |
++------------------------------------------+
+|                                          |
+|  "Marketing não é fazer mais.            |
+|   É escolher onde prestar atenção."      |
+|                                          |
++------------------------------------------+
+```
+
+---
+
+## PARTE 2: Modo Supply Chain
+
+### Nova Estrutura com Ritmos
+
+```text
++------------------------------------------+
+|  ESCOLHA O RITMO                         |
+|                                          |
+|  [Semanal] [Quinzenal] [Mensal]          |
+|                                          |
++------------------------------------------+
+|                                          |
+|  (mostra apenas o checklist do ritmo     |
+|   selecionado)                           |
+|                                          |
++------------------------------------------+
+```
+
+### Ritmo Semanal
+
+```text
++------------------------------------------+
+|  🟢 SEMANAL — Radar da Operação          |
+|                                          |
+|  [x] Atualizar saída de estoque semanal  |
+|      (Planilha: Saída de estoque 2025)   |
+|  [x] Verificar estoque no Bling          |
+|  [x] Algum produto com saída fora do     |
+|      padrão?                             |
+|                                          |
+|  "Semanal é radar, não decisão grande."  |
+|                                          |
++------------------------------------------+
+```
+
+### Ritmo Quinzenal
+
+```text
++------------------------------------------+
+|  🟡 QUINZENAL — Ajuste de Produção       |
+|                                          |
+|  [x] Atualizar planejamento de produção  |
+|      (Planejamento Nice Foods 2025)      |
+|  [x] Produção planejada faz sentido?     |
+|  [x] Ajustar se necessário               |
+|                                          |
+|  "Produção responde à demanda,           |
+|   não ao medo."                          |
+|                                          |
++------------------------------------------+
+```
+
+### Ritmo Mensal
+
+```text
++------------------------------------------+
+|  🔵 MENSAL — Base de Dados               |
+|                                          |
+|  [x] Atualizar saída de estoque mensal   |
+|      (Saída de estoque mensal 2025)      |
+|  [x] Conferir saldo final de estoque     |
+|      (Relatório saldo estoque 2025)      |
+|  [x] Avaliar comportamento de produtos   |
+|      (caiu / manteve / cresceu)          |
+|                                          |
+|  "Decisão boa vem de dado consistente."  |
+|                                          |
++------------------------------------------+
+|  PADRÃO DE PREENCHIMENTO                 |
+|                                          |
+|  1. Preencher aba Ecommerce (col A-B)    |
+|  2. Preencher aba Atacado (col A-B)      |
+|  3. Atualizar aba TOTAL (puxar formulas) |
+|                                          |
+|  "Sempre seguir este padrão.             |
+|   Não improvisar."                       |
 |                                          |
 +------------------------------------------+
 ```
@@ -54,131 +150,272 @@ Reorganizar o modo Financeiro para ser mais claro e pratico, com campos separado
 
 ### 1. `src/types/focus-mode.ts`
 
-Atualizar a interface `FinanceiroStage`:
+Adicionar novas interfaces:
 
 ```typescript
-export interface FinanceiroStage {
-  // Caixa separado por empresa
-  caixaNiceFoods: string;
-  caixaEcommerce: string;
+// Marketing Mode specific structure
+export interface MarketingStage {
+  // Contexto mensal
+  mesFechouPositivo: boolean | null;
+  verbaAds: string;
   
-  // Verificacoes simplificadas
-  vencimentos: {
-    dda: boolean;
-    email: boolean;
-    whatsapp: boolean;
-    planilha: boolean;  // "coloquei na planilha"
+  // Foco semanal
+  focoSemana: string;
+  
+  // Checklist de verificacao
+  verificacoes: {
+    campanhasAtivas: boolean;
+    remarketingRodando: boolean;
+    conteudoPublicado: boolean;
+    emailEnviado: boolean;
+    influencersVerificados: boolean;
   };
   
-  // Itens de vencimento
-  itensVencimento: ChecklistItem[];
+  // O que nao fazer
+  naoFazerSemana: string;
   
-  // Agendamento (junto com vencimentos)
-  agendamentoConfirmado: boolean;
+  // Decisao
+  decisaoSemana: 'manter' | 'ajuste' | 'pausar' | null;
+  observacaoDecisao: string;
+}
+
+// Supply Chain Mode specific structure
+export type SupplyChainRitmo = 'semanal' | 'quinzenal' | 'mensal';
+
+export interface SupplyChainStage {
+  ritmoAtual: SupplyChainRitmo;
   
-  // Decisoes como texto livre
-  decisaoPagar: string;
-  decisaoSegurar: string;
-  decisaoRenegociar: string;
+  // Semanal
+  semanal: {
+    saidaEstoque: boolean;
+    verificarBling: boolean;
+    produtoForaPadrao: boolean;
+  };
+  
+  // Quinzenal
+  quinzenal: {
+    planejamentoProducao: boolean;
+    producaoFazSentido: boolean;
+    ajustarSeNecessario: boolean;
+  };
+  
+  // Mensal
+  mensal: {
+    saidaEstoqueMensal: boolean;
+    saldoFinalEstoque: boolean;
+    avaliarComportamento: boolean;
+  };
 }
 ```
 
-**Mudancas principais:**
-- Remover `caixaAtual` (era campo unico)
-- Adicionar `caixaNiceFoods` e `caixaEcommerce`
-- Remover `cobrancas` de vencimentos (simplificar)
-- Substituir `decisaoFinal` por tres campos de texto
+Atualizar `FocusMode`:
+
+```typescript
+export interface FocusMode {
+  // ... campos existentes
+  financeiroData?: FinanceiroStage;
+  marketingData?: MarketingStage;
+  supplyChainData?: SupplyChainStage;
+}
+```
+
+Adicionar defaults:
+
+```typescript
+export const DEFAULT_MARKETING_DATA: MarketingStage = {
+  mesFechouPositivo: null,
+  verbaAds: '',
+  focoSemana: '',
+  verificacoes: {
+    campanhasAtivas: false,
+    remarketingRodando: false,
+    conteudoPublicado: false,
+    emailEnviado: false,
+    influencersVerificados: false,
+  },
+  naoFazerSemana: '',
+  decisaoSemana: null,
+  observacaoDecisao: '',
+};
+
+export const DEFAULT_SUPPLYCHAIN_DATA: SupplyChainStage = {
+  ritmoAtual: 'semanal',
+  semanal: {
+    saidaEstoque: false,
+    verificarBling: false,
+    produtoForaPadrao: false,
+  },
+  quinzenal: {
+    planejamentoProducao: false,
+    producaoFazSentido: false,
+    ajustarSeNecessario: false,
+  },
+  mensal: {
+    saidaEstoqueMensal: false,
+    saldoFinalEstoque: false,
+    avaliarComportamento: false,
+  },
+};
+```
 
 ---
 
 ### 2. `src/hooks/useFocusModes.ts`
 
-Atualizar `DEFAULT_FINANCEIRO_DATA`:
+Atualizar `createDefaultMode`:
 
 ```typescript
-export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
-  caixaNiceFoods: '',
-  caixaEcommerce: '',
-  vencimentos: {
-    dda: false,
-    email: false,
-    whatsapp: false,
-    planilha: false,
-  },
-  itensVencimento: [],
-  agendamentoConfirmado: false,
-  decisaoPagar: '',
-  decisaoSegurar: '',
-  decisaoRenegociar: '',
-};
+function createDefaultMode(id: FocusModeId): FocusMode {
+  const config = MODE_CONFIGS[id];
+  const defaultItems = DEFAULT_CHECKLISTS[id];
+  
+  const mode: FocusMode = {
+    ...config,
+    status: 'neutral' as ModeStatus,
+    items: defaultItems.map(item => ({
+      ...item,
+      id: generateId(),
+      completed: false,
+    })),
+  };
+
+  if (id === 'financeiro') {
+    mode.financeiroData = { ...DEFAULT_FINANCEIRO_DATA };
+  }
+  
+  if (id === 'marketing') {
+    mode.marketingData = { ...DEFAULT_MARKETING_DATA };
+  }
+  
+  if (id === 'supplychain') {
+    mode.supplyChainData = { ...DEFAULT_SUPPLYCHAIN_DATA };
+  }
+
+  return mode;
+}
+```
+
+Adicionar funcoes para Marketing e Supply Chain:
+
+```typescript
+// Marketing-specific
+const updateMarketingData = useCallback((data: Partial<MarketingStage>) => {
+  setState(prev => ({
+    ...prev,
+    modes: {
+      ...prev.modes,
+      marketing: {
+        ...prev.modes.marketing,
+        marketingData: {
+          ...prev.modes.marketing.marketingData!,
+          ...data,
+        },
+      },
+    },
+  }));
+}, []);
+
+// Supply Chain-specific
+const updateSupplyChainData = useCallback((data: Partial<SupplyChainStage>) => {
+  setState(prev => ({
+    ...prev,
+    modes: {
+      ...prev.modes,
+      supplychain: {
+        ...prev.modes.supplychain,
+        supplyChainData: {
+          ...prev.modes.supplychain.supplyChainData!,
+          ...data,
+        },
+      },
+    },
+  }));
+}, []);
 ```
 
 ---
 
-### 3. `src/components/modes/FinanceiroMode.tsx`
+### 3. `src/components/modes/MarketingMode.tsx`
 
-Reestruturar o componente com as novas secoes:
+Reescrever completamente:
 
-#### Secao 1: Caixa Hoje
-- Campo para NICE FOODS (input numerico com R$)
-- Campo para NICE FOODS ECOMMERCE (input numerico com R$)
-- Linha de TOTAL que soma automaticamente os dois valores
-- Funcao `parseCurrency` para limpar o valor e somar
+- Secao 1: Contexto Mensal
+  - Botoes Sim/Nao para "Mes fechou positivo?"
+  - Input para verba de Ads
+  - Texto fixo sobre nao revisar ate proximo fechamento
 
-#### Secao 2: O que vence ate domingo (unificada)
-- Checkbox: Verifiquei DDA
-- Checkbox: Verifiquei E-mail
-- Checkbox: Verifiquei WhatsApp
-- Checkbox: Coloquei na planilha
-- Lista de itens de vencimento (add/remove)
-- Checkbox: Confirmei o que foi e o que nao foi agendado
+- Secao 2: Foco da Semana
+  - Input de texto (apenas um foco)
 
-#### Secao 3: Classificacao A/B/C
-- Aparece apenas se tiver itens
-- Mesma logica atual
+- Secao 3: O que preciso ver/cobrar
+  - 5 checkboxes fixos
 
-#### Secao 4: Decisoes da Semana
-- Campo de texto: "O que vou pagar:"
-- Campo de texto: "O que vou segurar:"
-- Campo de texto: "O que vou renegociar:"
+- Secao 4: O que NAO fazer
+  - Input de texto
+
+- Secao 5: Decisao da Semana
+  - Radio buttons: Manter / Ajuste pequeno / Pausar algo
+  - Textarea para observacao opcional
+
+- Texto ancora final
 
 ---
 
-## Detalhes Tecnicos
+### 4. `src/components/modes/SupplyChainMode.tsx`
 
-### Funcao de Soma Automatica
+Reescrever completamente:
+
+- Seletor de ritmo no topo (Semanal / Quinzenal / Mensal)
+- Renderizar apenas o checklist do ritmo selecionado
+- Cada ritmo tem seu texto ancora proprio
+- Ritmo Mensal mostra instrucoes de preenchimento fixas
+
+---
+
+### 5. `src/components/ModeContent.tsx`
+
+Atualizar props e switch case:
 
 ```typescript
-const parseCurrency = (value: string): number => {
-  // Remove R$, pontos e espacos, troca virgula por ponto
-  const cleaned = value
-    .replace(/[R$\s.]/g, '')
-    .replace(',', '.');
-  return parseFloat(cleaned) || 0;
-};
+// Adicionar props
+onUpdateMarketingData?: (data: Partial<MarketingStage>) => void;
+onUpdateSupplyChainData?: (data: Partial<SupplyChainStage>) => void;
 
-const formatCurrency = (value: number): string => {
-  return value.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  });
-};
-
-const total = parseCurrency(data.caixaNiceFoods) + 
-              parseCurrency(data.caixaEcommerce);
+// Atualizar switch case
+case 'marketing':
+  return (
+    <MarketingMode 
+      mode={mode}
+      onUpdateMarketingData={onUpdateMarketingData!}
+    />
+  );
+case 'supplychain':
+  return (
+    <SupplyChainMode 
+      mode={mode}
+      onUpdateSupplyChainData={onUpdateSupplyChainData!}
+    />
+  );
 ```
 
-### Campos de Decisao
+---
 
-Usar `Textarea` para permitir multiplas linhas:
+### 6. `src/pages/Index.tsx`
+
+Adicionar handlers:
 
 ```typescript
-<Textarea
-  placeholder="Ex: Fornecedor X, conta de luz..."
-  value={data.decisaoPagar}
-  onChange={(e) => onUpdateFinanceiroData({ 
-    decisaoPagar: e.target.value 
-  })}
+const {
+  // ... existentes
+  updateMarketingData,
+  updateSupplyChainData,
+} = useFocusModes();
+
+// Passar para ModeContent
+<ModeContent
+  // ... existentes
+  onUpdateMarketingData={updateMarketingData}
+  onUpdateSupplyChainData={updateSupplyChainData}
 />
 ```
 
@@ -188,17 +425,36 @@ Usar `Textarea` para permitir multiplas linhas:
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/types/focus-mode.ts` | Atualizar interface FinanceiroStage e DEFAULT_FINANCEIRO_DATA |
-| `src/hooks/useFocusModes.ts` | Atualizar merge de dados para novos campos |
-| `src/components/modes/FinanceiroMode.tsx` | Reestruturar layout completo |
+| `src/types/focus-mode.ts` | Adicionar MarketingStage, SupplyChainStage e defaults |
+| `src/hooks/useFocusModes.ts` | Adicionar funcoes update e inicializacao |
+| `src/components/modes/MarketingMode.tsx` | Reescrever com nova estrutura |
+| `src/components/modes/SupplyChainMode.tsx` | Reescrever com ritmos |
+| `src/components/ModeContent.tsx` | Adicionar novas props e cases |
+| `src/pages/Index.tsx` | Conectar novos handlers |
 
 ---
 
 ## Resultado Final
 
-O modo Financeiro tera um fluxo mais claro:
+### Marketing
+1. Contexto mensal (1x por mes) - define verba
+2. Foco unico da semana
+3. Checklist de verificacao
+4. O que NAO fazer
+5. Decisao simples (manter/ajustar/pausar)
 
-1. **Caixa hoje** - Preencher valores por empresa, ver total
-2. **Vencimentos** - Marcar verificacoes + listar itens + confirmar agendamento (tudo junto)
-3. **Classificar** - A/B/C nos itens listados
-4. **Decidir** - Campos de texto para cada tipo de decisao
+### Supply Chain
+1. Escolher ritmo (semanal/quinzenal/mensal)
+2. Ver apenas o checklist daquele ritmo
+3. Concluir e fechar
+
+### Textos Ancora
+
+Marketing:
+> "Marketing nao e fazer mais. E escolher onde prestar atencao."
+
+Supply Chain (por ritmo):
+> Semanal: "Semanal e radar, nao decisao grande."
+> Quinzenal: "Producao responde a demanda, nao ao medo."
+> Mensal: "Decisao boa vem de dado consistente."
+
