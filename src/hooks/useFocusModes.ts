@@ -24,8 +24,12 @@ import {
   calculateChecklistStatus,
   calculateModeStatus,
 } from '@/utils/modeStatusCalculator';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 const FOCUS_MODES_KEY = 'focoagora_focus_modes';
+const DEBOUNCE_MS = 1000;
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -38,7 +42,7 @@ function getTodayDate(): string {
 function getWeekStart(): string {
   const now = new Date();
   const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday as start of week
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
   const monday = new Date(now.setDate(diff));
   return monday.toISOString().split('T')[0];
 }
@@ -91,87 +95,153 @@ function createDefaultState(): FocusModeState {
   };
 }
 
-function loadState(): FocusModeState {
-  try {
-    const stored = localStorage.getItem(FOCUS_MODES_KEY);
-    const state: FocusModeState | null = stored ? JSON.parse(stored) : null;
-    
-    if (!state) {
-      return createDefaultState();
-    }
-
-    const today = getTodayDate();
-    const currentWeekStart = getWeekStart();
-    
-    let needsUpdate = false;
-    const updatedModes = { ...state.modes };
-
-    // Reset daily modes if new day (EXCEPT backlog which persists)
-    if (state.date !== today) {
-      (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
-        if (MODE_CONFIGS[id].frequency === 'daily') {
-          if (id === 'backlog') {
-            // Preserve backlog data, only reset status
-            updatedModes[id] = {
-              ...createDefaultMode(id),
-              backlogData: state.modes.backlog?.backlogData ?? { ...DEFAULT_BACKLOG_DATA, tarefas: [], ideias: [] },
-            };
-          } else {
-            updatedModes[id] = createDefaultMode(id);
-          }
-          needsUpdate = true;
-        }
-      });
-    }
-
-    // Reset weekly modes if new week
-    if (state.weekStart !== currentWeekStart) {
-      (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
-        if (MODE_CONFIGS[id].frequency === 'weekly') {
-          updatedModes[id] = createDefaultMode(id);
-          needsUpdate = true;
-        }
-      });
-    }
-
-    // Recalculate status for all modes based on their data
-    (Object.keys(updatedModes) as FocusModeId[]).forEach(id => {
-      updatedModes[id] = {
-        ...updatedModes[id],
-        status: calculateModeStatus(updatedModes[id]),
-      };
-    });
-
-    if (needsUpdate) {
-      return {
-        date: today,
-        weekStart: currentWeekStart,
-        activeMode: null,
-        modes: updatedModes,
-      };
-    }
-    
-    return {
-      ...state,
-      modes: updatedModes,
-    };
-  } catch {
+function processLoadedState(state: FocusModeState | null): FocusModeState {
+  if (!state) {
     return createDefaultState();
   }
+
+  const today = getTodayDate();
+  const currentWeekStart = getWeekStart();
+  
+  let needsUpdate = false;
+  const updatedModes = { ...state.modes };
+
+  // Reset daily modes if new day (EXCEPT backlog which persists)
+  if (state.date !== today) {
+    (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
+      if (MODE_CONFIGS[id].frequency === 'daily') {
+        if (id === 'backlog') {
+          updatedModes[id] = {
+            ...createDefaultMode(id),
+            backlogData: state.modes.backlog?.backlogData ?? { ...DEFAULT_BACKLOG_DATA, tarefas: [], ideias: [] },
+          };
+        } else {
+          updatedModes[id] = createDefaultMode(id);
+        }
+        needsUpdate = true;
+      }
+    });
+  }
+
+  // Reset weekly modes if new week
+  if (state.weekStart !== currentWeekStart) {
+    (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
+      if (MODE_CONFIGS[id].frequency === 'weekly') {
+        updatedModes[id] = createDefaultMode(id);
+        needsUpdate = true;
+      }
+    });
+  }
+
+  // Recalculate status for all modes
+  (Object.keys(updatedModes) as FocusModeId[]).forEach(id => {
+    updatedModes[id] = {
+      ...updatedModes[id],
+      status: calculateModeStatus(updatedModes[id]),
+    };
+  });
+
+  if (needsUpdate) {
+    return {
+      date: today,
+      weekStart: currentWeekStart,
+      activeMode: null,
+      modes: updatedModes,
+    };
+  }
+  
+  return {
+    ...state,
+    modes: updatedModes,
+  };
 }
 
 export function useFocusModes() {
-  const [state, setState] = useState<FocusModeState>(loadState);
+  const { user } = useAuth();
+  const [state, setState] = useState<FocusModeState>(createDefaultState);
+  const [isLoading, setIsLoading] = useState(true);
+  const debounceRef = React.useRef<NodeJS.Timeout | null>(null);
+  const initialLoadDone = React.useRef(false);
 
-  // Persist state
+  // Load from Supabase when user is available
   useEffect(() => {
-    localStorage.setItem(FOCUS_MODES_KEY, JSON.stringify(state));
-  }, [state]);
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    const loadFromSupabase = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('focus_mode_states')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Error loading focus modes:', error);
+          setState(processLoadedState(null));
+        } else if (data) {
+          const loadedState: FocusModeState = {
+            date: data.date,
+            weekStart: data.week_start,
+            activeMode: data.active_mode as FocusModeState['activeMode'],
+            modes: data.modes as unknown as FocusModeState['modes'],
+            lastCompletedMode: data.last_completed_mode as FocusModeState['lastCompletedMode'],
+          };
+          setState(processLoadedState(loadedState));
+        } else {
+          setState(processLoadedState(null));
+        }
+      } catch (err) {
+        console.error('Error loading focus modes:', err);
+        setState(processLoadedState(null));
+      } finally {
+        setIsLoading(false);
+        initialLoadDone.current = true;
+      }
+    };
+
+    loadFromSupabase();
+  }, [user]);
+
+  // Save to Supabase with debounce
+  useEffect(() => {
+    if (!user || !initialLoadDone.current) return;
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      const payload = {
+        user_id: user.id,
+        date: state.date,
+        week_start: state.weekStart,
+        active_mode: state.activeMode,
+        modes: JSON.parse(JSON.stringify(state.modes)) as Json,
+        last_completed_mode: state.lastCompletedMode,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('focus_mode_states')
+        .upsert([payload], { onConflict: 'user_id' });
+
+      if (error) {
+        console.error('Error saving focus modes:', error);
+      }
+    }, DEBOUNCE_MS);
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [state, user]);
 
   const setActiveMode = useCallback((modeId: FocusModeId | null) => {
-    setState(prev => {
-      return { ...prev, activeMode: modeId };
-    });
+    setState(prev => ({ ...prev, activeMode: modeId }));
   }, []);
 
   const toggleItemComplete = useCallback((modeId: FocusModeId, itemId: string) => {
@@ -625,6 +695,7 @@ export function useFocusModes() {
     activeMode: state.activeMode,
     modes: state.modes,
     lastCompletedMode: state.lastCompletedMode,
+    isLoading,
     setActiveMode,
     toggleItemComplete,
     setItemClassification,
@@ -653,3 +724,6 @@ export function useFocusModes() {
     removeBacklogIdeia,
   };
 }
+
+// Need to import React at the top for useRef
+import React from 'react';
