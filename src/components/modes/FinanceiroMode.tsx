@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { Plus, Trash2, Check, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface FinanceiroModeProps {
@@ -17,28 +17,27 @@ interface FinanceiroModeProps {
 }
 
 const VENCIMENTO_SOURCES = [
-  { key: 'dda', label: 'DDA' },
-  { key: 'email', label: 'E-mail' },
-  { key: 'whatsapp', label: 'WhatsApp' },
-  { key: 'cobrancas', label: 'Cobranças' },
-  { key: 'planilha', label: 'Planilha' },
+  { key: 'dda', label: 'Verifiquei DDA' },
+  { key: 'email', label: 'Verifiquei E-mail' },
+  { key: 'whatsapp', label: 'Verifiquei WhatsApp' },
+  { key: 'planilha', label: 'Coloquei na planilha' },
 ] as const;
 
 const CLASSIFICATIONS = ['A', 'B', 'C'] as const;
-const DECISIONS = ['pagar', 'segurar', 'renegociar'] as const;
 
-const DEFAULT_DATA: FinanceiroStage = {
-  caixaAtual: '',
-  vencimentos: {
-    dda: false,
-    email: false,
-    whatsapp: false,
-    cobrancas: false,
-    planilha: false,
-  },
-  itensVencimento: [],
-  agendamentoConfirmado: false,
-  decisaoFinal: undefined,
+// Funções de formatação de moeda
+const parseCurrency = (value: string): number => {
+  const cleaned = value
+    .replace(/[R$\s.]/g, '')
+    .replace(',', '.');
+  return parseFloat(cleaned) || 0;
+};
+
+const formatCurrency = (value: number): string => {
+  return value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  });
 };
 
 export function FinanceiroMode({
@@ -53,22 +52,27 @@ export function FinanceiroMode({
   
   // Merge with defaults to handle partial/missing data from localStorage
   const data: FinanceiroStage = {
-    caixaAtual: mode.financeiroData?.caixaAtual ?? '',
+    caixaNiceFoods: mode.financeiroData?.caixaNiceFoods ?? '',
+    caixaEcommerce: mode.financeiroData?.caixaEcommerce ?? '',
     vencimentos: {
       dda: mode.financeiroData?.vencimentos?.dda ?? false,
       email: mode.financeiroData?.vencimentos?.email ?? false,
       whatsapp: mode.financeiroData?.vencimentos?.whatsapp ?? false,
-      cobrancas: mode.financeiroData?.vencimentos?.cobrancas ?? false,
       planilha: mode.financeiroData?.vencimentos?.planilha ?? false,
     },
     itensVencimento: mode.financeiroData?.itensVencimento ?? [],
     agendamentoConfirmado: mode.financeiroData?.agendamentoConfirmado ?? false,
-    decisaoFinal: mode.financeiroData?.decisaoFinal,
+    decisaoPagar: mode.financeiroData?.decisaoPagar ?? '',
+    decisaoSegurar: mode.financeiroData?.decisaoSegurar ?? '',
+    decisaoRenegociar: mode.financeiroData?.decisaoRenegociar ?? '',
   };
   
   const allSourcesChecked = Object.values(data.vencimentos).every(v => v);
   const hasItems = data.itensVencimento.length > 0;
   const allItemsClassified = hasItems && data.itensVencimento.every(item => item.classification);
+  
+  // Calcula o total automaticamente
+  const total = parseCurrency(data.caixaNiceFoods) + parseCurrency(data.caixaEcommerce);
 
   const handleAddItem = () => {
     if (newItemText.trim()) {
@@ -79,23 +83,61 @@ export function FinanceiroMode({
 
   return (
     <div className="space-y-8">
-      {/* ETAPA 1: Caixa Atual */}
+      {/* SEÇÃO 1: Caixa Hoje */}
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <div className="flex items-center justify-center w-6 h-6 rounded-full bg-foreground text-background text-xs font-bold">
             1
           </div>
-          <h3 className="text-sm font-semibold text-foreground">Caixa atual</h3>
+          <h3 className="text-sm font-semibold text-foreground">Caixa hoje</h3>
         </div>
-        <Textarea
-          placeholder="Digite o valor ou situação do caixa..."
-          value={data.caixaAtual}
-          onChange={(e) => onUpdateFinanceiroData({ caixaAtual: e.target.value })}
-          className="min-h-[80px] text-sm"
-        />
+        
+        <div className="p-4 rounded-lg border border-border bg-card space-y-4">
+          {/* NICE FOODS */}
+          <div className="flex items-center justify-between gap-4">
+            <label className="text-sm font-medium text-foreground whitespace-nowrap">
+              NICE FOODS
+            </label>
+            <div className="flex items-center gap-2 flex-1 max-w-[200px]">
+              <span className="text-sm text-muted-foreground">R$</span>
+              <Input
+                placeholder="0,00"
+                value={data.caixaNiceFoods}
+                onChange={(e) => onUpdateFinanceiroData({ caixaNiceFoods: e.target.value })}
+                className="h-9 text-sm text-right"
+              />
+            </div>
+          </div>
+          
+          {/* NICE FOODS ECOMMERCE */}
+          <div className="flex items-center justify-between gap-4">
+            <label className="text-sm font-medium text-foreground whitespace-nowrap">
+              NICE FOODS ECOM
+            </label>
+            <div className="flex items-center gap-2 flex-1 max-w-[200px]">
+              <span className="text-sm text-muted-foreground">R$</span>
+              <Input
+                placeholder="0,00"
+                value={data.caixaEcommerce}
+                onChange={(e) => onUpdateFinanceiroData({ caixaEcommerce: e.target.value })}
+                className="h-9 text-sm text-right"
+              />
+            </div>
+          </div>
+          
+          {/* Linha divisória */}
+          <div className="border-t border-border pt-3">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm font-bold text-foreground">TOTAL</span>
+              <span className="text-sm font-bold text-foreground">
+                {formatCurrency(total)}
+              </span>
+            </div>
+          </div>
+        </div>
       </section>
 
-      {/* ETAPA 2: O que vence até domingo */}
+      {/* SEÇÃO 2: O que vence até domingo */}
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <div className="flex items-center justify-center w-6 h-6 rounded-full bg-foreground text-background text-xs font-bold">
@@ -104,14 +146,13 @@ export function FinanceiroMode({
           <h3 className="text-sm font-semibold text-foreground">O que vence até domingo</h3>
         </div>
         
-        {/* Sources checklist */}
-        <div className="p-4 rounded-lg border border-border bg-card">
-          <p className="text-xs text-muted-foreground mb-3">Onde você verificou?</p>
-          <div className="flex flex-wrap gap-3">
+        <div className="p-4 rounded-lg border border-border bg-card space-y-4">
+          {/* Verificações */}
+          <div className="space-y-3">
             {VENCIMENTO_SOURCES.map(({ key, label }) => (
               <label 
                 key={key} 
-                className="flex items-center gap-2 cursor-pointer"
+                className="flex items-center gap-3 cursor-pointer"
               >
                 <Checkbox
                   checked={data.vencimentos[key as keyof typeof data.vencimentos]}
@@ -130,14 +171,14 @@ export function FinanceiroMode({
           </div>
           
           {allSourcesChecked && (
-            <div className="mt-3 flex items-center gap-2 text-xs text-green-600">
+            <div className="flex items-center gap-2 text-xs text-green-600">
               <CheckCircle2 className="h-4 w-4" />
-              <span>Todas as fontes verificadas</span>
+              <span>Todas as verificações feitas</span>
             </div>
           )}
         </div>
 
-        {/* Items list */}
+        {/* Itens de vencimento */}
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">Itens que vencem:</p>
           
@@ -192,40 +233,33 @@ export function FinanceiroMode({
             </Button>
           </div>
         </div>
-      </section>
 
-      {/* ETAPA 3: Agendamento */}
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-foreground text-background text-xs font-bold">
-            3
-          </div>
-          <h3 className="text-sm font-semibold text-foreground">Agendamento confirmado</h3>
+        {/* Agendamento confirmado - junto com vencimentos */}
+        <div className="p-4 rounded-lg border border-border bg-card">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <Checkbox
+              checked={data.agendamentoConfirmado}
+              onCheckedChange={(checked) => 
+                onUpdateFinanceiroData({ agendamentoConfirmado: checked === true })
+              }
+            />
+            <span className="text-sm">Confirmei o que foi e o que não foi agendado</span>
+          </label>
         </div>
-        
-        <label className="flex items-center gap-3 p-4 rounded-lg border border-border bg-card cursor-pointer">
-          <Checkbox
-            checked={data.agendamentoConfirmado}
-            onCheckedChange={(checked) => 
-              onUpdateFinanceiroData({ agendamentoConfirmado: checked === true })
-            }
-          />
-          <span className="text-sm">Confirmei o que foi e o que não foi agendado</span>
-        </label>
       </section>
 
-      {/* ETAPA 4: Classificação A/B/C */}
+      {/* SEÇÃO 3: Classificação A/B/C - apenas se tiver itens */}
       {hasItems && (
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <div className="flex items-center justify-center w-6 h-6 rounded-full bg-foreground text-background text-xs font-bold">
-              4
+              3
             </div>
             <h3 className="text-sm font-semibold text-foreground">Classificação A/B/C</h3>
           </div>
           
           <div className="p-4 rounded-lg bg-muted/50 border border-border">
-            <p className="text-xs text-muted-foreground mb-3">
+            <p className="text-xs text-muted-foreground">
               <strong>A</strong> = Crítico, pagar agora &nbsp;|&nbsp; 
               <strong>B</strong> = Importante, pode esperar &nbsp;|&nbsp; 
               <strong>C</strong> = Não urgente
@@ -265,38 +299,55 @@ export function FinanceiroMode({
         </section>
       )}
 
-      {/* ETAPA 5: Decisão final */}
+      {/* SEÇÃO 4: Decisões da Semana */}
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <div className="flex items-center justify-center w-6 h-6 rounded-full bg-foreground text-background text-xs font-bold">
-            5
+            {hasItems ? '4' : '3'}
           </div>
-          <h3 className="text-sm font-semibold text-foreground">Decisão final da semana</h3>
+          <h3 className="text-sm font-semibold text-foreground">Decisões da semana</h3>
         </div>
         
-        <div className="flex flex-wrap gap-2">
-          {DECISIONS.map(d => (
-            <Button
-              key={d}
-              variant={data.decisaoFinal === d ? "default" : "outline"}
-              size="sm"
-              onClick={() => onUpdateFinanceiroData({ decisaoFinal: d })}
-              className="capitalize"
-            >
-              {d === 'pagar' && '💵 '}
-              {d === 'segurar' && '⏸️ '}
-              {d === 'renegociar' && '🤝 '}
-              {d}
-            </Button>
-          ))}
-        </div>
-        
-        {data.decisaoFinal && (
-          <div className="flex items-center gap-2 text-xs text-green-600">
-            <Check className="h-4 w-4" />
-            <span>Decisão registrada: {data.decisaoFinal}</span>
+        <div className="space-y-4">
+          {/* Pagar */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground flex items-center gap-2">
+              💵 O que vou pagar:
+            </label>
+            <Textarea
+              placeholder="Ex: Fornecedor X, conta de luz..."
+              value={data.decisaoPagar}
+              onChange={(e) => onUpdateFinanceiroData({ decisaoPagar: e.target.value })}
+              className="min-h-[60px] text-sm"
+            />
           </div>
-        )}
+          
+          {/* Segurar */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground flex items-center gap-2">
+              ⏸️ O que vou segurar:
+            </label>
+            <Textarea
+              placeholder="Ex: Compra de estoque, renovação..."
+              value={data.decisaoSegurar}
+              onChange={(e) => onUpdateFinanceiroData({ decisaoSegurar: e.target.value })}
+              className="min-h-[60px] text-sm"
+            />
+          </div>
+          
+          {/* Renegociar */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground flex items-center gap-2">
+              🤝 O que vou renegociar:
+            </label>
+            <Textarea
+              placeholder="Ex: Parcela do banco, prazo com fornecedor..."
+              value={data.decisaoRenegociar}
+              onChange={(e) => onUpdateFinanceiroData({ decisaoRenegociar: e.target.value })}
+              className="min-h-[60px] text-sm"
+            />
+          </div>
+        </div>
       </section>
     </div>
   );

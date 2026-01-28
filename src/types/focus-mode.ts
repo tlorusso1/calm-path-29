@@ -21,17 +21,28 @@ export interface ChecklistItem {
 
 // Financeiro Mode specific structure
 export interface FinanceiroStage {
-  caixaAtual: string;
+  // Caixa separado por empresa
+  caixaNiceFoods: string;
+  caixaEcommerce: string;
+  
+  // Verificações simplificadas
   vencimentos: {
     dda: boolean;
     email: boolean;
     whatsapp: boolean;
-    cobrancas: boolean;
     planilha: boolean;
   };
+  
+  // Itens de vencimento
   itensVencimento: ChecklistItem[];
+  
+  // Agendamento
   agendamentoConfirmado: boolean;
-  decisaoFinal?: 'pagar' | 'segurar' | 'renegociar';
+  
+  // Decisões como texto livre
+  decisaoPagar: string;
+  decisaoSegurar: string;
+  decisaoRenegociar: string;
 }
 
 export interface FocusMode {
@@ -144,15 +155,17 @@ export const DEFAULT_CHECKLISTS: Record<FocusModeId, Omit<ChecklistItem, 'id' | 
 };
 
 export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
-  caixaAtual: '',
+  caixaNiceFoods: '',
+  caixaEcommerce: '',
   vencimentos: {
     dda: false,
     email: false,
     whatsapp: false,
-    cobrancas: false,
     planilha: false,
   },
   itensVencimento: [],
   agendamentoConfirmado: false,
-  decisaoFinal: undefined,
+  decisaoPagar: '',
+  decisaoSegurar: '',
+  decisaoRenegociar: '',
 };
