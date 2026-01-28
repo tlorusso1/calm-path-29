@@ -8,11 +8,14 @@ import {
   FinanceiroStage,
   MarketingStage,
   SupplyChainStage,
+  BacklogStage,
+  BacklogTarefa,
   MODE_CONFIGS, 
   DEFAULT_CHECKLISTS,
   DEFAULT_FINANCEIRO_DATA,
   DEFAULT_MARKETING_DATA,
-  DEFAULT_SUPPLYCHAIN_DATA
+  DEFAULT_SUPPLYCHAIN_DATA,
+  DEFAULT_BACKLOG_DATA
 } from '@/types/focus-mode';
 
 const FOCUS_MODES_KEY = 'focoagora_focus_modes';
@@ -59,6 +62,10 @@ function createDefaultMode(id: FocusModeId): FocusMode {
     mode.supplyChainData = { ...DEFAULT_SUPPLYCHAIN_DATA };
   }
 
+  if (id === 'backlog') {
+    mode.backlogData = { ...DEFAULT_BACKLOG_DATA, tarefas: [], ideias: [] };
+  }
+
   return mode;
 }
 
@@ -92,11 +99,19 @@ function loadState(): FocusModeState {
     let needsUpdate = false;
     const updatedModes = { ...state.modes };
 
-    // Reset daily modes if new day
+    // Reset daily modes if new day (EXCEPT backlog which persists)
     if (state.date !== today) {
       (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
         if (MODE_CONFIGS[id].frequency === 'daily') {
-          updatedModes[id] = createDefaultMode(id);
+          if (id === 'backlog') {
+            // Preserve backlog data, only reset status
+            updatedModes[id] = {
+              ...createDefaultMode(id),
+              backlogData: state.modes.backlog?.backlogData ?? { ...DEFAULT_BACKLOG_DATA, tarefas: [], ideias: [] },
+            };
+          } else {
+            updatedModes[id] = createDefaultMode(id);
+          }
           needsUpdate = true;
         }
       });
@@ -406,6 +421,119 @@ export function useFocusModes() {
     }));
   }, []);
 
+  // Backlog-specific functions
+  const updateBacklogData = useCallback((data: Partial<BacklogStage>) => {
+    setState(prev => ({
+      ...prev,
+      modes: {
+        ...prev.modes,
+        backlog: {
+          ...prev.modes.backlog,
+          backlogData: {
+            ...prev.modes.backlog.backlogData!,
+            ...data,
+          },
+        },
+      },
+    }));
+  }, []);
+
+  const addBacklogTarefa = useCallback((tarefa: Omit<BacklogTarefa, 'id'>) => {
+    const newTarefa: BacklogTarefa = {
+      ...tarefa,
+      id: generateId(),
+    };
+    
+    setState(prev => ({
+      ...prev,
+      modes: {
+        ...prev.modes,
+        backlog: {
+          ...prev.modes.backlog,
+          backlogData: {
+            ...prev.modes.backlog.backlogData!,
+            tarefas: [...(prev.modes.backlog.backlogData?.tarefas || []), newTarefa],
+          },
+        },
+      },
+    }));
+    
+    return newTarefa;
+  }, []);
+
+  const updateBacklogTarefa = useCallback((id: string, data: Partial<BacklogTarefa>) => {
+    setState(prev => ({
+      ...prev,
+      modes: {
+        ...prev.modes,
+        backlog: {
+          ...prev.modes.backlog,
+          backlogData: {
+            ...prev.modes.backlog.backlogData!,
+            tarefas: prev.modes.backlog.backlogData!.tarefas.map(t =>
+              t.id === id ? { ...t, ...data } : t
+            ),
+          },
+        },
+      },
+    }));
+  }, []);
+
+  const removeBacklogTarefa = useCallback((id: string) => {
+    setState(prev => ({
+      ...prev,
+      modes: {
+        ...prev.modes,
+        backlog: {
+          ...prev.modes.backlog,
+          backlogData: {
+            ...prev.modes.backlog.backlogData!,
+            tarefas: prev.modes.backlog.backlogData!.tarefas.filter(t => t.id !== id),
+          },
+        },
+      },
+    }));
+  }, []);
+
+  const addBacklogIdeia = useCallback((texto: string) => {
+    const newIdeia = {
+      id: generateId(),
+      texto: texto.trim(),
+    };
+    
+    setState(prev => ({
+      ...prev,
+      modes: {
+        ...prev.modes,
+        backlog: {
+          ...prev.modes.backlog,
+          backlogData: {
+            ...prev.modes.backlog.backlogData!,
+            ideias: [...(prev.modes.backlog.backlogData?.ideias || []), newIdeia],
+          },
+        },
+      },
+    }));
+    
+    return newIdeia;
+  }, []);
+
+  const removeBacklogIdeia = useCallback((id: string) => {
+    setState(prev => ({
+      ...prev,
+      modes: {
+        ...prev.modes,
+        backlog: {
+          ...prev.modes.backlog,
+          backlogData: {
+            ...prev.modes.backlog.backlogData!,
+            ideias: prev.modes.backlog.backlogData!.ideias.filter(i => i.id !== id),
+          },
+        },
+      },
+    }));
+  }, []);
+
   return {
     activeMode: state.activeMode,
     modes: state.modes,
@@ -429,5 +557,12 @@ export function useFocusModes() {
     updateMarketingData,
     // Supply Chain-specific
     updateSupplyChainData,
+    // Backlog-specific
+    updateBacklogData,
+    addBacklogTarefa,
+    updateBacklogTarefa,
+    removeBacklogTarefa,
+    addBacklogIdeia,
+    removeBacklogIdeia,
   };
 }

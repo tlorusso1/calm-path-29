@@ -26,6 +26,13 @@ const Index = () => {
     updateMarketingData,
     // Supply Chain-specific
     updateSupplyChainData,
+    // Backlog-specific
+    updateBacklogData,
+    addBacklogTarefa,
+    updateBacklogTarefa,
+    removeBacklogTarefa,
+    addBacklogIdeia,
+    removeBacklogIdeia,
   } = useFocusModes();
 
   return (
@@ -57,6 +64,13 @@ const Index = () => {
             onUpdateMarketingData={updateMarketingData}
             // Supply Chain-specific
             onUpdateSupplyChainData={updateSupplyChainData}
+            // Backlog-specific
+            onUpdateBacklogData={updateBacklogData}
+            onAddBacklogTarefa={addBacklogTarefa}
+            onUpdateBacklogTarefa={updateBacklogTarefa}
+            onRemoveBacklogTarefa={removeBacklogTarefa}
+            onAddBacklogIdeia={addBacklogIdeia}
+            onRemoveBacklogIdeia={removeBacklogIdeia}
           />
         ) : (
           <NoModeSelected lastCompletedMode={lastCompletedMode} />

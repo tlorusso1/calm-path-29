@@ -99,6 +99,30 @@ export interface SupplyChainStage {
   };
 }
 
+// Backlog Mode specific structure
+export type BacklogQuandoFazer = 'hoje' | 'proximo' | 'depois';
+export type BacklogTempoEstimado = '15min' | '30min' | '1h' | '2h' | '+2h';
+
+export interface BacklogTarefa {
+  id: string;
+  descricao: string;
+  tempoEstimado: BacklogTempoEstimado;
+  urgente: boolean;
+  quandoFazer: BacklogQuandoFazer;
+  completed: boolean;
+}
+
+export interface BacklogIdeia {
+  id: string;
+  texto: string;
+}
+
+export interface BacklogStage {
+  tempoDisponivelHoje: number; // em minutos
+  tarefas: BacklogTarefa[];
+  ideias: BacklogIdeia[];
+}
+
 export interface FocusMode {
   id: FocusModeId;
   icon: string;
@@ -110,6 +134,7 @@ export interface FocusMode {
   financeiroData?: FinanceiroStage;
   marketingData?: MarketingStage;
   supplyChainData?: SupplyChainStage;
+  backlogData?: BacklogStage;
   completedAt?: string;
 }
 
@@ -259,4 +284,10 @@ export const DEFAULT_SUPPLYCHAIN_DATA: SupplyChainStage = {
     saldoFinalEstoque: false,
     avaliarComportamento: false,
   },
+};
+
+export const DEFAULT_BACKLOG_DATA: BacklogStage = {
+  tempoDisponivelHoje: 480, // 8 horas default
+  tarefas: [],
+  ideias: [],
 };

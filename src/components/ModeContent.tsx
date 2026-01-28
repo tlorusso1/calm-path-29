@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa } from '@/types/focus-mode';
 import { Button } from '@/components/ui/button';
 import { FinanceiroMode } from '@/components/modes/FinanceiroMode';
 import { MarketingMode } from '@/components/modes/MarketingMode';
@@ -27,6 +27,13 @@ interface ModeContentProps {
   onUpdateMarketingData?: (data: Partial<MarketingStage>) => void;
   // Supply Chain-specific
   onUpdateSupplyChainData?: (data: Partial<SupplyChainStage>) => void;
+  // Backlog-specific
+  onUpdateBacklogData?: (data: Partial<BacklogStage>) => void;
+  onAddBacklogTarefa?: (tarefa: Omit<BacklogTarefa, 'id'>) => void;
+  onUpdateBacklogTarefa?: (id: string, data: Partial<BacklogTarefa>) => void;
+  onRemoveBacklogTarefa?: (id: string) => void;
+  onAddBacklogIdeia?: (texto: string) => void;
+  onRemoveBacklogIdeia?: (id: string) => void;
 }
 
 export function ModeContent({
@@ -45,6 +52,12 @@ export function ModeContent({
   onRemoveFinanceiroItem,
   onUpdateMarketingData,
   onUpdateSupplyChainData,
+  onUpdateBacklogData,
+  onAddBacklogTarefa,
+  onUpdateBacklogTarefa,
+  onRemoveBacklogTarefa,
+  onAddBacklogIdeia,
+  onRemoveBacklogIdeia,
 }: ModeContentProps) {
   const renderModeContent = () => {
     const commonProps = {
@@ -90,7 +103,17 @@ export function ModeContent({
       case 'pre-reuniao-verter':
         return <PreReuniaoVerterMode {...commonProps} />;
       case 'backlog':
-        return <BacklogMode {...commonProps} />;
+        return (
+          <BacklogMode 
+            mode={mode}
+            onUpdateBacklogData={onUpdateBacklogData!}
+            onAddTarefa={onAddBacklogTarefa!}
+            onUpdateTarefa={onUpdateBacklogTarefa!}
+            onRemoveTarefa={onRemoveBacklogTarefa!}
+            onAddIdeia={onAddBacklogIdeia!}
+            onRemoveIdeia={onRemoveBacklogIdeia!}
+          />
+        );
       default:
         return null;
     }
