@@ -1,13 +1,26 @@
+import { useState, useEffect } from 'react';
 import { useFocusModes } from '@/hooks/useFocusModes';
+import { useAuth } from '@/contexts/AuthContext';
 import { ModeSelector } from '@/components/ModeSelector';
 import { ModeContent } from '@/components/ModeContent';
 import { NoModeSelected } from '@/components/NoModeSelected';
+import { LocalStorageMigration } from '@/components/LocalStorageMigration';
+import { Button } from '@/components/ui/button';
+import { LogOut } from 'lucide-react';
+
+const FOCUS_MODES_KEY = 'focoagora_focus_modes';
+const PROJECTS_KEY = 'focoagora_projects';
 
 const Index = () => {
+  const { signOut } = useAuth();
+  const [showMigration, setShowMigration] = useState(false);
+  const [migrationChecked, setMigrationChecked] = useState(false);
+
   const {
     activeMode,
     modes,
     lastCompletedMode,
+    isLoading,
     setActiveMode,
     toggleItemComplete,
     setItemClassification,
@@ -35,8 +48,47 @@ const Index = () => {
     removeBacklogIdeia,
   } = useFocusModes();
 
+  // Check for localStorage data to migrate
+  useEffect(() => {
+    if (!isLoading && !migrationChecked) {
+      const focusModesData = localStorage.getItem(FOCUS_MODES_KEY);
+      const projectsData = localStorage.getItem(PROJECTS_KEY);
+      if (focusModesData || projectsData) {
+        setShowMigration(true);
+      }
+      setMigrationChecked(true);
+    }
+  }, [isLoading, migrationChecked]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Carregando seus dados...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (showMigration) {
+    return <LocalStorageMigration onComplete={() => setShowMigration(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* Logout button in top-right corner */}
+      <div className="absolute top-3 right-4 z-20">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={signOut}
+          title="Sair"
+        >
+          <LogOut className="h-4 w-4" />
+        </Button>
+      </div>
+
       <ModeSelector
         activeMode={activeMode}
         modes={modes}
