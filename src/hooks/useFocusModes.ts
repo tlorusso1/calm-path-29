@@ -17,6 +17,13 @@ import {
   DEFAULT_SUPPLYCHAIN_DATA,
   DEFAULT_BACKLOG_DATA
 } from '@/types/focus-mode';
+import {
+  calculateFinanceiroStatus,
+  calculateMarketingStatus,
+  calculateSupplyChainStatus,
+  calculateChecklistStatus,
+  calculateModeStatus,
+} from '@/utils/modeStatusCalculator';
 
 const FOCUS_MODES_KEY = 'focoagora_focus_modes';
 
@@ -127,6 +134,14 @@ function loadState(): FocusModeState {
       });
     }
 
+    // Recalculate status for all modes based on their data
+    (Object.keys(updatedModes) as FocusModeId[]).forEach(id => {
+      updatedModes[id] = {
+        ...updatedModes[id],
+        status: calculateModeStatus(updatedModes[id]),
+      };
+    });
+
     if (needsUpdate) {
       return {
         date: today,
@@ -136,7 +151,10 @@ function loadState(): FocusModeState {
       };
     }
     
-    return state;
+    return {
+      ...state,
+      modes: updatedModes,
+    };
   } catch {
     return createDefaultState();
   }
@@ -152,41 +170,29 @@ export function useFocusModes() {
 
   const setActiveMode = useCallback((modeId: FocusModeId | null) => {
     setState(prev => {
-      const newModes = { ...prev.modes };
-      
-      // Set previous active mode back to neutral if it wasn't completed
-      if (prev.activeMode && newModes[prev.activeMode].status === 'in-progress') {
-        newModes[prev.activeMode] = {
-          ...newModes[prev.activeMode],
-          status: 'neutral',
-        };
-      }
-      
-      // Set new active mode to in-progress
-      if (modeId && newModes[modeId].status !== 'completed') {
-        newModes[modeId] = {
-          ...newModes[modeId],
-          status: 'in-progress',
-        };
-      }
-      
-      return { ...prev, activeMode: modeId, modes: newModes };
+      return { ...prev, activeMode: modeId };
     });
   }, []);
 
   const toggleItemComplete = useCallback((modeId: FocusModeId, itemId: string) => {
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        [modeId]: {
-          ...prev.modes[modeId],
-          items: prev.modes[modeId].items.map(item =>
-            item.id === itemId ? { ...item, completed: !item.completed } : item
-          ),
+    setState(prev => {
+      const updatedItems = prev.modes[modeId].items.map(item =>
+        item.id === itemId ? { ...item, completed: !item.completed } : item
+      );
+      const newStatus = calculateChecklistStatus(updatedItems);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          [modeId]: {
+            ...prev.modes[modeId],
+            items: updatedItems,
+            status: newStatus,
+          },
         },
-      },
-    }));
+      };
+    });
   }, []);
 
   const setItemClassification = useCallback((modeId: FocusModeId, itemId: string, classification: 'A' | 'B' | 'C') => {
@@ -241,31 +247,43 @@ export function useFocusModes() {
       completed: false,
     };
     
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        [modeId]: {
-          ...prev.modes[modeId],
-          items: [...prev.modes[modeId].items, newItem],
+    setState(prev => {
+      const updatedItems = [...prev.modes[modeId].items, newItem];
+      const newStatus = calculateChecklistStatus(updatedItems);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          [modeId]: {
+            ...prev.modes[modeId],
+            items: updatedItems,
+            status: newStatus,
+          },
         },
-      },
-    }));
+      };
+    });
     
     return newItem;
   }, []);
 
   const removeItem = useCallback((modeId: FocusModeId, itemId: string) => {
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        [modeId]: {
-          ...prev.modes[modeId],
-          items: prev.modes[modeId].items.filter(item => item.id !== itemId),
+    setState(prev => {
+      const updatedItems = prev.modes[modeId].items.filter(item => item.id !== itemId);
+      const newStatus = calculateChecklistStatus(updatedItems);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          [modeId]: {
+            ...prev.modes[modeId],
+            items: updatedItems,
+            status: newStatus,
+          },
         },
-      },
-    }));
+      };
+    });
   }, []);
 
   const completeMode = useCallback((modeId: FocusModeId) => {
@@ -296,19 +314,30 @@ export function useFocusModes() {
 
   // Financeiro-specific functions
   const updateFinanceiroData = useCallback((data: Partial<FinanceiroStage>) => {
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        financeiro: {
-          ...prev.modes.financeiro,
-          financeiroData: {
-            ...prev.modes.financeiro.financeiroData!,
-            ...data,
+    setState(prev => {
+      const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
+      const newFinanceiroData = {
+        ...currentData,
+        ...data,
+        vencimentos: {
+          ...currentData.vencimentos,
+          ...data.vencimentos,
+        },
+      };
+      const newStatus = calculateFinanceiroStatus(newFinanceiroData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          financeiro: {
+            ...prev.modes.financeiro,
+            financeiroData: newFinanceiroData,
+            status: newStatus,
           },
         },
-      },
-    }));
+      };
+    });
   }, []);
 
   const addFinanceiroItem = useCallback((text: string) => {
@@ -318,107 +347,165 @@ export function useFocusModes() {
       completed: false,
     };
     
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        financeiro: {
-          ...prev.modes.financeiro,
-          financeiroData: {
-            ...prev.modes.financeiro.financeiroData!,
-            itensVencimento: [...(prev.modes.financeiro.financeiroData?.itensVencimento || []), newItem],
+    setState(prev => {
+      const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
+      const newFinanceiroData = {
+        ...currentData,
+        itensVencimento: [...(currentData.itensVencimento || []), newItem],
+      };
+      const newStatus = calculateFinanceiroStatus(newFinanceiroData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          financeiro: {
+            ...prev.modes.financeiro,
+            financeiroData: newFinanceiroData,
+            status: newStatus,
           },
         },
-      },
-    }));
+      };
+    });
     
     return newItem;
   }, []);
 
   const toggleFinanceiroItemComplete = useCallback((itemId: string) => {
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        financeiro: {
-          ...prev.modes.financeiro,
-          financeiroData: {
-            ...prev.modes.financeiro.financeiroData!,
-            itensVencimento: prev.modes.financeiro.financeiroData!.itensVencimento.map(item =>
-              item.id === itemId ? { ...item, completed: !item.completed } : item
-            ),
+    setState(prev => {
+      const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
+      const newFinanceiroData = {
+        ...currentData,
+        itensVencimento: currentData.itensVencimento.map(item =>
+          item.id === itemId ? { ...item, completed: !item.completed } : item
+        ),
+      };
+      const newStatus = calculateFinanceiroStatus(newFinanceiroData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          financeiro: {
+            ...prev.modes.financeiro,
+            financeiroData: newFinanceiroData,
+            status: newStatus,
           },
         },
-      },
-    }));
+      };
+    });
   }, []);
 
   const setFinanceiroItemClassification = useCallback((itemId: string, classification: 'A' | 'B' | 'C') => {
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        financeiro: {
-          ...prev.modes.financeiro,
-          financeiroData: {
-            ...prev.modes.financeiro.financeiroData!,
-            itensVencimento: prev.modes.financeiro.financeiroData!.itensVencimento.map(item =>
-              item.id === itemId ? { ...item, classification } : item
-            ),
+    setState(prev => {
+      const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
+      const newFinanceiroData = {
+        ...currentData,
+        itensVencimento: currentData.itensVencimento.map(item =>
+          item.id === itemId ? { ...item, classification } : item
+        ),
+      };
+      const newStatus = calculateFinanceiroStatus(newFinanceiroData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          financeiro: {
+            ...prev.modes.financeiro,
+            financeiroData: newFinanceiroData,
+            status: newStatus,
           },
         },
-      },
-    }));
+      };
+    });
   }, []);
 
   const removeFinanceiroItem = useCallback((itemId: string) => {
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        financeiro: {
-          ...prev.modes.financeiro,
-          financeiroData: {
-            ...prev.modes.financeiro.financeiroData!,
-            itensVencimento: prev.modes.financeiro.financeiroData!.itensVencimento.filter(item => item.id !== itemId),
+    setState(prev => {
+      const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
+      const newFinanceiroData = {
+        ...currentData,
+        itensVencimento: currentData.itensVencimento.filter(item => item.id !== itemId),
+      };
+      const newStatus = calculateFinanceiroStatus(newFinanceiroData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          financeiro: {
+            ...prev.modes.financeiro,
+            financeiroData: newFinanceiroData,
+            status: newStatus,
           },
         },
-      },
-    }));
+      };
+    });
   }, []);
 
   // Marketing-specific functions
   const updateMarketingData = useCallback((data: Partial<MarketingStage>) => {
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        marketing: {
-          ...prev.modes.marketing,
-          marketingData: {
-            ...prev.modes.marketing.marketingData!,
-            ...data,
+    setState(prev => {
+      const currentData = prev.modes.marketing.marketingData ?? DEFAULT_MARKETING_DATA;
+      const newMarketingData = {
+        ...currentData,
+        ...data,
+        verificacoes: {
+          ...currentData.verificacoes,
+          ...data.verificacoes,
+        },
+      };
+      const newStatus = calculateMarketingStatus(newMarketingData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          marketing: {
+            ...prev.modes.marketing,
+            marketingData: newMarketingData,
+            status: newStatus,
           },
         },
-      },
-    }));
+      };
+    });
   }, []);
 
   // Supply Chain-specific functions
   const updateSupplyChainData = useCallback((data: Partial<SupplyChainStage>) => {
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        supplychain: {
-          ...prev.modes.supplychain,
-          supplyChainData: {
-            ...prev.modes.supplychain.supplyChainData!,
-            ...data,
+    setState(prev => {
+      const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
+      const newSupplyChainData = {
+        ...currentData,
+        ...data,
+        semanal: {
+          ...currentData.semanal,
+          ...data.semanal,
+        },
+        quinzenal: {
+          ...currentData.quinzenal,
+          ...data.quinzenal,
+        },
+        mensal: {
+          ...currentData.mensal,
+          ...data.mensal,
+        },
+      };
+      const newStatus = calculateSupplyChainStatus(newSupplyChainData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          supplychain: {
+            ...prev.modes.supplychain,
+            supplyChainData: newSupplyChainData,
+            status: newStatus,
           },
         },
-      },
-    }));
+      };
+    });
   }, []);
 
   // Backlog-specific functions
