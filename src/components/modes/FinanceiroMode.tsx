@@ -50,7 +50,21 @@ export function FinanceiroMode({
   onRemoveItem,
 }: FinanceiroModeProps) {
   const [newItemText, setNewItemText] = useState('');
-  const data = mode.financeiroData ?? DEFAULT_DATA;
+  
+  // Merge with defaults to handle partial/missing data from localStorage
+  const data: FinanceiroStage = {
+    caixaAtual: mode.financeiroData?.caixaAtual ?? '',
+    vencimentos: {
+      dda: mode.financeiroData?.vencimentos?.dda ?? false,
+      email: mode.financeiroData?.vencimentos?.email ?? false,
+      whatsapp: mode.financeiroData?.vencimentos?.whatsapp ?? false,
+      cobrancas: mode.financeiroData?.vencimentos?.cobrancas ?? false,
+      planilha: mode.financeiroData?.vencimentos?.planilha ?? false,
+    },
+    itensVencimento: mode.financeiroData?.itensVencimento ?? [],
+    agendamentoConfirmado: mode.financeiroData?.agendamentoConfirmado ?? false,
+    decisaoFinal: mode.financeiroData?.decisaoFinal,
+  };
   
   const allSourcesChecked = Object.values(data.vencimentos).every(v => v);
   const hasItems = data.itensVencimento.length > 0;
