@@ -1,284 +1,204 @@
 
+# Reestruturacao do Modo Financeiro
 
-# Transformacao: Interface de Foco Ativo com Seletor de Modos
+## Resumo das Mudancas
 
-## Visao Geral
-
-Transformar a aplicacao atual (baseada em blocos de tempo) em uma interface onde **voce escolhe conscientemente** o modo de trabalho. Apenas um modo visivel por vez, sem dashboards ou informacoes concorrentes.
+Reorganizar o modo Financeiro para ser mais claro e pratico, com campos separados para cada empresa, soma automatica e campos de texto para decisoes.
 
 ---
 
-## Arquitetura da Nova Interface
+## Nova Estrutura do Modo Financeiro
 
 ```text
 +------------------------------------------+
-|            SELETOR DE MODOS              |
-|  [FINANCEIRO] [MARKETING] [SUPPLY...]    |
+|  1. CAIXA HOJE                           |
+|                                          |
+|     NICE FOODS         R$ [________]     |
+|     NICE FOODS ECOM    R$ [________]     |
+|     --------------------------------     |
+|     TOTAL              R$ XX.XXX,XX      |
+|                                          |
 +------------------------------------------+
+|  2. O QUE VENCE ATE DOMINGO              |
 |                                          |
-|      "Voce esta no modo: FINANCEIRO"     |
+|     [x] Verifiquei DDA                   |
+|     [x] Verifiquei E-mail                |
+|     [x] Verifiquei WhatsApp              |
+|     [x] Coloquei na planilha             |
 |                                          |
-|        [CONTEUDO DO MODO ATIVO]          |
-|        (checklist/decisoes/items)        |
+|     + [Adicionar item de vencimento]     |
 |                                          |
+|     [x] Confirmei o que foi/nao agendado |
 |                                          |
-|        [BOTAO: "Concluido por agora"]    |
++------------------------------------------+
+|  3. CLASSIFICACAO A/B/C                  |
+|     (aparece apenas se tiver itens)      |
++------------------------------------------+
+|  4. DECISOES DA SEMANA                   |
+|                                          |
+|     Pagar:                               |
+|     [________________________]           |
+|                                          |
+|     Segurar:                             |
+|     [________________________]           |
+|                                          |
+|     Renegociar:                          |
+|     [________________________]           |
 |                                          |
 +------------------------------------------+
 ```
 
 ---
 
-## Novos Arquivos a Criar
+## Alteracoes nos Arquivos
 
 ### 1. `src/types/focus-mode.ts`
 
-Tipos para os modos de foco:
+Atualizar a interface `FinanceiroStage`:
 
 ```typescript
-export type FocusModeId = 
-  | 'financeiro'
-  | 'marketing'
-  | 'supplychain'
-  | 'pre-reuniao-geral'
-  | 'pre-reuniao-ads'
-  | 'pre-reuniao-verter'
-  | 'backlog';
-
-export interface ChecklistItem {
-  id: string;
-  text: string;
-  completed: boolean;
-  classification?: 'A' | 'B' | 'C';
-  decision?: 'pagar' | 'segurar' | 'renegociar' | string;
-  notes?: string;
-}
-
-export interface FocusMode {
-  id: FocusModeId;
-  icon: string;
-  title: string;
-  fixedText: string;
-  items: ChecklistItem[];
-  completedAt?: string;
-}
-
-export interface FocusModeState {
-  activeMode: FocusModeId | null;
-  modes: Record<FocusModeId, FocusMode>;
-  lastCompletedMode?: FocusModeId;
+export interface FinanceiroStage {
+  // Caixa separado por empresa
+  caixaNiceFoods: string;
+  caixaEcommerce: string;
+  
+  // Verificacoes simplificadas
+  vencimentos: {
+    dda: boolean;
+    email: boolean;
+    whatsapp: boolean;
+    planilha: boolean;  // "coloquei na planilha"
+  };
+  
+  // Itens de vencimento
+  itensVencimento: ChecklistItem[];
+  
+  // Agendamento (junto com vencimentos)
+  agendamentoConfirmado: boolean;
+  
+  // Decisoes como texto livre
+  decisaoPagar: string;
+  decisaoSegurar: string;
+  decisaoRenegociar: string;
 }
 ```
+
+**Mudancas principais:**
+- Remover `caixaAtual` (era campo unico)
+- Adicionar `caixaNiceFoods` e `caixaEcommerce`
+- Remover `cobrancas` de vencimentos (simplificar)
+- Substituir `decisaoFinal` por tres campos de texto
 
 ---
 
 ### 2. `src/hooks/useFocusModes.ts`
 
-Hook para gerenciar os modos:
-
-- Persistencia no localStorage
-- Funcoes: `setActiveMode`, `toggleItemComplete`, `setItemClassification`, `setItemDecision`, `completeMode`, `resetMode`, `addBacklogItem`, `markBacklogUrgent`, `setBacklogEstimate`
-- Checklists pre-definidos para cada modo
-- Reset diario opcional
-
----
-
-### 3. `src/components/ModeSelector.tsx`
-
-Seletor visual de modos (sempre visivel no topo):
-
-- Botoes/tabs para cada modo com icones
-- Modo ativo destacado visualmente
-- Ao clicar, troca o modo ativo
-- Design minimalista, uma linha
-
----
-
-### 4. Componentes de Modo Individuais
-
-#### `src/components/modes/FinanceiroMode.tsx`
-- Checklist: Caixa atual, vencimentos 7 dias
-- Classificacao A/B/C por item
-- Decisao: pagar/segurar/renegociar
-- Frase: "Financeiro se decide. Nao se reage."
-
-#### `src/components/modes/MarketingMode.tsx`
-- Checklist: Sobra mes anterior, verba Ads, remarketing, teste pequeno
-- Regras visiveis sobre Ads
-- Frase contextual
-
-#### `src/components/modes/SupplyChainMode.tsx`
-- Checklist: Estoque, producoes, compras 30 dias, o que pode esperar
-- Frase: "Compra errada vira caixa parado."
-
-#### `src/components/modes/PreReuniaoGeralMode.tsx`
-- Checklist apenas de fatos: caixa, faturamento, estoques, producoes, prazos 7d
-- Botao: "Preparacao concluida"
-
-#### `src/components/modes/PreReuniaoAdsMode.tsx`
-- Checklist: resultado anterior, verba, campanhas, remarketing, o que NAO mexer
-- Frase: "Ads respondem ao caixa, nao ao medo."
-
-#### `src/components/modes/PreReuniaoVerterMode.tsx`
-- Checklist: indicadores, caixa/divida, pipeline, atencao semana
-- Frase: "Venda da empresa e estrategia, nao urgencia."
-
-#### `src/components/modes/BacklogMode.tsx`
-- Lista simples de tarefas (reutilizando tasks existentes)
-- Marcar como urgente (sobe pro topo)
-- Estimar tempo: 15min / 30min / 1h
-- Ordenacao: urgentes primeiro, depois ordem de criacao
-- Frase: "Backlog e onde o cerebro descansa."
-
----
-
-### 5. `src/components/ModeContent.tsx`
-
-Componente wrapper que renderiza o modo ativo:
-
-- Switch baseado no `activeMode`
-- Mostra "Voce esta agora no modo: X"
-- Renderiza o componente do modo correto
-- Botao universal "Concluido por agora"
-
----
-
-### 6. `src/components/ChecklistItem.tsx`
-
-Componente reutilizavel para items de checklist:
-
-- Checkbox para marcar como feito
-- Campo opcional de classificacao (A/B/C)
-- Campo opcional de decisao
-- Campo opcional de notas rapidas
-
----
-
-## Arquivos a Modificar
-
-### `src/pages/Index.tsx`
-
-Substituir toda a logica atual por:
+Atualizar `DEFAULT_FINANCEIRO_DATA`:
 
 ```typescript
-const Index = () => {
-  const { 
-    activeMode, 
-    modes, 
-    setActiveMode, 
-    completeMode,
-    // ... outras funcoes
-  } = useFocusModes();
-
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Seletor sempre visivel no topo */}
-      <ModeSelector 
-        activeMode={activeMode}
-        onSelectMode={setActiveMode}
-      />
-      
-      {/* Conteudo do modo ativo */}
-      <main className="max-w-lg mx-auto">
-        {activeMode ? (
-          <ModeContent 
-            mode={modes[activeMode]}
-            onComplete={() => completeMode(activeMode)}
-          />
-        ) : (
-          <NoModeSelected />
-        )}
-      </main>
-    </div>
-  );
+export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
+  caixaNiceFoods: '',
+  caixaEcommerce: '',
+  vencimentos: {
+    dda: false,
+    email: false,
+    whatsapp: false,
+    planilha: false,
+  },
+  itensVencimento: [],
+  agendamentoConfirmado: false,
+  decisaoPagar: '',
+  decisaoSegurar: '',
+  decisaoRenegociar: '',
 };
 ```
 
 ---
 
-### `src/types/task.ts`
+### 3. `src/components/modes/FinanceiroMode.tsx`
 
-Adicionar campos para backlog melhorado:
+Reestruturar o componente com as novas secoes:
+
+#### Secao 1: Caixa Hoje
+- Campo para NICE FOODS (input numerico com R$)
+- Campo para NICE FOODS ECOMMERCE (input numerico com R$)
+- Linha de TOTAL que soma automaticamente os dois valores
+- Funcao `parseCurrency` para limpar o valor e somar
+
+#### Secao 2: O que vence ate domingo (unificada)
+- Checkbox: Verifiquei DDA
+- Checkbox: Verifiquei E-mail
+- Checkbox: Verifiquei WhatsApp
+- Checkbox: Coloquei na planilha
+- Lista de itens de vencimento (add/remove)
+- Checkbox: Confirmei o que foi e o que nao foi agendado
+
+#### Secao 3: Classificacao A/B/C
+- Aparece apenas se tiver itens
+- Mesma logica atual
+
+#### Secao 4: Decisoes da Semana
+- Campo de texto: "O que vou pagar:"
+- Campo de texto: "O que vou segurar:"
+- Campo de texto: "O que vou renegociar:"
+
+---
+
+## Detalhes Tecnicos
+
+### Funcao de Soma Automatica
 
 ```typescript
-export interface Task {
-  // ... campos existentes ...
-  isUrgent?: boolean;        // Marca como urgente
-  estimatedTime?: '15min' | '30min' | '1h';  // Estimativa de tempo
-}
+const parseCurrency = (value: string): number => {
+  // Remove R$, pontos e espacos, troca virgula por ponto
+  const cleaned = value
+    .replace(/[R$\s.]/g, '')
+    .replace(',', '.');
+  return parseFloat(cleaned) || 0;
+};
+
+const formatCurrency = (value: number): string => {
+  return value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  });
+};
+
+const total = parseCurrency(data.caixaNiceFoods) + 
+              parseCurrency(data.caixaEcommerce);
+```
+
+### Campos de Decisao
+
+Usar `Textarea` para permitir multiplas linhas:
+
+```typescript
+<Textarea
+  placeholder="Ex: Fornecedor X, conta de luz..."
+  value={data.decisaoPagar}
+  onChange={(e) => onUpdateFinanceiroData({ 
+    decisaoPagar: e.target.value 
+  })}
+/>
 ```
 
 ---
 
-### `src/hooks/useTasks.ts`
+## Arquivos a Modificar
 
-Adicionar funcoes:
-
-- `markUrgent(id: string)`: Marca tarefa como urgente
-- `setEstimatedTime(id: string, time)`: Define estimativa de tempo
-- Modificar `getSortedTasks()`: Urgentes primeiro
-
----
-
-## Fluxo de Uso
-
-1. Usuario abre o app
-2. Ve o seletor de modos no topo
-3. Clica em "FINANCEIRO"
-4. Tela mostra APENAS o modo FINANCEIRO
-5. Completa/ajusta os items do checklist
-6. Clica em "Concluido por agora"
-7. Volta para o seletor de modos
-8. Sensacao clara: "isso esta resolvido"
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/types/focus-mode.ts` | Atualizar interface FinanceiroStage e DEFAULT_FINANCEIRO_DATA |
+| `src/hooks/useFocusModes.ts` | Atualizar merge de dados para novos campos |
+| `src/components/modes/FinanceiroMode.tsx` | Reestruturar layout completo |
 
 ---
 
-## Estilo Visual
+## Resultado Final
 
-- Layout de coluna unica
-- Muito espaco em branco
-- Tipografia Inter (ja configurada)
-- Destaque forte para modo ativo (bg-foreground, text-background)
-- Modos inativos sutis (text-muted-foreground)
-- Zero graficos, zero animacoes distratoras
-- Interface silenciosa
+O modo Financeiro tera um fluxo mais claro:
 
----
-
-## Resumo de Arquivos
-
-| Acao | Arquivo |
-|------|---------|
-| Criar | `src/types/focus-mode.ts` |
-| Criar | `src/hooks/useFocusModes.ts` |
-| Criar | `src/components/ModeSelector.tsx` |
-| Criar | `src/components/ModeContent.tsx` |
-| Criar | `src/components/ChecklistItem.tsx` |
-| Criar | `src/components/NoModeSelected.tsx` |
-| Criar | `src/components/modes/FinanceiroMode.tsx` |
-| Criar | `src/components/modes/MarketingMode.tsx` |
-| Criar | `src/components/modes/SupplyChainMode.tsx` |
-| Criar | `src/components/modes/PreReuniaoGeralMode.tsx` |
-| Criar | `src/components/modes/PreReuniaoAdsMode.tsx` |
-| Criar | `src/components/modes/PreReuniaoVerterMode.tsx` |
-| Criar | `src/components/modes/BacklogMode.tsx` |
-| Modificar | `src/pages/Index.tsx` |
-| Modificar | `src/types/task.ts` |
-| Modificar | `src/hooks/useTasks.ts` |
-
----
-
-## Componentes Existentes
-
-Os seguintes componentes serao **removidos ou nao utilizados** na nova interface:
-
-- `OpeningBlock.tsx` (substituido por seletor de modos)
-- `ClosingBlock.tsx` (substituido por "Concluido por agora")
-- `TrackingBlock.tsx` (funcionalidade integrada nos modos)
-- `CurrentTask.tsx` (substituido pelo BacklogMode)
-- `EmptyState.tsx` (substituido por NoModeSelected)
-- `CaptureButton.tsx` (substituido por adicao direta no BacklogMode)
-- `BacklogAccess.tsx` (o backlog agora e um modo)
-
-O codigo existente sera mantido para referencia, mas nao sera usado.
-
+1. **Caixa hoje** - Preencher valores por empresa, ver total
+2. **Vencimentos** - Marcar verificacoes + listar itens + confirmar agendamento (tudo junto)
+3. **Classificar** - A/B/C nos itens listados
+4. **Decidir** - Campos de texto para cada tipo de decisao
