@@ -11,7 +11,41 @@ export function SupplyChainMode({
   mode,
   onUpdateSupplyChainData,
 }: SupplyChainModeProps) {
-  const data = mode.supplyChainData!;
+  const defaultData: SupplyChainStage = {
+    ritmoAtual: 'semanal',
+    semanal: {
+      saidaEstoque: false,
+      verificarBling: false,
+      produtoForaPadrao: false,
+    },
+    quinzenal: {
+      planejamentoProducao: false,
+      producaoFazSentido: false,
+      ajustarSeNecessario: false,
+    },
+    mensal: {
+      saidaEstoqueMensal: false,
+      saldoFinalEstoque: false,
+      avaliarComportamento: false,
+    },
+  };
+
+  const data: SupplyChainStage = {
+    ...defaultData,
+    ...mode.supplyChainData,
+    semanal: {
+      ...defaultData.semanal,
+      ...mode.supplyChainData?.semanal,
+    },
+    quinzenal: {
+      ...defaultData.quinzenal,
+      ...mode.supplyChainData?.quinzenal,
+    },
+    mensal: {
+      ...defaultData.mensal,
+      ...mode.supplyChainData?.mensal,
+    },
+  };
 
   const handleRitmoChange = (ritmo: SupplyChainRitmo) => {
     onUpdateSupplyChainData({ ritmoAtual: ritmo });

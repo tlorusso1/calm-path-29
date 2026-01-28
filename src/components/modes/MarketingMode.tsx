@@ -14,7 +14,30 @@ export function MarketingMode({
   mode,
   onUpdateMarketingData,
 }: MarketingModeProps) {
-  const data = mode.marketingData!;
+  const defaultData: MarketingStage = {
+    mesFechouPositivo: null,
+    verbaAds: '',
+    focoSemana: '',
+    verificacoes: {
+      campanhasAtivas: false,
+      remarketingRodando: false,
+      conteudoPublicado: false,
+      emailEnviado: false,
+      influencersVerificados: false,
+    },
+    naoFazerSemana: '',
+    decisaoSemana: null,
+    observacaoDecisao: '',
+  };
+
+  const data: MarketingStage = {
+    ...defaultData,
+    ...mode.marketingData,
+    verificacoes: {
+      ...defaultData.verificacoes,
+      ...mode.marketingData?.verificacoes,
+    },
+  };
 
   const handleVerificacaoChange = (key: keyof MarketingStage['verificacoes'], checked: boolean) => {
     onUpdateMarketingData({
