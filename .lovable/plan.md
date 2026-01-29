@@ -1,178 +1,300 @@
 
-# Migração para Banco de Dados com Supabase
+# Reestruturação do Modo Financeiro
 
 ## Visão Geral
 
-Migrar todos os dados do localStorage para o Supabase (banco de dados na nuvem), adicionando autenticação para que você possa:
-- **Fazer login** e ter seus dados seguros
-- **Acessar de qualquer dispositivo** com a mesma conta
-- **Nunca perder dados** mesmo limpando o navegador
-
----
-
-## O Que Vai Mudar Para Você
-
-| Antes | Depois |
-|-------|--------|
-| Abre o app e usa direto | Faz login uma vez (email ou Google) |
-| Dados somem se limpar navegador | Dados ficam salvos na nuvem |
-| Só funciona neste navegador | Funciona em qualquer dispositivo |
-
----
-
-## Etapas da Implementação
-
-### Etapa 1: Habilitar Supabase Cloud
-
-Primeiro passo é conectar o projeto ao Supabase Cloud, que vai criar automaticamente:
-- Banco de dados PostgreSQL
-- Sistema de autenticação
-- APIs seguras
-
-### Etapa 2: Criar Tabelas no Banco
-
-Duas tabelas principais:
+Reorganizar o modo Financeiro em 3 blocos distintos com hierarquia clara:
 
 ```text
-TABELA: focus_mode_states
-+------------------+------------------+
-| Campo            | Tipo             |
-+------------------+------------------+
-| id               | uuid (primário)  |
-| user_id          | uuid (referência)|
-| date             | text             |
-| week_start       | text             |
-| active_mode      | text             |
-| modes            | jsonb            |
-| updated_at       | timestamp        |
-+------------------+------------------+
-
-TABELA: projects
-+------------------+------------------+
-| Campo            | Tipo             |
-+------------------+------------------+
-| id               | uuid (primário)  |
-| user_id          | uuid (referência)|
-| name             | text             |
-| owner            | text             |
-| status           | text             |
-| next_action      | text             |
-| last_checked_at  | timestamp        |
-| created_at       | timestamp        |
-+------------------+------------------+
++----------------------------------+
+|     BLOCO 0: PAINEL DE DECISÃO   |  <-- Contexto estratégico (topo)
+|     Caixa + Saídas + Fôlego      |
++----------------------------------+
+|  BLOCO 1: CHECKLIST DE EXECUÇÃO  |  <-- Verificações operacionais
+|  DDA, Email, WhatsApp, Planilha  |
++----------------------------------+
+|   BLOCO 2: DECISÃO DA SEMANA     |  <-- Ações pós-análise
+|   Pagar / Segurar / Renegociar   |
++----------------------------------+
+|     [Concluído por agora]        |
++----------------------------------+
 ```
-
-### Etapa 3: Políticas de Segurança (RLS)
-
-Cada usuário só vê e edita seus próprios dados:
-- SELECT: apenas user_id = auth.uid()
-- INSERT: user_id = auth.uid()
-- UPDATE: apenas user_id = auth.uid()
-- DELETE: apenas user_id = auth.uid()
-
-### Etapa 4: Tela de Login
-
-Uma tela simples com:
-- Login com email/senha
-- Opção de login com Google (opcional)
-- Cadastro de nova conta
-- "Esqueci minha senha"
-
-### Etapa 5: Adaptar os Hooks
-
-Modificar os hooks existentes para:
-1. Buscar dados do Supabase ao fazer login
-2. Salvar mudanças no Supabase (não mais localStorage)
-3. Manter sincronizado em tempo real
-
-### Etapa 6: Migração de Dados Existentes
-
-Ao fazer primeiro login:
-- Verificar se tem dados no localStorage
-- Perguntar se quer importar para a conta
-- Migrar automaticamente
 
 ---
 
-## Arquivos a Criar
+## BLOCO 0 — Painel de Decisão (TOPO)
 
-| Arquivo | Propósito |
-|---------|-----------|
-| `src/pages/Auth.tsx` | Tela de login/cadastro |
-| `src/contexts/AuthContext.tsx` | Gerenciar estado de autenticação |
-| `src/hooks/useSupabaseFocusModes.ts` | Hook para buscar/salvar modos |
-| `src/hooks/useSupabaseProjects.ts` | Hook para buscar/salvar projetos |
+### Estrutura Visual
+
+```text
+┌─────────────────────────────────────┐
+│  Caixa hoje NICE FOODS      R$ ___  │
+│  Caixa hoje NICE FOODS ECOM R$ ___  │
+│  ─────────────────────────────────  │
+│  TOTAL                      R$ XXX  │
+├─────────────────────────────────────┤
+│  Saídas inevitáveis (30 dias)       │
+│  R$ _______________                 │
+├─────────────────────────────────────┤
+│  FÔLEGO ESTIMADO           R$ XXX   │
+│  ████████████ (barra visual)        │
+│                                     │
+│  "Este número governa as decisões   │
+│   da semana."                       │
+└─────────────────────────────────────┘
+```
+
+### Campos Novos
+
+Adicionar à interface `FinanceiroStage`:
+
+```typescript
+saidasInevitaveis: string;  // Novo campo
+```
+
+### Cálculo do Fôlego
+
+```text
+Fôlego = TOTAL - Saídas inevitáveis
+```
+
+### Feedback Visual (cores)
+
+| Fôlego | Cor |
+|--------|-----|
+| >= R$ 50.000 | Verde |
+| R$ 20.000 - R$ 49.999 | Amarelo |
+| < R$ 20.000 | Vermelho |
+
+---
+
+## BLOCO 1 — Checklist de Execução
+
+### Itens do Checklist
+
+1. Verifiquei DDA
+2. Verifiquei E-mail
+3. Verifiquei WhatsApp
+4. Coloquei na planilha (com link clicável)
+5. Itens que vencem (campo de adicionar itens)
+6. Confirmei o que foi ou não agendado
+
+### Link da Planilha
+
+```text
+https://docs.google.com/spreadsheets/d/1xNwAHMM6f8j1NWdWceHks76zLr8zQGHzZ99VHn6VKiM/edit?gid=548762562#gid=548762562
+```
+
+### Mudança Visual
+
+- Remover numeração de seções (era 1, 2, 3...)
+- Usar títulos de bloco em vez de números
+- Este bloco NÃO contém valores monetários (apenas verificações)
+
+---
+
+## BLOCO 2 — Decisão da Semana
+
+### Texto Fixo no Topo
+
+```text
+"Preencher apenas após olhar o fôlego."
+```
+
+### Campos
+
+- O que vou pagar (textarea)
+- O que vou segurar (textarea)
+- O que vou renegociar (textarea)
+
+---
 
 ## Arquivos a Modificar
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/App.tsx` | Adicionar rotas protegidas |
-| `src/pages/Index.tsx` | Verificar autenticação |
-| `src/hooks/useFocusModes.ts` | Integrar com Supabase |
-| `src/hooks/useProjects.ts` | Integrar com Supabase |
+### 1. `src/types/focus-mode.ts`
 
----
+Adicionar novo campo na interface:
 
-## Fluxo do Usuário
+```typescript
+export interface FinanceiroStage {
+  caixaNiceFoods: string;
+  caixaEcommerce: string;
+  saidasInevitaveis: string;  // NOVO
+  // ... resto mantido
+}
+```
+
+Atualizar `DEFAULT_FINANCEIRO_DATA`:
+
+```typescript
+export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
+  caixaNiceFoods: '',
+  caixaEcommerce: '',
+  saidasInevitaveis: '',  // NOVO
+  // ... resto mantido
+};
+```
+
+### 2. `src/components/modes/FinanceiroMode.tsx`
+
+Reestruturar completamente o componente:
 
 ```text
-1. Abre o app
-   ↓
-2. Não está logado?
-   → Vai para tela de login
-   ↓
-3. Faz login (email ou Google)
-   ↓
-4. Primeira vez?
-   → Pergunta se quer importar dados do localStorage
-   ↓
-5. Usa o app normalmente
-   → Todas as mudanças são salvas automaticamente na nuvem
+BLOCO 0: Painel de Decisão
+├── Card com borda destacada
+├── Caixa NICE FOODS (input)
+├── Caixa NICE FOODS ECOM (input)
+├── TOTAL (calculado)
+├── Separador
+├── Saídas inevitáveis 30 dias (input)
+├── Separador
+├── FÔLEGO ESTIMADO (calculado)
+├── Barra de progresso colorida
+└── Texto fixo
+
+BLOCO 1: Checklist de Execução
+├── Título "Checklist de Execução"
+├── Checkbox: Verifiquei DDA
+├── Checkbox: Verifiquei E-mail
+├── Checkbox: Verifiquei WhatsApp
+├── Checkbox: Coloquei na planilha (com link)
+├── Itens que vencem (lista + input)
+└── Checkbox: Confirmei agendamento
+
+BLOCO 2: Decisão da Semana
+├── Título "Decisão da Semana"
+├── Texto: "Preencher apenas após olhar o fôlego."
+├── Textarea: O que vou pagar
+├── Textarea: O que vou segurar
+└── Textarea: O que vou renegociar
+```
+
+### 3. `src/utils/modeStatusCalculator.ts`
+
+Atualizar lógica para incluir novo campo:
+
+```typescript
+export function calculateFinanceiroStatus(data?: FinanceiroStage): ModeStatus {
+  if (!data) return 'neutral';
+  
+  const fields = [
+    (data.caixaNiceFoods ?? '').trim() !== '',
+    (data.caixaEcommerce ?? '').trim() !== '',
+    (data.saidasInevitaveis ?? '').trim() !== '',  // NOVO
+    (data.vencimentos?.dda || data.vencimentos?.email || 
+      data.vencimentos?.whatsapp || data.vencimentos?.planilha) ?? false,
+    data.agendamentoConfirmado ?? false,
+  ];
+  
+  // ... resto igual
+}
 ```
 
 ---
 
-## Detalhes Técnicos
+## Remoção de Seção
 
-### Estrutura do Supabase
-
-Tipo de conexão: **Lovable Cloud** (recomendado)
-- Não precisa criar conta separada no Supabase
-- Integração automática
-- Mais simples de configurar
-
-### Autenticação
-
-Provider inicial: **Email/Senha**
-- Pode adicionar Google depois se quiser
-
-### Sincronização
-
-Estratégia: **Salvar a cada mudança**
-- Cada alteração atualiza o banco imediatamente
-- Usa debounce de 1 segundo para evitar excesso de requisições
-
-### Fallback Offline
-
-Se não tiver internet:
-- Continua usando localStorage temporariamente
-- Sincroniza quando voltar online
+A seção "Classificação A/B/C" será **removida**:
+- Atualmente aparece quando há itens de vencimento
+- Adiciona complexidade desnecessária
+- As decisões agora ficam no Bloco 2 (Pagar/Segurar/Renegociar)
 
 ---
 
-## Segurança
+## Detalhes de Implementação
 
-- Senhas são gerenciadas pelo Supabase Auth (bcrypt)
-- Row Level Security (RLS) garante isolamento de dados
-- HTTPS em todas as comunicações
-- Tokens JWT com expiração
+### Cálculo do Fôlego com Cores
+
+```typescript
+const getFolegoStatus = (folego: number) => {
+  if (folego >= 50000) return { color: 'bg-green-500', label: 'Confortável' };
+  if (folego >= 20000) return { color: 'bg-yellow-500', label: 'Atenção' };
+  return { color: 'bg-red-500', label: 'Crítico' };
+};
+```
+
+### Link da Planilha
+
+O checkbox "Coloquei na planilha" terá um ícone de link externo:
+
+```typescript
+<a 
+  href="https://docs.google.com/spreadsheets/d/1xNwAHMM6f8j1NWdWceHks76zLr8zQGHzZ99VHn6VKiM/edit?gid=548762562#gid=548762562"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="text-primary hover:underline"
+>
+  <ExternalLink className="h-3 w-3 inline ml-1" />
+</a>
+```
 
 ---
 
-## Próximos Passos Após Implementação
+## Resultado Visual Esperado
 
-1. Testar login/cadastro
-2. Verificar se dados estão sendo salvos
-3. Testar em outro navegador/dispositivo
-4. Opcional: Adicionar login com Google
+```text
+┌─────────────────────────────────────────────┐
+│  📊 PAINEL DE DECISÃO                       │
+│                                             │
+│  Caixa hoje NICE FOODS        R$ 45.000,00  │
+│  Caixa hoje NICE FOODS ECOM   R$ 12.000,00  │
+│  ─────────────────────────────────────────  │
+│  TOTAL                        R$ 57.000,00  │
+│                                             │
+│  Saídas inevitáveis (30 dias)               │
+│  R$ 35.000,00                               │
+│                                             │
+│  FÔLEGO ESTIMADO              R$ 22.000,00  │
+│  ███████████░░░░░░ (amarelo)                │
+│                                             │
+│  "Este número governa as decisões da        │
+│   semana."                                  │
+└─────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────┐
+│  ✓ CHECKLIST DE EXECUÇÃO                    │
+│                                             │
+│  [x] Verifiquei DDA                         │
+│  [x] Verifiquei E-mail                      │
+│  [ ] Verifiquei WhatsApp                    │
+│  [x] Coloquei na planilha 🔗                │
+│                                             │
+│  Itens que vencem:                          │
+│  ┌────────────────────────────────────────┐ │
+│  │ [ ] Fornecedor X - R$ 5.000            │ │
+│  │ [ ] Conta de luz - R$ 800              │ │
+│  └────────────────────────────────────────┘ │
+│  [+ Adicionar item]                         │
+│                                             │
+│  [x] Confirmei o que foi ou não agendado    │
+└─────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────┐
+│  📝 DECISÃO DA SEMANA                       │
+│                                             │
+│  "Preencher apenas após olhar o fôlego."    │
+│                                             │
+│  💵 O que vou pagar:                        │
+│  ┌────────────────────────────────────────┐ │
+│  │ Fornecedor X, conta de luz             │ │
+│  └────────────────────────────────────────┘ │
+│                                             │
+│  ⏸️ O que vou segurar:                      │
+│  ┌────────────────────────────────────────┐ │
+│  │ Compra de estoque                      │ │
+│  └────────────────────────────────────────┘ │
+│                                             │
+│  🤝 O que vou renegociar:                   │
+│  ┌────────────────────────────────────────┐ │
+│  │ Prazo com fornecedor Y                 │ │
+│  └────────────────────────────────────────┘ │
+└─────────────────────────────────────────────┘
+
+       [✓ Concluído por agora]
+```
+
+---
+
+## Compatibilidade com Dados Existentes
+
+O novo campo `saidasInevitaveis` terá valor default vazio, garantindo que dados existentes no banco continuem funcionando sem problemas.
