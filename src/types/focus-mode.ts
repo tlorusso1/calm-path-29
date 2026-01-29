@@ -25,6 +25,9 @@ export interface FinanceiroStage {
   caixaNiceFoods: string;
   caixaEcommerce: string;
   
+  // Saídas inevitáveis para cálculo do fôlego
+  saidasInevitaveis: string;
+  
   // Verificações simplificadas
   vencimentos: {
     dda: boolean;
@@ -238,6 +241,7 @@ export const DEFAULT_CHECKLISTS: Record<FocusModeId, Omit<ChecklistItem, 'id' | 
 export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
   caixaNiceFoods: '',
   caixaEcommerce: '',
+  saidasInevitaveis: '',
   vencimentos: {
     dda: false,
     email: false,
