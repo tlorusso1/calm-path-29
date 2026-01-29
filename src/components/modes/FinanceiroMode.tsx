@@ -1,574 +1,433 @@
-import { FocusMode, FinanceiroStage } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA } from '@/types/focus-mode';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { Plus, Trash2, ExternalLink, TrendingUp, CheckSquare, FileText, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { TrendingUp, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { useState } from 'react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/modeStatusCalculator';
 
 interface FinanceiroModeProps {
   mode: FocusMode;
   onUpdateFinanceiroData: (data: Partial<FinanceiroStage>) => void;
-  onAddItem: (text: string) => void;
-  onToggleItem: (itemId: string) => void;
-  onSetClassification: (itemId: string, classification: 'A' | 'B' | 'C') => void;
-  onRemoveItem: (itemId: string) => void;
 }
 
-const PLANILHA_URL = 'https://docs.google.com/spreadsheets/d/1xNwAHMM6f8j1NWdWceHks76zLr8zQGHzZ99VHn6VKiM/edit?gid=548762562#gid=548762562';
-
-// Funções de formatação de moeda
-const parseCurrency = (value: string): number => {
-  const cleaned = value
-    .replace(/[R$\s.]/g, '')
-    .replace(',', '.');
-  return parseFloat(cleaned) || 0;
-};
-
-const formatCurrency = (value: number): string => {
-  return value.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  });
-};
-
-// Status visual do saldo projetado
-const getSaldoStatus = (saldo: number) => {
-  if (saldo >= 50000) return { 
-    color: 'bg-green-500', 
-    textColor: 'text-green-600',
-    bgLight: 'bg-green-50',
-    borderColor: 'border-green-200',
-    label: 'Confortável'
+// Status visual do Caixa Livre Real
+const getCaixaLivreStatus = (valor: number) => {
+  if (valor <= 0) return { 
+    color: 'bg-destructive', 
+    textColor: 'text-destructive',
+    bgLight: 'bg-destructive/10',
+    borderColor: 'border-destructive/30',
+    label: 'Sobrevivência',
+    icon: AlertTriangle,
   };
-  if (saldo >= 20000) return { 
+  if (valor < 30000) return { 
     color: 'bg-yellow-500', 
     textColor: 'text-yellow-600',
-    bgLight: 'bg-yellow-50',
-    borderColor: 'border-yellow-200',
-    label: 'Atenção'
-  };
-  if (saldo > 0) return { 
-    color: 'bg-orange-500', 
-    textColor: 'text-orange-600',
-    bgLight: 'bg-orange-50',
-    borderColor: 'border-orange-200',
-    label: 'Risco'
+    bgLight: 'bg-yellow-50 dark:bg-yellow-900/20',
+    borderColor: 'border-yellow-300',
+    label: 'Atenção',
+    icon: Clock,
   };
   return { 
-    color: 'bg-red-500', 
-    textColor: 'text-red-600',
-    bgLight: 'bg-red-50',
-    borderColor: 'border-red-200',
-    label: 'Crítico'
+    color: 'bg-green-500', 
+    textColor: 'text-green-600',
+    bgLight: 'bg-green-50 dark:bg-green-900/20',
+    borderColor: 'border-green-300',
+    label: 'Estratégia',
+    icon: CheckCircle2,
   };
 };
 
-// Componente de barra comparativa
-const BarraComparativa = ({ 
-  label, 
-  valor, 
-  maxValor, 
-  corClasse,
-  icon: Icon
-}: { 
-  label: string; 
-  valor: number; 
-  maxValor: number; 
-  corClasse: string;
-  icon?: React.ElementType;
-}) => {
-  const percentage = maxValor > 0 ? (valor / maxValor) * 100 : 0;
-  
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-sm">
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          {Icon && <Icon className="h-3.5 w-3.5" />}
-          {label}
-        </span>
-        <span className="font-medium">{formatCurrency(valor)}</span>
-      </div>
-      <div className="h-3 bg-muted rounded-full overflow-hidden">
-        <div 
-          className={cn("h-full rounded-full transition-all duration-500", corClasse)}
-          style={{ width: `${Math.min(percentage, 100)}%` }}
-        />
-      </div>
-    </div>
-  );
+// Status visual do risco
+const getRiscoColor = (risco: 'verde' | 'amarelo' | 'vermelho') => {
+  switch (risco) {
+    case 'verde': return 'bg-green-500';
+    case 'amarelo': return 'bg-yellow-500';
+    case 'vermelho': return 'bg-destructive';
+  }
 };
 
 export function FinanceiroMode({
   mode,
   onUpdateFinanceiroData,
-  onAddItem,
-  onToggleItem,
-  onRemoveItem,
 }: FinanceiroModeProps) {
-  const [newItemText, setNewItemText] = useState('');
+  const [openSections, setOpenSections] = useState({
+    defasados: true,
+    diario: true,
+    semanal: false,
+    mensal: false,
+  });
   
-  // Merge with defaults to handle partial/missing data
+  // Merge com defaults para garantir estrutura V2
   const data: FinanceiroStage = {
-    caixaNiceFoods: mode.financeiroData?.caixaNiceFoods ?? '',
-    caixaEcommerce: mode.financeiroData?.caixaEcommerce ?? '',
-    entradaMediaConservadora: mode.financeiroData?.entradaMediaConservadora ?? '',
-    entradasGarantidas: mode.financeiroData?.entradasGarantidas ?? '',
-    custosFixosMensais: mode.financeiroData?.custosFixosMensais ?? '',
-    operacaoMinima: mode.financeiroData?.operacaoMinima ?? '',
-    impostosEstimados: mode.financeiroData?.impostosEstimados ?? '',
-    vencimentos: {
-      dda: mode.financeiroData?.vencimentos?.dda ?? false,
-      email: mode.financeiroData?.vencimentos?.email ?? false,
-      whatsapp: mode.financeiroData?.vencimentos?.whatsapp ?? false,
-      planilha: mode.financeiroData?.vencimentos?.planilha ?? false,
+    ...DEFAULT_FINANCEIRO_DATA,
+    ...mode.financeiroData,
+    custosDefasados: {
+      ...DEFAULT_FINANCEIRO_DATA.custosDefasados,
+      ...mode.financeiroData?.custosDefasados,
     },
-    itensVencimento: mode.financeiroData?.itensVencimento ?? [],
-    agendamentoConfirmado: mode.financeiroData?.agendamentoConfirmado ?? false,
-    decisaoPagar: mode.financeiroData?.decisaoPagar ?? '',
-    decisaoSegurar: mode.financeiroData?.decisaoSegurar ?? '',
-    decisaoRenegociar: mode.financeiroData?.decisaoRenegociar ?? '',
+    checklistDiario: {
+      ...DEFAULT_FINANCEIRO_DATA.checklistDiario,
+      ...mode.financeiroData?.checklistDiario,
+    },
+    checklistSemanal: {
+      ...DEFAULT_FINANCEIRO_DATA.checklistSemanal,
+      ...mode.financeiroData?.checklistSemanal,
+    },
+    checklistMensal: {
+      ...DEFAULT_FINANCEIRO_DATA.checklistMensal,
+      ...mode.financeiroData?.checklistMensal,
+    },
   };
   
-  // Cálculos automáticos
-  const totalCaixa = parseCurrency(data.caixaNiceFoods) + parseCurrency(data.caixaEcommerce);
-  const totalEntradas = parseCurrency(data.entradaMediaConservadora) + parseCurrency(data.entradasGarantidas);
-  const totalSaidas = parseCurrency(data.custosFixosMensais) + parseCurrency(data.operacaoMinima) + parseCurrency(data.impostosEstimados);
-  const saldoProjetado = totalCaixa + totalEntradas - totalSaidas;
-  
-  const saldoStatus = getSaldoStatus(saldoProjetado);
-  const hasValues = totalCaixa > 0 || totalEntradas > 0 || totalSaidas > 0;
-  const maxValorComparativo = Math.max(totalCaixa, saldoProjetado, 1);
+  // Calcular exports
+  const exports: FinanceiroExports = calculateFinanceiroV2(data);
+  const caixaLivreStatus = getCaixaLivreStatus(exports.caixaLivreReal);
+  const StatusIcon = caixaLivreStatus.icon;
 
-  const handleAddItem = () => {
-    if (newItemText.trim()) {
-      onAddItem(newItemText.trim());
-      setNewItemText('');
-    }
+  const toggleSection = (section: keyof typeof openSections) => {
+    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
   return (
     <div className="space-y-6">
-      {/* ========== PAINEL DE PREVISÃO DE CAIXA — 30 DIAS ========== */}
-      <Card className="border-2 border-primary/20">
+      {/* ========== INPUTS BÁSICOS ========== */}
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <TrendingUp className="h-4 w-4" />
-            Previsão de Caixa — 30 dias
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          
-          {/* BLOCO 1: CAIXA ATUAL */}
-          <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border">
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Caixa Atual
-            </h4>
-            
-            <div className="flex items-center justify-between gap-4">
-              <label className="text-sm text-foreground">NICE FOODS</label>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">R$</span>
-                <Input
-                  placeholder="0,00"
-                  value={data.caixaNiceFoods}
-                  onChange={(e) => onUpdateFinanceiroData({ caixaNiceFoods: e.target.value })}
-                  className="h-9 text-sm text-right w-[140px]"
-                />
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between gap-4">
-              <label className="text-sm text-foreground">NICE FOODS ECOM</label>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">R$</span>
-                <Input
-                  placeholder="0,00"
-                  value={data.caixaEcommerce}
-                  onChange={(e) => onUpdateFinanceiroData({ caixaEcommerce: e.target.value })}
-                  className="h-9 text-sm text-right w-[140px]"
-                />
-              </div>
-            </div>
-            
-            <Separator />
-            
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-sm font-bold text-foreground">TOTAL CAIXA</span>
-              <span className="text-sm font-bold text-foreground">
-                {formatCurrency(totalCaixa)}
-              </span>
-            </div>
-          </div>
-
-          {/* BLOCO 2: ENTRADAS PREVISTAS */}
-          <div className="space-y-3 p-4 rounded-lg bg-green-50/50 dark:bg-green-950/20 border border-green-200/50">
-            <h4 className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide flex items-center gap-1.5">
-              <ArrowUpRight className="h-3.5 w-3.5" />
-              Entradas Previstas
-            </h4>
-            
-            <div className="flex items-center justify-between gap-4">
-              <label className="text-sm text-foreground">Entrada média conservadora</label>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">R$</span>
-                <Input
-                  placeholder="0,00"
-                  value={data.entradaMediaConservadora}
-                  onChange={(e) => onUpdateFinanceiroData({ entradaMediaConservadora: e.target.value })}
-                  className="h-9 text-sm text-right w-[140px]"
-                />
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between gap-4">
-              <label className="text-sm text-foreground">Entradas já garantidas</label>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">R$</span>
-                <Input
-                  placeholder="0,00"
-                  value={data.entradasGarantidas}
-                  onChange={(e) => onUpdateFinanceiroData({ entradasGarantidas: e.target.value })}
-                  className="h-9 text-sm text-right w-[140px]"
-                />
-              </div>
-            </div>
-            
-            <Separator className="bg-green-200/50" />
-            
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-sm font-bold text-green-700 dark:text-green-400">TOTAL ENTRADAS</span>
-              <span className="text-sm font-bold text-green-700 dark:text-green-400">
-                {formatCurrency(totalEntradas)}
-              </span>
-            </div>
-          </div>
-
-          {/* BLOCO 3: SAÍDAS INEVITÁVEIS */}
-          <div className="space-y-3 p-4 rounded-lg bg-red-50/50 dark:bg-red-950/20 border border-red-200/50">
-            <h4 className="text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wide flex items-center gap-1.5">
-              <ArrowDownRight className="h-3.5 w-3.5" />
-              Saídas Inevitáveis
-            </h4>
-            
-            <div className="flex items-center justify-between gap-4">
-              <label className="text-sm text-foreground">Custos fixos mensais</label>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">R$</span>
-                <Input
-                  placeholder="0,00"
-                  value={data.custosFixosMensais}
-                  onChange={(e) => onUpdateFinanceiroData({ custosFixosMensais: e.target.value })}
-                  className="h-9 text-sm text-right w-[140px]"
-                />
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between gap-4">
-              <label className="text-sm text-foreground">Operação mínima</label>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">R$</span>
-                <Input
-                  placeholder="0,00"
-                  value={data.operacaoMinima}
-                  onChange={(e) => onUpdateFinanceiroData({ operacaoMinima: e.target.value })}
-                  className="h-9 text-sm text-right w-[140px]"
-                />
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between gap-4">
-              <label className="text-sm text-foreground">Impostos estimados</label>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">R$</span>
-                <Input
-                  placeholder="0,00"
-                  value={data.impostosEstimados}
-                  onChange={(e) => onUpdateFinanceiroData({ impostosEstimados: e.target.value })}
-                  className="h-9 text-sm text-right w-[140px]"
-                />
-              </div>
-            </div>
-            
-            <Separator className="bg-red-200/50" />
-            
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-sm font-bold text-red-700 dark:text-red-400">TOTAL SAÍDAS</span>
-              <span className="text-sm font-bold text-red-700 dark:text-red-400">
-                {formatCurrency(totalSaidas)}
-              </span>
-            </div>
-          </div>
-
-          {/* BLOCO 4: RESULTADO */}
-          <div className={cn(
-            "space-y-3 p-4 rounded-lg border-2",
-            saldoStatus.bgLight,
-            saldoStatus.borderColor
-          )}>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Resultado — Saldo Projetado
-            </h4>
-            
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-sm text-muted-foreground">
-                Caixa + Entradas − Saídas
-              </span>
-              <span className={cn("text-xl font-bold", saldoStatus.textColor)}>
-                {formatCurrency(saldoProjetado)}
-              </span>
-            </div>
-            
-            {hasValues && (
-              <>
-                <div className="h-4 bg-muted rounded-full overflow-hidden">
-                  <div 
-                    className={cn("h-full rounded-full transition-all duration-500", saldoStatus.color)}
-                    style={{ 
-                      width: `${Math.max(Math.min((saldoProjetado / 100000) * 100, 100), 5)}%` 
-                    }}
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className={cn("w-2.5 h-2.5 rounded-full", saldoStatus.color)} />
-                  <span className={cn("text-sm font-medium", saldoStatus.textColor)}>
-                    {saldoStatus.label}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* BLOCO 5: COMPARATIVO VISUAL */}
-          {hasValues && (
-            <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Comparativo
-              </h4>
-              
-              <div className="space-y-3">
-                <BarraComparativa 
-                  label="Caixa Hoje" 
-                  valor={totalCaixa} 
-                  maxValor={maxValorComparativo}
-                  corClasse="bg-primary"
-                />
-                <BarraComparativa 
-                  label="Saldo Projetado" 
-                  valor={saldoProjetado} 
-                  maxValor={maxValorComparativo}
-                  corClasse={saldoStatus.color}
-                  icon={saldoProjetado >= totalCaixa ? ArrowUpRight : ArrowDownRight}
-                />
-              </div>
-            </div>
-          )}
-          
-          <p className="text-xs text-muted-foreground italic text-center pt-2">
-            "Este painel governa as decisões da semana."
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* ========== BLOCO: CHECKLIST DE EXECUÇÃO ========== */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CheckSquare className="h-4 w-4" />
-            Checklist de Execução
+            Dados Base
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Verificações */}
-          <div className="space-y-3">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <Checkbox
-                checked={data.vencimentos.dda}
-                onCheckedChange={(checked) => 
-                  onUpdateFinanceiroData({ 
-                    vencimentos: { ...data.vencimentos, dda: checked === true } 
-                  })
-                }
-              />
-              <span className="text-sm">Verifiquei DDA</span>
-            </label>
-            
-            <label className="flex items-center gap-3 cursor-pointer">
-              <Checkbox
-                checked={data.vencimentos.email}
-                onCheckedChange={(checked) => 
-                  onUpdateFinanceiroData({ 
-                    vencimentos: { ...data.vencimentos, email: checked === true } 
-                  })
-                }
-              />
-              <span className="text-sm">Verifiquei E-mail</span>
-            </label>
-            
-            <label className="flex items-center gap-3 cursor-pointer">
-              <Checkbox
-                checked={data.vencimentos.whatsapp}
-                onCheckedChange={(checked) => 
-                  onUpdateFinanceiroData({ 
-                    vencimentos: { ...data.vencimentos, whatsapp: checked === true } 
-                  })
-                }
-              />
-              <span className="text-sm">Verifiquei WhatsApp</span>
-            </label>
-            
-            <label className="flex items-center gap-3 cursor-pointer">
-              <Checkbox
-                checked={data.vencimentos.planilha}
-                onCheckedChange={(checked) => 
-                  onUpdateFinanceiroData({ 
-                    vencimentos: { ...data.vencimentos, planilha: checked === true } 
-                  })
-                }
-              />
-              <span className="text-sm">
-                Coloquei na planilha
-                <a 
-                  href={PLANILHA_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline ml-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <ExternalLink className="h-3 w-3 inline" />
-                </a>
-              </span>
-            </label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Faturamento/mês</label>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.faturamentoMes}
+                  onChange={(e) => onUpdateFinanceiroData({ faturamentoMes: e.target.value })}
+                  className="h-9 text-sm pl-8 text-right"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Custo fixo/mês</label>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.custoFixoMensal}
+                  onChange={(e) => onUpdateFinanceiroData({ custoFixoMensal: e.target.value })}
+                  className="h-9 text-sm pl-8 text-right"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Marketing base</label>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.marketingBase}
+                  onChange={(e) => onUpdateFinanceiroData({ marketingBase: e.target.value })}
+                  className="h-9 text-sm pl-8 text-right"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Caixa mínimo</label>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.caixaMinimo}
+                  onChange={(e) => onUpdateFinanceiroData({ caixaMinimo: e.target.value })}
+                  className="h-9 text-sm pl-8 text-right"
+                />
+              </div>
+            </div>
           </div>
           
           <Separator />
           
-          {/* Itens que vencem */}
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-foreground">Itens que vencem:</p>
-            
-            {data.itensVencimento.map((item) => (
-              <div 
-                key={item.id}
-                className={cn(
-                  "p-3 rounded-lg border border-border bg-muted/30",
-                  item.completed && "opacity-60"
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    checked={item.completed}
-                    onCheckedChange={() => onToggleItem(item.id)}
-                    className="mt-0.5"
-                  />
-                  <span className={cn(
-                    "flex-1 text-sm",
-                    item.completed && "line-through text-muted-foreground"
-                  )}>
-                    {item.text}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Caixa atual</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+              <Input
+                placeholder="0,00"
+                value={data.caixaAtual}
+                onChange={(e) => onUpdateFinanceiroData({ caixaAtual: e.target.value })}
+                className="h-11 text-base pl-10 text-right font-medium"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ========== CUSTOS DEFASADOS ========== */}
+      <Collapsible open={openSections.defasados} onOpenChange={() => toggleSection('defasados')}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 rounded-t-lg transition-colors">
+              <CardTitle className="flex items-center justify-between text-base">
+                <span className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                  Custos Defasados (30d)
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {formatCurrency(exports.totalDefasados)}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onRemoveItem(item.id)}
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+                  {openSections.defasados ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </div>
+              </CardTitle>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-3 pt-0">
+              <p className="text-xs text-muted-foreground italic mb-3">
+                Valores já comprometidos que saem nos próximos 30 dias
+              </p>
+              
+              {[
+                { key: 'impostosProximoMes', label: 'Impostos próximo mês' },
+                { key: 'adsCartaoAnterior', label: 'Ads (cartão anterior)' },
+                { key: 'parcelasEmprestimos', label: 'Parcelas empréstimos' },
+                { key: 'comprasEstoqueComprometidas', label: 'Compras estoque contratadas' },
+                { key: 'outrosCompromissos', label: 'Outros compromissos' },
+              ].map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between gap-3">
+                  <label className="text-sm text-foreground flex-1">{label}</label>
+                  <div className="relative w-[130px]">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                    <Input
+                      placeholder="0,00"
+                      value={data.custosDefasados[key as keyof typeof data.custosDefasados]}
+                      onChange={(e) => onUpdateFinanceiroData({ 
+                        custosDefasados: { 
+                          ...data.custosDefasados, 
+                          [key]: e.target.value 
+                        } 
+                      })}
+                      className="h-8 text-sm pl-7 text-right"
+                    />
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* ========== CAIXA LIVRE REAL ========== */}
+      <Card className={cn("border-2", caixaLivreStatus.borderColor)}>
+        <CardContent className={cn("p-4 space-y-3", caixaLivreStatus.bgLight)}>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                Caixa Livre Real
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Caixa − Mínimo − Defasados
+              </p>
+            </div>
+            <div className="text-right">
+              <p className={cn("text-2xl font-bold", caixaLivreStatus.textColor)}>
+                {formatCurrency(exports.caixaLivreReal)}
+              </p>
+              <div className="flex items-center gap-1.5 justify-end mt-1">
+                <StatusIcon className={cn("h-4 w-4", caixaLivreStatus.textColor)} />
+                <span className={cn("text-sm font-medium", caixaLivreStatus.textColor)}>
+                  {caixaLivreStatus.label}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Barra de progresso */}
+          <div className="h-3 bg-muted rounded-full overflow-hidden">
+            <div 
+              className={cn("h-full rounded-full transition-all duration-500", caixaLivreStatus.color)}
+              style={{ 
+                width: `${Math.max(Math.min((exports.caixaLivreReal / 100000) * 100, 100), exports.caixaLivreReal > 0 ? 5 : 0)}%` 
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ========== REGRA DE ADS ========== */}
+      <Card className="bg-muted/30">
+        <CardContent className="p-4 space-y-2">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+            Ads Máximo Permitido
+          </p>
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              <span>Base {formatCurrency(exports.adsBase)}</span>
+              {exports.adsIncremental > 0 && (
+                <span className="text-green-600"> + {formatCurrency(exports.adsIncremental)} incremental</span>
+              )}
+            </div>
+            <span className="text-lg font-bold text-primary">
+              {formatCurrency(exports.adsMaximoPermitido)}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ========== PROJEÇÃO 30/60/90 ========== */}
+      <Card className="bg-muted/30">
+        <CardContent className="p-4 space-y-2">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-3">
+            Projeção de Risco
+          </p>
+          <div className="flex items-center gap-4 justify-center">
+            {[
+              { label: '30d', risco: exports.risco30d },
+              { label: '60d', risco: exports.risco60d },
+              { label: '90d', risco: exports.risco90d },
+            ].map(({ label, risco }) => (
+              <div key={label} className="flex flex-col items-center gap-1">
+                <div className={cn("w-8 h-8 rounded-full", getRiscoColor(risco))} />
+                <span className="text-xs text-muted-foreground">{label}</span>
               </div>
             ))}
-            
-            {/* Add new item */}
-            <div className="flex gap-2">
-              <Input
-                placeholder="Adicionar item de vencimento..."
-                value={newItemText}
-                onChange={(e) => setNewItemText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddItem()}
-                className="h-9 text-sm"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleAddItem}
-                className="h-9 w-9"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
           </div>
-          
-          <Separator />
-          
-          {/* Confirmei agendamento */}
-          <label className="flex items-center gap-3 cursor-pointer">
-            <Checkbox
-              checked={data.agendamentoConfirmado}
-              onCheckedChange={(checked) => 
-                onUpdateFinanceiroData({ agendamentoConfirmado: checked === true })
-              }
-            />
-            <span className="text-sm">Confirmei o que foi ou não agendado</span>
-          </label>
         </CardContent>
       </Card>
 
-      {/* ========== BLOCO: DECISÃO DA SEMANA ========== */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileText className="h-4 w-4" />
-            Decisão da Semana
-          </CardTitle>
-          <p className="text-xs text-muted-foreground italic">
-            "Preencher apenas após olhar o fôlego."
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* O que vou pagar */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground flex items-center gap-2">
-              💵 O que vou pagar:
-            </label>
-            <Textarea
-              placeholder="Ex: Fornecedor X, conta de luz..."
-              value={data.decisaoPagar}
-              onChange={(e) => onUpdateFinanceiroData({ decisaoPagar: e.target.value })}
-              className="min-h-[60px] text-sm"
-            />
-          </div>
-          
-          {/* O que vou segurar */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground flex items-center gap-2">
-              ⏸️ O que vou segurar:
-            </label>
-            <Textarea
-              placeholder="Ex: Compra de estoque, renovação..."
-              value={data.decisaoSegurar}
-              onChange={(e) => onUpdateFinanceiroData({ decisaoSegurar: e.target.value })}
-              className="min-h-[60px] text-sm"
-            />
-          </div>
-          
-          {/* O que vou renegociar */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground flex items-center gap-2">
-              🤝 O que vou renegociar:
-            </label>
-            <Textarea
-              placeholder="Ex: Parcela do banco, prazo com fornecedor..."
-              value={data.decisaoRenegociar}
-              onChange={(e) => onUpdateFinanceiroData({ decisaoRenegociar: e.target.value })}
-              className="min-h-[60px] text-sm"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* ========== CHECKLIST DIÁRIO ========== */}
+      <Collapsible open={openSections.diario} onOpenChange={() => toggleSection('diario')}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 rounded-t-lg transition-colors">
+              <CardTitle className="flex items-center justify-between text-base">
+                <span>📅 Checklist Diário</span>
+                {openSections.diario ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </CardTitle>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-3 pt-0">
+              {[
+                { key: 'atualizouCaixa', label: 'Atualizei o caixa' },
+                { key: 'olhouResultado', label: 'Olhei o resultado' },
+                { key: 'decidiu', label: 'Decidi o que fazer' },
+              ].map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-3 cursor-pointer">
+                  <Checkbox
+                    checked={data.checklistDiario[key as keyof typeof data.checklistDiario]}
+                    onCheckedChange={(checked) => 
+                      onUpdateFinanceiroData({ 
+                        checklistDiario: { 
+                          ...data.checklistDiario, 
+                          [key]: checked === true 
+                        } 
+                      })
+                    }
+                  />
+                  <span className="text-sm">{label}</span>
+                </label>
+              ))}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* ========== CHECKLIST SEMANAL ========== */}
+      <Collapsible open={openSections.semanal} onOpenChange={() => toggleSection('semanal')}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 rounded-t-lg transition-colors">
+              <CardTitle className="flex items-center justify-between text-base">
+                <span>📆 Checklist Semanal</span>
+                {openSections.semanal ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </CardTitle>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-3 pt-0">
+              {[
+                { key: 'dda', label: 'Verifiquei DDA' },
+                { key: 'emails', label: 'Verifiquei e-mails' },
+                { key: 'whatsapp', label: 'Verifiquei WhatsApp' },
+                { key: 'agendouVencimentos', label: 'Agendei vencimentos' },
+                { key: 'atualizouCaixaMinimo', label: 'Revisei caixa mínimo' },
+              ].map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-3 cursor-pointer">
+                  <Checkbox
+                    checked={data.checklistSemanal[key as keyof typeof data.checklistSemanal]}
+                    onCheckedChange={(checked) => 
+                      onUpdateFinanceiroData({ 
+                        checklistSemanal: { 
+                          ...data.checklistSemanal, 
+                          [key]: checked === true 
+                        } 
+                      })
+                    }
+                  />
+                  <span className="text-sm">{label}</span>
+                </label>
+              ))}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* ========== CHECKLIST MENSAL ========== */}
+      <Collapsible open={openSections.mensal} onOpenChange={() => toggleSection('mensal')}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 rounded-t-lg transition-colors">
+              <CardTitle className="flex items-center justify-between text-base">
+                <span>📅 Checklist Mensal</span>
+                {openSections.mensal ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </CardTitle>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-3 pt-0">
+              {[
+                { key: 'atualizouFaturamento', label: 'Atualizei faturamento médio' },
+                { key: 'revisouCustoFixo', label: 'Revisei custo fixo' },
+                { key: 'revisouMarketingBase', label: 'Revisei marketing base' },
+                { key: 'atualizouDefasados', label: 'Atualizei custos defasados' },
+                { key: 'comparouPrevistoRealizado', label: 'Comparei previsto x realizado' },
+              ].map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-3 cursor-pointer">
+                  <Checkbox
+                    checked={data.checklistMensal[key as keyof typeof data.checklistMensal]}
+                    onCheckedChange={(checked) => 
+                      onUpdateFinanceiroData({ 
+                        checklistMensal: { 
+                          ...data.checklistMensal, 
+                          [key]: checked === true 
+                        } 
+                      })
+                    }
+                  />
+                  <span className="text-sm">{label}</span>
+                </label>
+              ))}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Texto âncora */}
+      <p className="text-xs text-muted-foreground italic text-center pt-2">
+        "Financeiro se decide. Não se reage."
+      </p>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   FocusModeId, 
   FocusModeState, 
@@ -10,12 +10,20 @@ import {
   SupplyChainStage,
   BacklogStage,
   BacklogTarefa,
+  PreReuniaoGeralStage,
+  PreReuniaoAdsStage,
+  ReuniaoAdsStage,
+  ReuniaoAdsAcao,
+  FinanceiroExports,
   MODE_CONFIGS, 
   DEFAULT_CHECKLISTS,
   DEFAULT_FINANCEIRO_DATA,
   DEFAULT_MARKETING_DATA,
   DEFAULT_SUPPLYCHAIN_DATA,
-  DEFAULT_BACKLOG_DATA
+  DEFAULT_BACKLOG_DATA,
+  DEFAULT_PREREUNIAO_GERAL_DATA,
+  DEFAULT_PREREUNIAO_ADS_DATA,
+  DEFAULT_REUNIAO_ADS_DATA,
 } from '@/types/focus-mode';
 import {
   calculateFinanceiroStatus,
@@ -23,12 +31,15 @@ import {
   calculateSupplyChainStatus,
   calculateChecklistStatus,
   calculateModeStatus,
+  calculatePreReuniaoGeralStatus,
+  calculatePreReuniaoAdsStatus,
+  calculateReuniaoAdsStatus,
+  calculateFinanceiroV2,
 } from '@/utils/modeStatusCalculator';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
-const FOCUS_MODES_KEY = 'focoagora_focus_modes';
 const DEBOUNCE_MS = 1000;
 
 function generateId(): string {
@@ -62,7 +73,7 @@ function createDefaultMode(id: FocusModeId): FocusMode {
   };
 
   if (id === 'financeiro') {
-    mode.financeiroData = { ...DEFAULT_FINANCEIRO_DATA, itensVencimento: [] };
+    mode.financeiroData = { ...DEFAULT_FINANCEIRO_DATA };
   }
   
   if (id === 'marketing') {
@@ -75,6 +86,18 @@ function createDefaultMode(id: FocusModeId): FocusMode {
 
   if (id === 'backlog') {
     mode.backlogData = { ...DEFAULT_BACKLOG_DATA, tarefas: [], ideias: [] };
+  }
+
+  if (id === 'pre-reuniao-geral') {
+    mode.preReuniaoGeralData = { ...DEFAULT_PREREUNIAO_GERAL_DATA };
+  }
+
+  if (id === 'pre-reuniao-ads') {
+    mode.preReuniaoAdsData = { ...DEFAULT_PREREUNIAO_ADS_DATA };
+  }
+
+  if (id === 'reuniao-ads') {
+    mode.reuniaoAdsData = { ...DEFAULT_REUNIAO_ADS_DATA };
   }
 
   return mode;
@@ -105,6 +128,14 @@ function processLoadedState(state: FocusModeState | null): FocusModeState {
   
   let needsUpdate = false;
   const updatedModes = { ...state.modes };
+
+  // Ensure all modes exist (for new modes like reuniao-ads)
+  (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
+    if (!updatedModes[id]) {
+      updatedModes[id] = createDefaultMode(id);
+      needsUpdate = true;
+    }
+  });
 
   // Reset daily modes if new day (EXCEPT backlog which persists)
   if (state.date !== today) {
@@ -240,6 +271,20 @@ export function useFocusModes() {
     };
   }, [state, user]);
 
+  // ============= Financeiro Exports (para outros modos) =============
+  const getFinanceiroExports = useCallback((): FinanceiroExports => {
+    return calculateFinanceiroV2(state.modes.financeiro.financeiroData);
+  }, [state.modes.financeiro.financeiroData]);
+
+  const financeiroExports = useMemo(() => getFinanceiroExports(), [getFinanceiroExports]);
+
+  // ============= Prioridade da Semana (de Pre-Reuniao Geral) =============
+  const prioridadeSemana = useMemo(() => 
+    state.modes['pre-reuniao-geral']?.preReuniaoGeralData?.decisaoSemana ?? null,
+    [state.modes['pre-reuniao-geral']?.preReuniaoGeralData?.decisaoSemana]
+  );
+
+  // ============= Ações Básicas =============
   const setActiveMode = useCallback((modeId: FocusModeId | null) => {
     setState(prev => ({ ...prev, activeMode: modeId }));
   }, []);
@@ -382,16 +427,28 @@ export function useFocusModes() {
     }));
   }, []);
 
-  // Financeiro-specific functions
+  // ============= Financeiro V2 =============
   const updateFinanceiroData = useCallback((data: Partial<FinanceiroStage>) => {
     setState(prev => {
       const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
-      const newFinanceiroData = {
+      const newFinanceiroData: FinanceiroStage = {
         ...currentData,
         ...data,
-        vencimentos: {
-          ...currentData.vencimentos,
-          ...data.vencimentos,
+        custosDefasados: {
+          ...currentData.custosDefasados,
+          ...data.custosDefasados,
+        },
+        checklistDiario: {
+          ...currentData.checklistDiario,
+          ...data.checklistDiario,
+        },
+        checklistSemanal: {
+          ...currentData.checklistSemanal,
+          ...data.checklistSemanal,
+        },
+        checklistMensal: {
+          ...currentData.checklistMensal,
+          ...data.checklistMensal,
         },
       };
       const newStatus = calculateFinanceiroStatus(newFinanceiroData);
@@ -446,7 +503,7 @@ export function useFocusModes() {
       const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
       const newFinanceiroData = {
         ...currentData,
-        itensVencimento: currentData.itensVencimento.map(item =>
+        itensVencimento: (currentData.itensVencimento || []).map(item =>
           item.id === itemId ? { ...item, completed: !item.completed } : item
         ),
       };
@@ -471,7 +528,7 @@ export function useFocusModes() {
       const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
       const newFinanceiroData = {
         ...currentData,
-        itensVencimento: currentData.itensVencimento.map(item =>
+        itensVencimento: (currentData.itensVencimento || []).map(item =>
           item.id === itemId ? { ...item, classification } : item
         ),
       };
@@ -496,7 +553,7 @@ export function useFocusModes() {
       const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
       const newFinanceiroData = {
         ...currentData,
-        itensVencimento: currentData.itensVencimento.filter(item => item.id !== itemId),
+        itensVencimento: (currentData.itensVencimento || []).filter(item => item.id !== itemId),
       };
       const newStatus = calculateFinanceiroStatus(newFinanceiroData);
       
@@ -514,7 +571,7 @@ export function useFocusModes() {
     });
   }, []);
 
-  // Marketing-specific functions
+  // ============= Marketing =============
   const updateMarketingData = useCallback((data: Partial<MarketingStage>) => {
     setState(prev => {
       const currentData = prev.modes.marketing.marketingData ?? DEFAULT_MARKETING_DATA;
@@ -542,7 +599,7 @@ export function useFocusModes() {
     });
   }, []);
 
-  // Supply Chain-specific functions
+  // ============= Supply Chain =============
   const updateSupplyChainData = useCallback((data: Partial<SupplyChainStage>) => {
     setState(prev => {
       const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
@@ -578,7 +635,144 @@ export function useFocusModes() {
     });
   }, []);
 
-  // Backlog-specific functions
+  // ============= Pre-Reunião Geral =============
+  const updatePreReuniaoGeralData = useCallback((data: Partial<PreReuniaoGeralStage>) => {
+    setState(prev => {
+      const currentData = prev.modes['pre-reuniao-geral'].preReuniaoGeralData ?? DEFAULT_PREREUNIAO_GERAL_DATA;
+      const newData: PreReuniaoGeralStage = {
+        ...currentData,
+        ...data,
+        estoque: {
+          ...currentData.estoque,
+          ...data.estoque,
+        },
+      };
+      const newStatus = calculatePreReuniaoGeralStatus(newData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          'pre-reuniao-geral': {
+            ...prev.modes['pre-reuniao-geral'],
+            preReuniaoGeralData: newData,
+            status: newStatus,
+          },
+        },
+      };
+    });
+  }, []);
+
+  // ============= Pre-Reunião Ads =============
+  const updatePreReuniaoAdsData = useCallback((data: Partial<PreReuniaoAdsStage>) => {
+    setState(prev => {
+      const currentData = prev.modes['pre-reuniao-ads'].preReuniaoAdsData ?? DEFAULT_PREREUNIAO_ADS_DATA;
+      const newData: PreReuniaoAdsStage = {
+        ...currentData,
+        ...data,
+      };
+      const newStatus = calculatePreReuniaoAdsStatus(newData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          'pre-reuniao-ads': {
+            ...prev.modes['pre-reuniao-ads'],
+            preReuniaoAdsData: newData,
+            status: newStatus,
+          },
+        },
+      };
+    });
+  }, []);
+
+  // ============= Reunião Ads =============
+  const updateReuniaoAdsData = useCallback((data: Partial<ReuniaoAdsStage>) => {
+    setState(prev => {
+      const currentData = prev.modes['reuniao-ads'].reuniaoAdsData ?? DEFAULT_REUNIAO_ADS_DATA;
+      const newData: ReuniaoAdsStage = {
+        ...currentData,
+        ...data,
+        metricasMeta: {
+          ...currentData.metricasMeta,
+          ...data.metricasMeta,
+        },
+        metricasGoogle: {
+          ...currentData.metricasGoogle,
+          ...data.metricasGoogle,
+        },
+      };
+      const newStatus = calculateReuniaoAdsStatus(newData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          'reuniao-ads': {
+            ...prev.modes['reuniao-ads'],
+            reuniaoAdsData: newData,
+            status: newStatus,
+          },
+        },
+      };
+    });
+  }, []);
+
+  const addReuniaoAdsAcao = useCallback((acao: Omit<ReuniaoAdsAcao, 'id'>) => {
+    const newAcao: ReuniaoAdsAcao = {
+      ...acao,
+      id: generateId(),
+    };
+    
+    setState(prev => {
+      const currentData = prev.modes['reuniao-ads'].reuniaoAdsData ?? DEFAULT_REUNIAO_ADS_DATA;
+      const newData = {
+        ...currentData,
+        acoes: [...currentData.acoes, newAcao],
+      };
+      const newStatus = calculateReuniaoAdsStatus(newData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          'reuniao-ads': {
+            ...prev.modes['reuniao-ads'],
+            reuniaoAdsData: newData,
+            status: newStatus,
+          },
+        },
+      };
+    });
+    
+    return newAcao;
+  }, []);
+
+  const removeReuniaoAdsAcao = useCallback((id: string) => {
+    setState(prev => {
+      const currentData = prev.modes['reuniao-ads'].reuniaoAdsData ?? DEFAULT_REUNIAO_ADS_DATA;
+      const newData = {
+        ...currentData,
+        acoes: currentData.acoes.filter(a => a.id !== id),
+      };
+      const newStatus = calculateReuniaoAdsStatus(newData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          'reuniao-ads': {
+            ...prev.modes['reuniao-ads'],
+            reuniaoAdsData: newData,
+            status: newStatus,
+          },
+        },
+      };
+    });
+  }, []);
+
+  // ============= Backlog =============
   const updateBacklogData = useCallback((data: Partial<BacklogStage>) => {
     setState(prev => ({
       ...prev,
@@ -696,6 +890,10 @@ export function useFocusModes() {
     modes: state.modes,
     lastCompletedMode: state.lastCompletedMode,
     isLoading,
+    // Exports para outros modos
+    financeiroExports,
+    prioridadeSemana,
+    // Ações básicas
     setActiveMode,
     toggleItemComplete,
     setItemClassification,
@@ -705,17 +903,25 @@ export function useFocusModes() {
     removeItem,
     completeMode,
     resetMode,
-    // Financeiro-specific
+    // Financeiro
     updateFinanceiroData,
     addFinanceiroItem,
     toggleFinanceiroItemComplete,
     setFinanceiroItemClassification,
     removeFinanceiroItem,
-    // Marketing-specific
+    // Marketing
     updateMarketingData,
-    // Supply Chain-specific
+    // Supply Chain
     updateSupplyChainData,
-    // Backlog-specific
+    // Pre-Reunião Geral
+    updatePreReuniaoGeralData,
+    // Pre-Reunião Ads
+    updatePreReuniaoAdsData,
+    // Reunião Ads
+    updateReuniaoAdsData,
+    addReuniaoAdsAcao,
+    removeReuniaoAdsAcao,
+    // Backlog
     updateBacklogData,
     addBacklogTarefa,
     updateBacklogTarefa,
@@ -724,6 +930,3 @@ export function useFocusModes() {
     removeBacklogIdeia,
   };
 }
-
-// Need to import React at the top for useRef
-import React from 'react';
