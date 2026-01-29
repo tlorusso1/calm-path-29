@@ -16,6 +16,7 @@ export function calculateFinanceiroStatus(data?: FinanceiroStage): ModeStatus {
   const fields = [
     (data.caixaNiceFoods ?? '').trim() !== '',
     (data.caixaEcommerce ?? '').trim() !== '',
+    (data.saidasInevitaveis ?? '').trim() !== '',
     (data.vencimentos?.dda || data.vencimentos?.email || 
       data.vencimentos?.whatsapp || data.vencimentos?.planilha) ?? false,
     data.agendamentoConfirmado ?? false,
