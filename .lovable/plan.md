@@ -1,111 +1,100 @@
 
-# Reestruturação do Modo Financeiro
+# Painel Visual de Fluxo de Caixa - 30 dias
 
 ## Visão Geral
 
-Reorganizar o modo Financeiro em 3 blocos distintos com hierarquia clara:
+Transformar o modo Financeiro em um painel visual de fluxo de caixa simplificado, focado em projeção de 30 dias com feedback visual claro.
 
 ```text
-+----------------------------------+
-|     BLOCO 0: PAINEL DE DECISÃO   |  <-- Contexto estratégico (topo)
-|     Caixa + Saídas + Fôlego      |
-+----------------------------------+
-|  BLOCO 1: CHECKLIST DE EXECUÇÃO  |  <-- Verificações operacionais
-|  DDA, Email, WhatsApp, Planilha  |
-+----------------------------------+
-|   BLOCO 2: DECISÃO DA SEMANA     |  <-- Ações pós-análise
-|   Pagar / Segurar / Renegociar   |
-+----------------------------------+
-|     [Concluído por agora]        |
-+----------------------------------+
+┌─────────────────────────────────────────────────────┐
+│  📊 PREVISÃO DE CAIXA — 30 DIAS                     │
+├─────────────────────────────────────────────────────┤
+│  1. CAIXA ATUAL                                     │
+│     NICE FOODS          R$ ________                 │
+│     NICE FOODS ECOM     R$ ________                 │
+│     ─────────────────────────────                   │
+│     TOTAL CAIXA         R$ XX.XXX                   │
+├─────────────────────────────────────────────────────┤
+│  2. ENTRADAS PREVISTAS                              │
+│     Entrada média conservadora    R$ ________       │
+│     Entradas já garantidas        R$ ________       │
+│     ─────────────────────────────                   │
+│     TOTAL ENTRADAS                R$ XX.XXX        │
+├─────────────────────────────────────────────────────┤
+│  3. SAÍDAS INEVITÁVEIS                              │
+│     Custos fixos mensais          R$ ________       │
+│     Operação mínima               R$ ________       │
+│     Impostos estimados            R$ ________       │
+│     ─────────────────────────────                   │
+│     TOTAL SAÍDAS                  R$ XX.XXX        │
+├─────────────────────────────────────────────────────┤
+│  4. RESULTADO                                       │
+│     Saldo projetado = Caixa + Entradas - Saídas    │
+│                                                     │
+│     ████████████████████░░░░ R$ 42.000 (Verde)     │
+│                                                     │
+│  5. COMPARATIVO VISUAL                              │
+│     Caixa Hoje    ██████████████ R$ 57.000         │
+│     Projetado     ██████████░░░░ R$ 42.000         │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## BLOCO 0 — Painel de Decisão (TOPO)
+## Mudanças no Modelo de Dados
 
-### Estrutura Visual
+### Interface `FinanceiroStage` atualizada
 
-```text
-┌─────────────────────────────────────┐
-│  Caixa hoje NICE FOODS      R$ ___  │
-│  Caixa hoje NICE FOODS ECOM R$ ___  │
-│  ─────────────────────────────────  │
-│  TOTAL                      R$ XXX  │
-├─────────────────────────────────────┤
-│  Saídas inevitáveis (30 dias)       │
-│  R$ _______________                 │
-├─────────────────────────────────────┤
-│  FÔLEGO ESTIMADO           R$ XXX   │
-│  ████████████ (barra visual)        │
-│                                     │
-│  "Este número governa as decisões   │
-│   da semana."                       │
-└─────────────────────────────────────┘
-```
+Novos campos a adicionar:
 
-### Campos Novos
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `entradaMediaConservadora` | string | Entrada média conservadora do mês |
+| `entradasGarantidas` | string | Entradas já garantidas |
+| `custosFixosMensais` | string | Custos fixos mensais |
+| `operacaoMinima` | string | Custo de operação mínima |
+| `impostosEstimados` | string | Impostos estimados |
 
-Adicionar à interface `FinanceiroStage`:
-
-```typescript
-saidasInevitaveis: string;  // Novo campo
-```
-
-### Cálculo do Fôlego
-
-```text
-Fôlego = TOTAL - Saídas inevitáveis
-```
-
-### Feedback Visual (cores)
-
-| Fôlego | Cor |
-|--------|-----|
-| >= R$ 50.000 | Verde |
-| R$ 20.000 - R$ 49.999 | Amarelo |
-| < R$ 20.000 | Vermelho |
+O campo `saidasInevitaveis` será **removido** (substituído pelos 3 campos detalhados acima).
 
 ---
 
-## BLOCO 1 — Checklist de Execução
-
-### Itens do Checklist
-
-1. Verifiquei DDA
-2. Verifiquei E-mail
-3. Verifiquei WhatsApp
-4. Coloquei na planilha (com link clicável)
-5. Itens que vencem (campo de adicionar itens)
-6. Confirmei o que foi ou não agendado
-
-### Link da Planilha
+## Cálculos Automáticos
 
 ```text
-https://docs.google.com/spreadsheets/d/1xNwAHMM6f8j1NWdWceHks76zLr8zQGHzZ99VHn6VKiM/edit?gid=548762562#gid=548762562
+TOTAL CAIXA = caixaNiceFoods + caixaEcommerce
+
+TOTAL ENTRADAS = entradaMediaConservadora + entradasGarantidas
+
+TOTAL SAÍDAS = custosFixosMensais + operacaoMinima + impostosEstimados
+
+SALDO PROJETADO = TOTAL CAIXA + TOTAL ENTRADAS - TOTAL SAÍDAS
 ```
-
-### Mudança Visual
-
-- Remover numeração de seções (era 1, 2, 3...)
-- Usar títulos de bloco em vez de números
-- Este bloco NÃO contém valores monetários (apenas verificações)
 
 ---
 
-## BLOCO 2 — Decisão da Semana
+## Status Visual do Saldo
 
-### Texto Fixo no Topo
+| Condição | Cor | Status |
+|----------|-----|--------|
+| Saldo >= R$ 50.000 | Verde | Confortável |
+| Saldo >= R$ 20.000 e < R$ 50.000 | Amarelo | Atenção |
+| Saldo > R$ 0 e < R$ 20.000 | Laranja | Risco |
+| Saldo <= R$ 0 | Vermelho | Crítico |
+
+---
+
+## Gráfico Comparativo
+
+Mostrar duas barras horizontais lado a lado:
 
 ```text
-"Preencher apenas após olhar o fôlego."
+Caixa Hoje     ████████████████████████░░░░░░  R$ 57.000
+Saldo Projetado ████████████████░░░░░░░░░░░░░░  R$ 42.000
 ```
 
-### Campos
-
-- O que vou pagar (textarea)
-- O que vou segurar (textarea)
-- O que vou renegociar (textarea)
+- Barra proporcional ao valor máximo entre os dois
+- Cores diferentes para cada barra (azul para atual, cor do status para projetado)
 
 ---
 
@@ -113,14 +102,39 @@ https://docs.google.com/spreadsheets/d/1xNwAHMM6f8j1NWdWceHks76zLr8zQGHzZ99VHn6V
 
 ### 1. `src/types/focus-mode.ts`
 
-Adicionar novo campo na interface:
-
 ```typescript
 export interface FinanceiroStage {
+  // Caixa separado por empresa
   caixaNiceFoods: string;
   caixaEcommerce: string;
-  saidasInevitaveis: string;  // NOVO
-  // ... resto mantido
+  
+  // NOVOS: Entradas previstas
+  entradaMediaConservadora: string;
+  entradasGarantidas: string;
+  
+  // NOVOS: Saídas detalhadas (substitui saidasInevitaveis)
+  custosFixosMensais: string;
+  operacaoMinima: string;
+  impostosEstimados: string;
+  
+  // Verificações simplificadas (mantido)
+  vencimentos: {
+    dda: boolean;
+    email: boolean;
+    whatsapp: boolean;
+    planilha: boolean;
+  };
+  
+  // Itens de vencimento (mantido)
+  itensVencimento: ChecklistItem[];
+  
+  // Agendamento (mantido)
+  agendamentoConfirmado: boolean;
+  
+  // Decisões como texto livre (mantido)
+  decisaoPagar: string;
+  decisaoSegurar: string;
+  decisaoRenegociar: string;
 }
 ```
 
@@ -130,48 +144,60 @@ Atualizar `DEFAULT_FINANCEIRO_DATA`:
 export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
   caixaNiceFoods: '',
   caixaEcommerce: '',
-  saidasInevitaveis: '',  // NOVO
-  // ... resto mantido
+  entradaMediaConservadora: '',
+  entradasGarantidas: '',
+  custosFixosMensais: '',
+  operacaoMinima: '',
+  impostosEstimados: '',
+  vencimentos: { ... },
+  itensVencimento: [],
+  agendamentoConfirmado: false,
+  decisaoPagar: '',
+  decisaoSegurar: '',
+  decisaoRenegociar: '',
 };
 ```
 
 ### 2. `src/components/modes/FinanceiroMode.tsx`
 
-Reestruturar completamente o componente:
+Reestruturar completamente para o novo layout:
 
 ```text
-BLOCO 0: Painel de Decisão
-├── Card com borda destacada
-├── Caixa NICE FOODS (input)
-├── Caixa NICE FOODS ECOM (input)
-├── TOTAL (calculado)
-├── Separador
-├── Saídas inevitáveis 30 dias (input)
-├── Separador
-├── FÔLEGO ESTIMADO (calculado)
-├── Barra de progresso colorida
-└── Texto fixo
+SEÇÃO: Previsão de Caixa — 30 dias
+├── Card principal com borda destacada
+│
+├── Bloco 1: CAIXA ATUAL
+│   ├── Input: NICE FOODS
+│   ├── Input: NICE FOODS ECOM
+│   └── TOTAL CAIXA (calculado)
+│
+├── Bloco 2: ENTRADAS PREVISTAS
+│   ├── Input: Entrada média conservadora
+│   ├── Input: Entradas já garantidas
+│   └── TOTAL ENTRADAS (calculado)
+│
+├── Bloco 3: SAÍDAS INEVITÁVEIS
+│   ├── Input: Custos fixos mensais
+│   ├── Input: Operação mínima
+│   ├── Input: Impostos estimados
+│   └── TOTAL SAÍDAS (calculado)
+│
+├── Bloco 4: RESULTADO
+│   ├── Saldo projetado (calculado)
+│   ├── Barra de progresso colorida
+│   └── Status textual
+│
+└── Bloco 5: COMPARATIVO VISUAL
+    ├── Barra: Caixa Hoje
+    └── Barra: Saldo Projetado
 
-BLOCO 1: Checklist de Execução
-├── Título "Checklist de Execução"
-├── Checkbox: Verifiquei DDA
-├── Checkbox: Verifiquei E-mail
-├── Checkbox: Verifiquei WhatsApp
-├── Checkbox: Coloquei na planilha (com link)
-├── Itens que vencem (lista + input)
-└── Checkbox: Confirmei agendamento
-
-BLOCO 2: Decisão da Semana
-├── Título "Decisão da Semana"
-├── Texto: "Preencher apenas após olhar o fôlego."
-├── Textarea: O que vou pagar
-├── Textarea: O que vou segurar
-└── Textarea: O que vou renegociar
+SEÇÃO: Checklist de Execução (mantido)
+SEÇÃO: Decisão da Semana (mantido)
 ```
 
 ### 3. `src/utils/modeStatusCalculator.ts`
 
-Atualizar lógica para incluir novo campo:
+Atualizar campos verificados:
 
 ```typescript
 export function calculateFinanceiroStatus(data?: FinanceiroStage): ModeStatus {
@@ -180,121 +206,147 @@ export function calculateFinanceiroStatus(data?: FinanceiroStage): ModeStatus {
   const fields = [
     (data.caixaNiceFoods ?? '').trim() !== '',
     (data.caixaEcommerce ?? '').trim() !== '',
-    (data.saidasInevitaveis ?? '').trim() !== '',  // NOVO
+    // Novos campos de entradas
+    (data.entradaMediaConservadora ?? '').trim() !== '' ||
+      (data.entradasGarantidas ?? '').trim() !== '',
+    // Novos campos de saídas
+    (data.custosFixosMensais ?? '').trim() !== '' ||
+      (data.operacaoMinima ?? '').trim() !== '' ||
+      (data.impostosEstimados ?? '').trim() !== '',
+    // Checklist continua igual
     (data.vencimentos?.dda || data.vencimentos?.email || 
       data.vencimentos?.whatsapp || data.vencimentos?.planilha) ?? false,
-    data.agendamentoConfirmado ?? false,
   ];
   
-  // ... resto igual
+  const filled = fields.filter(Boolean).length;
+  if (filled === 0) return 'neutral';
+  if (filled === fields.length) return 'completed';
+  return 'in-progress';
 }
 ```
 
 ---
 
-## Remoção de Seção
+## Detalhes Técnicos
 
-A seção "Classificação A/B/C" será **removida**:
-- Atualmente aparece quando há itens de vencimento
-- Adiciona complexidade desnecessária
-- As decisões agora ficam no Bloco 2 (Pagar/Segurar/Renegociar)
-
----
-
-## Detalhes de Implementação
-
-### Cálculo do Fôlego com Cores
+### Função de Status Visual
 
 ```typescript
-const getFolegoStatus = (folego: number) => {
-  if (folego >= 50000) return { color: 'bg-green-500', label: 'Confortável' };
-  if (folego >= 20000) return { color: 'bg-yellow-500', label: 'Atenção' };
-  return { color: 'bg-red-500', label: 'Crítico' };
+const getSaldoStatus = (saldo: number) => {
+  if (saldo >= 50000) return { 
+    color: 'bg-green-500', 
+    textColor: 'text-green-600',
+    label: 'Confortável'
+  };
+  if (saldo >= 20000) return { 
+    color: 'bg-yellow-500', 
+    textColor: 'text-yellow-600',
+    label: 'Atenção'
+  };
+  if (saldo > 0) return { 
+    color: 'bg-orange-500', 
+    textColor: 'text-orange-600',
+    label: 'Risco'
+  };
+  return { 
+    color: 'bg-red-500', 
+    textColor: 'text-red-600',
+    label: 'Crítico'
+  };
 };
 ```
 
-### Link da Planilha
-
-O checkbox "Coloquei na planilha" terá um ícone de link externo:
+### Componente de Barra Comparativa
 
 ```typescript
-<a 
-  href="https://docs.google.com/spreadsheets/d/1xNwAHMM6f8j1NWdWceHks76zLr8zQGHzZ99VHn6VKiM/edit?gid=548762562#gid=548762562"
-  target="_blank"
-  rel="noopener noreferrer"
-  className="text-primary hover:underline"
->
-  <ExternalLink className="h-3 w-3 inline ml-1" />
-</a>
-```
-
----
-
-## Resultado Visual Esperado
-
-```text
-┌─────────────────────────────────────────────┐
-│  📊 PAINEL DE DECISÃO                       │
-│                                             │
-│  Caixa hoje NICE FOODS        R$ 45.000,00  │
-│  Caixa hoje NICE FOODS ECOM   R$ 12.000,00  │
-│  ─────────────────────────────────────────  │
-│  TOTAL                        R$ 57.000,00  │
-│                                             │
-│  Saídas inevitáveis (30 dias)               │
-│  R$ 35.000,00                               │
-│                                             │
-│  FÔLEGO ESTIMADO              R$ 22.000,00  │
-│  ███████████░░░░░░ (amarelo)                │
-│                                             │
-│  "Este número governa as decisões da        │
-│   semana."                                  │
-└─────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────┐
-│  ✓ CHECKLIST DE EXECUÇÃO                    │
-│                                             │
-│  [x] Verifiquei DDA                         │
-│  [x] Verifiquei E-mail                      │
-│  [ ] Verifiquei WhatsApp                    │
-│  [x] Coloquei na planilha 🔗                │
-│                                             │
-│  Itens que vencem:                          │
-│  ┌────────────────────────────────────────┐ │
-│  │ [ ] Fornecedor X - R$ 5.000            │ │
-│  │ [ ] Conta de luz - R$ 800              │ │
-│  └────────────────────────────────────────┘ │
-│  [+ Adicionar item]                         │
-│                                             │
-│  [x] Confirmei o que foi ou não agendado    │
-└─────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────┐
-│  📝 DECISÃO DA SEMANA                       │
-│                                             │
-│  "Preencher apenas após olhar o fôlego."    │
-│                                             │
-│  💵 O que vou pagar:                        │
-│  ┌────────────────────────────────────────┐ │
-│  │ Fornecedor X, conta de luz             │ │
-│  └────────────────────────────────────────┘ │
-│                                             │
-│  ⏸️ O que vou segurar:                      │
-│  ┌────────────────────────────────────────┐ │
-│  │ Compra de estoque                      │ │
-│  └────────────────────────────────────────┘ │
-│                                             │
-│  🤝 O que vou renegociar:                   │
-│  ┌────────────────────────────────────────┐ │
-│  │ Prazo com fornecedor Y                 │ │
-│  └────────────────────────────────────────┘ │
-└─────────────────────────────────────────────┘
-
-       [✓ Concluído por agora]
+const BarraComparativa = ({ 
+  label, 
+  valor, 
+  maxValor, 
+  corClasse 
+}: { 
+  label: string; 
+  valor: number; 
+  maxValor: number; 
+  corClasse: string;
+}) => {
+  const percentage = maxValor > 0 ? (valor / maxValor) * 100 : 0;
+  
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-sm">
+        <span>{label}</span>
+        <span className="font-medium">{formatCurrency(valor)}</span>
+      </div>
+      <div className="h-3 bg-muted rounded-full overflow-hidden">
+        <div 
+          className={cn("h-full rounded-full transition-all", corClasse)}
+          style={{ width: `${Math.min(percentage, 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+};
 ```
 
 ---
 
 ## Compatibilidade com Dados Existentes
 
-O novo campo `saidasInevitaveis` terá valor default vazio, garantindo que dados existentes no banco continuem funcionando sem problemas.
+- O campo `saidasInevitaveis` será mantido temporariamente para compatibilidade
+- Novos campos terão valor default vazio
+- Dados existentes continuarão funcionando
+
+---
+
+## Resultado Visual Esperado
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│  📊 PREVISÃO DE CAIXA — 30 DIAS                         │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ┌─ CAIXA ATUAL ───────────────────────────────────────┐│
+│  │  NICE FOODS              R$ 45.000,00               ││
+│  │  NICE FOODS ECOM         R$ 12.000,00               ││
+│  │  ───────────────────────────────────────            ││
+│  │  TOTAL                   R$ 57.000,00               ││
+│  └─────────────────────────────────────────────────────┘│
+│                                                         │
+│  ┌─ ENTRADAS PREVISTAS ────────────────────────────────┐│
+│  │  Entrada média conservadora    R$ 80.000,00         ││
+│  │  Entradas já garantidas        R$ 25.000,00         ││
+│  │  ───────────────────────────────────────            ││
+│  │  TOTAL                         R$ 105.000,00        ││
+│  └─────────────────────────────────────────────────────┘│
+│                                                         │
+│  ┌─ SAÍDAS INEVITÁVEIS ────────────────────────────────┐│
+│  │  Custos fixos mensais          R$ 45.000,00         ││
+│  │  Operação mínima               R$ 30.000,00         ││
+│  │  Impostos estimados            R$ 15.000,00         ││
+│  │  ───────────────────────────────────────            ││
+│  │  TOTAL                         R$ 90.000,00         ││
+│  └─────────────────────────────────────────────────────┘│
+│                                                         │
+│  ┌─ RESULTADO ─────────────────────────────────────────┐│
+│  │                                                     ││
+│  │  SALDO PROJETADO              R$ 72.000,00          ││
+│  │  ████████████████████████░░░░ (verde)               ││
+│  │  ✓ Confortável                                      ││
+│  │                                                     ││
+│  └─────────────────────────────────────────────────────┘│
+│                                                         │
+│  ┌─ COMPARATIVO ───────────────────────────────────────┐│
+│  │  Caixa Hoje     ████████░░░░░░░ R$ 57.000           ││
+│  │  Projetado      ██████████████░ R$ 72.000 ↑        ││
+│  └─────────────────────────────────────────────────────┘│
+│                                                         │
+│  "Este painel governa as decisões da semana."           │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Seções Mantidas (Abaixo do Painel)
+
+O **Checklist de Execução** e **Decisão da Semana** continuam como estão, abaixo do novo painel de previsão de caixa.
