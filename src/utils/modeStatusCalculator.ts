@@ -16,10 +16,16 @@ export function calculateFinanceiroStatus(data?: FinanceiroStage): ModeStatus {
   const fields = [
     (data.caixaNiceFoods ?? '').trim() !== '',
     (data.caixaEcommerce ?? '').trim() !== '',
-    (data.saidasInevitaveis ?? '').trim() !== '',
+    // Novos campos de entradas (pelo menos um preenchido)
+    (data.entradaMediaConservadora ?? '').trim() !== '' ||
+      (data.entradasGarantidas ?? '').trim() !== '',
+    // Novos campos de saídas (pelo menos um preenchido)
+    (data.custosFixosMensais ?? '').trim() !== '' ||
+      (data.operacaoMinima ?? '').trim() !== '' ||
+      (data.impostosEstimados ?? '').trim() !== '',
+    // Checklist
     (data.vencimentos?.dda || data.vencimentos?.email || 
       data.vencimentos?.whatsapp || data.vencimentos?.planilha) ?? false,
-    data.agendamentoConfirmado ?? false,
   ];
   
   const filled = fields.filter(Boolean).length;
