@@ -5,9 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
-import { Plus, Trash2, ExternalLink, TrendingUp, CheckSquare, FileText } from 'lucide-react';
+import { Plus, Trash2, ExternalLink, TrendingUp, CheckSquare, FileText, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useState } from 'react';
 
 interface FinanceiroModeProps {
@@ -36,26 +35,71 @@ const formatCurrency = (value: number): string => {
   });
 };
 
-// Feedback visual do fôlego
-const getFolegoStatus = (folego: number) => {
-  if (folego >= 50000) return { 
+// Status visual do saldo projetado
+const getSaldoStatus = (saldo: number) => {
+  if (saldo >= 50000) return { 
     color: 'bg-green-500', 
     textColor: 'text-green-600',
-    label: 'Confortável',
-    percentage: 100 
+    bgLight: 'bg-green-50',
+    borderColor: 'border-green-200',
+    label: 'Confortável'
   };
-  if (folego >= 20000) return { 
+  if (saldo >= 20000) return { 
     color: 'bg-yellow-500', 
     textColor: 'text-yellow-600',
-    label: 'Atenção',
-    percentage: 60 
+    bgLight: 'bg-yellow-50',
+    borderColor: 'border-yellow-200',
+    label: 'Atenção'
+  };
+  if (saldo > 0) return { 
+    color: 'bg-orange-500', 
+    textColor: 'text-orange-600',
+    bgLight: 'bg-orange-50',
+    borderColor: 'border-orange-200',
+    label: 'Risco'
   };
   return { 
     color: 'bg-red-500', 
     textColor: 'text-red-600',
-    label: 'Crítico',
-    percentage: 30 
+    bgLight: 'bg-red-50',
+    borderColor: 'border-red-200',
+    label: 'Crítico'
   };
+};
+
+// Componente de barra comparativa
+const BarraComparativa = ({ 
+  label, 
+  valor, 
+  maxValor, 
+  corClasse,
+  icon: Icon
+}: { 
+  label: string; 
+  valor: number; 
+  maxValor: number; 
+  corClasse: string;
+  icon?: React.ElementType;
+}) => {
+  const percentage = maxValor > 0 ? (valor / maxValor) * 100 : 0;
+  
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-sm">
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          {Icon && <Icon className="h-3.5 w-3.5" />}
+          {label}
+        </span>
+        <span className="font-medium">{formatCurrency(valor)}</span>
+      </div>
+      <div className="h-3 bg-muted rounded-full overflow-hidden">
+        <div 
+          className={cn("h-full rounded-full transition-all duration-500", corClasse)}
+          style={{ width: `${Math.min(percentage, 100)}%` }}
+        />
+      </div>
+    </div>
+  );
 };
 
 export function FinanceiroMode({
@@ -71,7 +115,11 @@ export function FinanceiroMode({
   const data: FinanceiroStage = {
     caixaNiceFoods: mode.financeiroData?.caixaNiceFoods ?? '',
     caixaEcommerce: mode.financeiroData?.caixaEcommerce ?? '',
-    saidasInevitaveis: mode.financeiroData?.saidasInevitaveis ?? '',
+    entradaMediaConservadora: mode.financeiroData?.entradaMediaConservadora ?? '',
+    entradasGarantidas: mode.financeiroData?.entradasGarantidas ?? '',
+    custosFixosMensais: mode.financeiroData?.custosFixosMensais ?? '',
+    operacaoMinima: mode.financeiroData?.operacaoMinima ?? '',
+    impostosEstimados: mode.financeiroData?.impostosEstimados ?? '',
     vencimentos: {
       dda: mode.financeiroData?.vencimentos?.dda ?? false,
       email: mode.financeiroData?.vencimentos?.email ?? false,
@@ -85,12 +133,15 @@ export function FinanceiroMode({
     decisaoRenegociar: mode.financeiroData?.decisaoRenegociar ?? '',
   };
   
-  // Cálculos
-  const total = parseCurrency(data.caixaNiceFoods) + parseCurrency(data.caixaEcommerce);
-  const saidas = parseCurrency(data.saidasInevitaveis);
-  const folego = total - saidas;
-  const folegoStatus = getFolegoStatus(folego);
-  const hasValues = total > 0 || saidas > 0;
+  // Cálculos automáticos
+  const totalCaixa = parseCurrency(data.caixaNiceFoods) + parseCurrency(data.caixaEcommerce);
+  const totalEntradas = parseCurrency(data.entradaMediaConservadora) + parseCurrency(data.entradasGarantidas);
+  const totalSaidas = parseCurrency(data.custosFixosMensais) + parseCurrency(data.operacaoMinima) + parseCurrency(data.impostosEstimados);
+  const saldoProjetado = totalCaixa + totalEntradas - totalSaidas;
+  
+  const saldoStatus = getSaldoStatus(saldoProjetado);
+  const hasValues = totalCaixa > 0 || totalEntradas > 0 || totalSaidas > 0;
+  const maxValorComparativo = Math.max(totalCaixa, saldoProjetado, 1);
 
   const handleAddItem = () => {
     if (newItemText.trim()) {
@@ -101,110 +152,228 @@ export function FinanceiroMode({
 
   return (
     <div className="space-y-6">
-      {/* ========== BLOCO 0: PAINEL DE DECISÃO ========== */}
+      {/* ========== PAINEL DE PREVISÃO DE CAIXA — 30 DIAS ========== */}
       <Card className="border-2 border-primary/20">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <TrendingUp className="h-4 w-4" />
-            Painel de Decisão
+            Previsão de Caixa — 30 dias
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Caixa NICE FOODS */}
-          <div className="flex items-center justify-between gap-4">
-            <label className="text-sm font-medium text-foreground whitespace-nowrap">
-              Caixa hoje NICE FOODS
-            </label>
-            <div className="flex items-center gap-2 flex-1 max-w-[180px]">
-              <span className="text-sm text-muted-foreground">R$</span>
-              <Input
-                placeholder="0,00"
-                value={data.caixaNiceFoods}
-                onChange={(e) => onUpdateFinanceiroData({ caixaNiceFoods: e.target.value })}
-                className="h-9 text-sm text-right"
-              />
-            </div>
-          </div>
+        <CardContent className="space-y-5">
           
-          {/* Caixa NICE FOODS ECOM */}
-          <div className="flex items-center justify-between gap-4">
-            <label className="text-sm font-medium text-foreground whitespace-nowrap">
-              Caixa hoje NICE FOODS ECOM
-            </label>
-            <div className="flex items-center gap-2 flex-1 max-w-[180px]">
-              <span className="text-sm text-muted-foreground">R$</span>
-              <Input
-                placeholder="0,00"
-                value={data.caixaEcommerce}
-                onChange={(e) => onUpdateFinanceiroData({ caixaEcommerce: e.target.value })}
-                className="h-9 text-sm text-right"
-              />
-            </div>
-          </div>
-          
-          {/* TOTAL */}
-          <div className="flex items-center justify-between gap-4 pt-2 border-t border-border">
-            <span className="text-sm font-bold text-foreground">TOTAL</span>
-            <span className="text-sm font-bold text-foreground">
-              {formatCurrency(total)}
-            </span>
-          </div>
-          
-          <Separator />
-          
-          {/* Saídas Inevitáveis */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              Saídas inevitáveis nos próximos 30 dias
-            </label>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">R$</span>
-              <Input
-                placeholder="0,00"
-                value={data.saidasInevitaveis}
-                onChange={(e) => onUpdateFinanceiroData({ saidasInevitaveis: e.target.value })}
-                className="h-9 text-sm text-right max-w-[180px]"
-              />
-            </div>
-          </div>
-          
-          <Separator />
-          
-          {/* Fôlego Estimado */}
-          <div className="space-y-3">
+          {/* BLOCO 1: CAIXA ATUAL */}
+          <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Caixa Atual
+            </h4>
+            
             <div className="flex items-center justify-between gap-4">
-              <span className="text-sm font-bold text-foreground">FÔLEGO ESTIMADO</span>
-              <span className={cn("text-sm font-bold", folegoStatus.textColor)}>
-                {formatCurrency(folego)}
+              <label className="text-sm text-foreground">NICE FOODS</label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.caixaNiceFoods}
+                  onChange={(e) => onUpdateFinanceiroData({ caixaNiceFoods: e.target.value })}
+                  className="h-9 text-sm text-right w-[140px]"
+                />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between gap-4">
+              <label className="text-sm text-foreground">NICE FOODS ECOM</label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.caixaEcommerce}
+                  onChange={(e) => onUpdateFinanceiroData({ caixaEcommerce: e.target.value })}
+                  className="h-9 text-sm text-right w-[140px]"
+                />
+              </div>
+            </div>
+            
+            <Separator />
+            
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm font-bold text-foreground">TOTAL CAIXA</span>
+              <span className="text-sm font-bold text-foreground">
+                {formatCurrency(totalCaixa)}
+              </span>
+            </div>
+          </div>
+
+          {/* BLOCO 2: ENTRADAS PREVISTAS */}
+          <div className="space-y-3 p-4 rounded-lg bg-green-50/50 dark:bg-green-950/20 border border-green-200/50">
+            <h4 className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide flex items-center gap-1.5">
+              <ArrowUpRight className="h-3.5 w-3.5" />
+              Entradas Previstas
+            </h4>
+            
+            <div className="flex items-center justify-between gap-4">
+              <label className="text-sm text-foreground">Entrada média conservadora</label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.entradaMediaConservadora}
+                  onChange={(e) => onUpdateFinanceiroData({ entradaMediaConservadora: e.target.value })}
+                  className="h-9 text-sm text-right w-[140px]"
+                />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between gap-4">
+              <label className="text-sm text-foreground">Entradas já garantidas</label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.entradasGarantidas}
+                  onChange={(e) => onUpdateFinanceiroData({ entradasGarantidas: e.target.value })}
+                  className="h-9 text-sm text-right w-[140px]"
+                />
+              </div>
+            </div>
+            
+            <Separator className="bg-green-200/50" />
+            
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm font-bold text-green-700 dark:text-green-400">TOTAL ENTRADAS</span>
+              <span className="text-sm font-bold text-green-700 dark:text-green-400">
+                {formatCurrency(totalEntradas)}
+              </span>
+            </div>
+          </div>
+
+          {/* BLOCO 3: SAÍDAS INEVITÁVEIS */}
+          <div className="space-y-3 p-4 rounded-lg bg-red-50/50 dark:bg-red-950/20 border border-red-200/50">
+            <h4 className="text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wide flex items-center gap-1.5">
+              <ArrowDownRight className="h-3.5 w-3.5" />
+              Saídas Inevitáveis
+            </h4>
+            
+            <div className="flex items-center justify-between gap-4">
+              <label className="text-sm text-foreground">Custos fixos mensais</label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.custosFixosMensais}
+                  onChange={(e) => onUpdateFinanceiroData({ custosFixosMensais: e.target.value })}
+                  className="h-9 text-sm text-right w-[140px]"
+                />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between gap-4">
+              <label className="text-sm text-foreground">Operação mínima</label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.operacaoMinima}
+                  onChange={(e) => onUpdateFinanceiroData({ operacaoMinima: e.target.value })}
+                  className="h-9 text-sm text-right w-[140px]"
+                />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between gap-4">
+              <label className="text-sm text-foreground">Impostos estimados</label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.impostosEstimados}
+                  onChange={(e) => onUpdateFinanceiroData({ impostosEstimados: e.target.value })}
+                  className="h-9 text-sm text-right w-[140px]"
+                />
+              </div>
+            </div>
+            
+            <Separator className="bg-red-200/50" />
+            
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm font-bold text-red-700 dark:text-red-400">TOTAL SAÍDAS</span>
+              <span className="text-sm font-bold text-red-700 dark:text-red-400">
+                {formatCurrency(totalSaidas)}
+              </span>
+            </div>
+          </div>
+
+          {/* BLOCO 4: RESULTADO */}
+          <div className={cn(
+            "space-y-3 p-4 rounded-lg border-2",
+            saldoStatus.bgLight,
+            saldoStatus.borderColor
+          )}>
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Resultado — Saldo Projetado
+            </h4>
+            
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm text-muted-foreground">
+                Caixa + Entradas − Saídas
+              </span>
+              <span className={cn("text-xl font-bold", saldoStatus.textColor)}>
+                {formatCurrency(saldoProjetado)}
               </span>
             </div>
             
             {hasValues && (
               <>
-                <Progress 
-                  value={folegoStatus.percentage} 
-                  className="h-2"
-                  style={{
-                    ['--progress-background' as string]: folegoStatus.color.replace('bg-', '')
-                  }}
-                />
+                <div className="h-4 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className={cn("h-full rounded-full transition-all duration-500", saldoStatus.color)}
+                    style={{ 
+                      width: `${Math.max(Math.min((saldoProjetado / 100000) * 100, 100), 5)}%` 
+                    }}
+                  />
+                </div>
                 <div className="flex items-center gap-2">
-                  <div className={cn("w-2 h-2 rounded-full", folegoStatus.color)} />
-                  <span className={cn("text-xs font-medium", folegoStatus.textColor)}>
-                    {folegoStatus.label}
+                  <div className={cn("w-2.5 h-2.5 rounded-full", saldoStatus.color)} />
+                  <span className={cn("text-sm font-medium", saldoStatus.textColor)}>
+                    {saldoStatus.label}
                   </span>
                 </div>
               </>
             )}
-            
-            <p className="text-xs text-muted-foreground italic pt-2">
-              "Este número governa as decisões da semana."
-            </p>
           </div>
+
+          {/* BLOCO 5: COMPARATIVO VISUAL */}
+          {hasValues && (
+            <div className="space-y-3 p-4 rounded-lg bg-muted/30 border border-border">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Comparativo
+              </h4>
+              
+              <div className="space-y-3">
+                <BarraComparativa 
+                  label="Caixa Hoje" 
+                  valor={totalCaixa} 
+                  maxValor={maxValorComparativo}
+                  corClasse="bg-primary"
+                />
+                <BarraComparativa 
+                  label="Saldo Projetado" 
+                  valor={saldoProjetado} 
+                  maxValor={maxValorComparativo}
+                  corClasse={saldoStatus.color}
+                  icon={saldoProjetado >= totalCaixa ? ArrowUpRight : ArrowDownRight}
+                />
+              </div>
+            </div>
+          )}
+          
+          <p className="text-xs text-muted-foreground italic text-center pt-2">
+            "Este painel governa as decisões da semana."
+          </p>
         </CardContent>
       </Card>
 
-      {/* ========== BLOCO 1: CHECKLIST DE EXECUÇÃO ========== */}
+      {/* ========== BLOCO: CHECKLIST DE EXECUÇÃO ========== */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -348,7 +517,7 @@ export function FinanceiroMode({
         </CardContent>
       </Card>
 
-      {/* ========== BLOCO 2: DECISÃO DA SEMANA ========== */}
+      {/* ========== BLOCO: DECISÃO DA SEMANA ========== */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">

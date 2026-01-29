@@ -25,8 +25,17 @@ export interface FinanceiroStage {
   caixaNiceFoods: string;
   caixaEcommerce: string;
   
-  // Saídas inevitáveis para cálculo do fôlego
-  saidasInevitaveis: string;
+  // Entradas previstas
+  entradaMediaConservadora: string;
+  entradasGarantidas: string;
+  
+  // Saídas detalhadas (substitui saidasInevitaveis)
+  custosFixosMensais: string;
+  operacaoMinima: string;
+  impostosEstimados: string;
+  
+  // Mantido para compatibilidade (deprecated)
+  saidasInevitaveis?: string;
   
   // Verificações simplificadas
   vencimentos: {
@@ -241,7 +250,11 @@ export const DEFAULT_CHECKLISTS: Record<FocusModeId, Omit<ChecklistItem, 'id' | 
 export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
   caixaNiceFoods: '',
   caixaEcommerce: '',
-  saidasInevitaveis: '',
+  entradaMediaConservadora: '',
+  entradasGarantidas: '',
+  custosFixosMensais: '',
+  operacaoMinima: '',
+  impostosEstimados: '',
   vencimentos: {
     dda: false,
     email: false,
