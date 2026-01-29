@@ -1,9 +1,14 @@
+// ============= Constantes Globais =============
+export const MARGEM_OPERACIONAL = 0.40; // 40% - premissa fixa do negócio
+
+// ============= Tipos Base =============
 export type FocusModeId = 
   | 'financeiro'
   | 'marketing'
   | 'supplychain'
   | 'pre-reuniao-geral'
   | 'pre-reuniao-ads'
+  | 'reuniao-ads'
   | 'pre-reuniao-verter'
   | 'backlog';
 
@@ -19,54 +24,123 @@ export interface ChecklistItem {
   notes?: string;
 }
 
-// Financeiro Mode specific structure
+// ============= Financeiro V2 =============
 export interface FinanceiroStage {
-  // Caixa separado por empresa
-  caixaNiceFoods: string;
-  caixaEcommerce: string;
+  // INPUTS BÁSICOS (5 campos simplificados)
+  faturamentoMes: string;
+  custoFixoMensal: string;
+  marketingBase: string;
+  caixaAtual: string;
+  caixaMinimo: string;
   
-  // Entradas previstas
-  entradaMediaConservadora: string;
-  entradasGarantidas: string;
-  
-  // Saídas detalhadas (substitui saidasInevitaveis)
-  custosFixosMensais: string;
-  operacaoMinima: string;
-  impostosEstimados: string;
-  
-  // Mantido para compatibilidade (deprecated)
-  saidasInevitaveis?: string;
-  
-  // Verificações simplificadas
-  vencimentos: {
-    dda: boolean;
-    email: boolean;
-    whatsapp: boolean;
-    planilha: boolean;
+  // CUSTOS DEFASADOS (novidade crítica)
+  custosDefasados: {
+    impostosProximoMes: string;
+    adsCartaoAnterior: string;
+    parcelasEmprestimos: string;
+    comprasEstoqueComprometidas: string;
+    outrosCompromissos: string;
   };
   
-  // Itens de vencimento
-  itensVencimento: ChecklistItem[];
+  // CHECKLISTS POR FREQUÊNCIA
+  checklistDiario: {
+    atualizouCaixa: boolean;
+    olhouResultado: boolean;
+    decidiu: boolean;
+  };
   
-  // Agendamento
-  agendamentoConfirmado: boolean;
+  checklistSemanal: {
+    dda: boolean;
+    emails: boolean;
+    whatsapp: boolean;
+    agendouVencimentos: boolean;
+    atualizouCaixaMinimo: boolean;
+  };
   
-  // Decisões como texto livre
-  decisaoPagar: string;
-  decisaoSegurar: string;
-  decisaoRenegociar: string;
+  checklistMensal: {
+    atualizouFaturamento: boolean;
+    revisouCustoFixo: boolean;
+    revisouMarketingBase: boolean;
+    atualizouDefasados: boolean;
+    comparouPrevistoRealizado: boolean;
+  };
+  
+  // DEPRECATED (compatibilidade com dados existentes)
+  caixaNiceFoods?: string;
+  caixaEcommerce?: string;
+  entradaMediaConservadora?: string;
+  entradasGarantidas?: string;
+  custosFixosMensais?: string;
+  operacaoMinima?: string;
+  impostosEstimados?: string;
+  vencimentos?: { dda: boolean; email: boolean; whatsapp: boolean; planilha: boolean; };
+  itensVencimento?: ChecklistItem[];
+  agendamentoConfirmado?: boolean;
+  decisaoPagar?: string;
+  decisaoSegurar?: string;
+  decisaoRenegociar?: string;
 }
 
-// Marketing Mode specific structure
+// Interface de Exports do Financeiro (para outros modos)
+export interface FinanceiroExports {
+  caixaLivreReal: number;
+  statusFinanceiro: 'estrategia' | 'atencao' | 'sobrevivencia';
+  risco30d: 'verde' | 'amarelo' | 'vermelho';
+  risco60d: 'verde' | 'amarelo' | 'vermelho';
+  risco90d: 'verde' | 'amarelo' | 'vermelho';
+  adsMaximoPermitido: number;
+  adsBase: number;
+  adsIncremental: number;
+  scoreFinanceiro: number;
+  resultadoMes: number;
+  totalDefasados: number;
+}
+
+// ============= Pre-Reunião Geral =============
+export interface PreReuniaoGeralStage {
+  estoque: {
+    top3Percentual: string;
+    coberturaMedia: 'menos15' | '15a30' | 'mais30' | null;
+    statusCompras: 'pendente' | 'em_producao' | 'ok' | null;
+  };
+  decisaoSemana: 'preservar_caixa' | 'repor_estoque' | 
+                 'crescer_controlado' | 'crescer_agressivo' | null;
+  registroDecisao: string;
+}
+
+// ============= Pre-Reunião Ads =============
+export interface PreReuniaoAdsStage {
+  roasMedio7d: string;
+  roasMedio14d: string;
+  roasMedio30d: string;
+  cpaMedio: string;
+  ticketMedio: string;
+  gastoAdsAtual: string;
+  decisaoSemana: 'escalar' | 'manter' | 'reduzir' | null;
+}
+
+// ============= Reunião Ads (NOVO) =============
+export interface ReuniaoAdsAcao {
+  id: string;
+  tipo: 'escalar' | 'pausar' | 'testar' | 'otimizar';
+  descricao: string;
+}
+
+export interface ReuniaoAdsStage {
+  orcamentoDiario: string;
+  orcamentoSemanal: string;
+  distribuicaoMeta: string;
+  distribuicaoGoogle: string;
+  roasMinimoAceitavel: string;
+  cpaMaximoAceitavel: string;
+  metricasMeta: { roas: string; cpa: string; spend: string; receita: string };
+  metricasGoogle: { roas: string; cpa: string; spend: string; receita: string };
+  acoes: ReuniaoAdsAcao[];
+  registroDecisao: string;
+}
+
+// ============= Marketing (Simplificado) =============
 export interface MarketingStage {
-  // Contexto mensal
-  mesFechouPositivo: boolean | null;
-  verbaAds: string;
-  
-  // Foco semanal
-  focoSemana: string;
-  
-  // Checklist de verificacao
   verificacoes: {
     campanhasAtivas: boolean;
     remarketingRodando: boolean;
@@ -75,35 +149,33 @@ export interface MarketingStage {
     influencersVerificados: boolean;
   };
   
-  // O que nao fazer
-  naoFazerSemana: string;
-  
-  // Decisao
-  decisaoSemana: 'manter' | 'ajuste' | 'pausar' | null;
-  observacaoDecisao: string;
+  // DEPRECATED (compatibilidade)
+  mesFechouPositivo?: boolean | null;
+  verbaAds?: string;
+  focoSemana?: string;
+  naoFazerSemana?: string;
+  decisaoSemana?: 'manter' | 'ajuste' | 'pausar' | null;
+  observacaoDecisao?: string;
 }
 
-// Supply Chain Mode specific structure
+// ============= Supply Chain =============
 export type SupplyChainRitmo = 'semanal' | 'quinzenal' | 'mensal';
 
 export interface SupplyChainStage {
   ritmoAtual: SupplyChainRitmo;
   
-  // Semanal
   semanal: {
     saidaEstoque: boolean;
     verificarBling: boolean;
     produtoForaPadrao: boolean;
   };
   
-  // Quinzenal
   quinzenal: {
     planejamentoProducao: boolean;
     producaoFazSentido: boolean;
     ajustarSeNecessario: boolean;
   };
   
-  // Mensal
   mensal: {
     saidaEstoqueMensal: boolean;
     saldoFinalEstoque: boolean;
@@ -111,7 +183,7 @@ export interface SupplyChainStage {
   };
 }
 
-// Backlog Mode specific structure
+// ============= Backlog =============
 export type BacklogQuandoFazer = 'hoje' | 'proximo' | 'depois';
 export type BacklogTempoEstimado = '15min' | '30min' | '1h' | '2h' | '+2h';
 
@@ -130,11 +202,12 @@ export interface BacklogIdeia {
 }
 
 export interface BacklogStage {
-  tempoDisponivelHoje: number; // em minutos
+  tempoDisponivelHoje: number;
   tarefas: BacklogTarefa[];
   ideias: BacklogIdeia[];
 }
 
+// ============= Focus Mode Principal =============
 export interface FocusMode {
   id: FocusModeId;
   icon: string;
@@ -147,6 +220,9 @@ export interface FocusMode {
   marketingData?: MarketingStage;
   supplyChainData?: SupplyChainStage;
   backlogData?: BacklogStage;
+  preReuniaoGeralData?: PreReuniaoGeralStage;
+  preReuniaoAdsData?: PreReuniaoAdsStage;
+  reuniaoAdsData?: ReuniaoAdsStage;
   completedAt?: string;
 }
 
@@ -158,6 +234,7 @@ export interface FocusModeState {
   lastCompletedMode?: FocusModeId;
 }
 
+// ============= Configurações dos Modos =============
 export const MODE_CONFIGS: Record<FocusModeId, Omit<FocusMode, 'items' | 'completedAt' | 'status' | 'financeiroData'>> = {
   financeiro: {
     id: 'financeiro',
@@ -170,7 +247,7 @@ export const MODE_CONFIGS: Record<FocusModeId, Omit<FocusMode, 'items' | 'comple
     id: 'marketing',
     icon: '📣',
     title: 'Marketing',
-    fixedText: 'Ads respondem ao caixa, não ao medo.',
+    fixedText: 'Marketing não é fazer mais. É escolher onde prestar atenção.',
     frequency: 'weekly',
   },
   supplychain: {
@@ -184,7 +261,7 @@ export const MODE_CONFIGS: Record<FocusModeId, Omit<FocusMode, 'items' | 'comple
     id: 'pre-reuniao-geral',
     icon: '🧠',
     title: 'Pré-Reunião Geral',
-    fixedText: 'Somente fatos. Opiniões ficam de fora.',
+    fixedText: 'Alinhamento semanal do negócio.',
     frequency: 'weekly',
   },
   'pre-reuniao-ads': {
@@ -192,6 +269,13 @@ export const MODE_CONFIGS: Record<FocusModeId, Omit<FocusMode, 'items' | 'comple
     icon: '🎯',
     title: 'Pré-Reunião Ads',
     fixedText: 'Ads respondem ao caixa, não ao medo.',
+    frequency: 'weekly',
+  },
+  'reuniao-ads': {
+    id: 'reuniao-ads',
+    icon: '📊',
+    title: 'Reunião Ads',
+    fixedText: 'Executa o que foi decidido. Sem improvisos.',
     frequency: 'weekly',
   },
   'pre-reuniao-verter': {
@@ -210,34 +294,14 @@ export const MODE_CONFIGS: Record<FocusModeId, Omit<FocusMode, 'items' | 'comple
   },
 };
 
+// ============= Checklists Padrão =============
 export const DEFAULT_CHECKLISTS: Record<FocusModeId, Omit<ChecklistItem, 'id' | 'completed'>[]> = {
-  financeiro: [], // Financeiro uses financeiroData instead
-  marketing: [
-    { text: 'Quanto sobrou no mês anterior?' },
-    { text: 'Quanto está liberado para Ads agora?' },
-    { text: 'Remarketing está ativo?' },
-    { text: 'Algum teste pequeno cabe?' },
-  ],
-  supplychain: [
-    { text: 'Estoque atual (baixo / ok / alto)' },
-    { text: 'Produções em andamento' },
-    { text: 'Compras necessárias nos próximos 30 dias' },
-    { text: 'Algo que pode esperar?' },
-  ],
-  'pre-reuniao-geral': [
-    { text: 'Caixa atual' },
-    { text: 'Faturamento recente' },
-    { text: 'Estoques' },
-    { text: 'Produções' },
-    { text: 'Prazos críticos (7 dias)' },
-  ],
-  'pre-reuniao-ads': [
-    { text: 'Resultado do mês anterior' },
-    { text: 'Verba liberada para Ads' },
-    { text: 'Campanhas ativas' },
-    { text: 'Remarketing ok?' },
-    { text: 'O que NÃO vamos mexer' },
-  ],
+  financeiro: [],
+  marketing: [],
+  supplychain: [],
+  'pre-reuniao-geral': [],
+  'pre-reuniao-ads': [],
+  'reuniao-ads': [],
   'pre-reuniao-verter': [
     { text: 'Indicadores atualizados' },
     { text: 'Caixa e dívida atual' },
@@ -247,31 +311,42 @@ export const DEFAULT_CHECKLISTS: Record<FocusModeId, Omit<ChecklistItem, 'id' | 
   backlog: [],
 };
 
+// ============= Defaults por Modo =============
 export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
-  caixaNiceFoods: '',
-  caixaEcommerce: '',
-  entradaMediaConservadora: '',
-  entradasGarantidas: '',
-  custosFixosMensais: '',
-  operacaoMinima: '',
-  impostosEstimados: '',
-  vencimentos: {
-    dda: false,
-    email: false,
-    whatsapp: false,
-    planilha: false,
+  faturamentoMes: '',
+  custoFixoMensal: '',
+  marketingBase: '',
+  caixaAtual: '',
+  caixaMinimo: '',
+  custosDefasados: {
+    impostosProximoMes: '',
+    adsCartaoAnterior: '',
+    parcelasEmprestimos: '',
+    comprasEstoqueComprometidas: '',
+    outrosCompromissos: '',
   },
-  itensVencimento: [],
-  agendamentoConfirmado: false,
-  decisaoPagar: '',
-  decisaoSegurar: '',
-  decisaoRenegociar: '',
+  checklistDiario: {
+    atualizouCaixa: false,
+    olhouResultado: false,
+    decidiu: false,
+  },
+  checklistSemanal: {
+    dda: false,
+    emails: false,
+    whatsapp: false,
+    agendouVencimentos: false,
+    atualizouCaixaMinimo: false,
+  },
+  checklistMensal: {
+    atualizouFaturamento: false,
+    revisouCustoFixo: false,
+    revisouMarketingBase: false,
+    atualizouDefasados: false,
+    comparouPrevistoRealizado: false,
+  },
 };
 
 export const DEFAULT_MARKETING_DATA: MarketingStage = {
-  mesFechouPositivo: null,
-  verbaAds: '',
-  focoSemana: '',
   verificacoes: {
     campanhasAtivas: false,
     remarketingRodando: false,
@@ -279,9 +354,6 @@ export const DEFAULT_MARKETING_DATA: MarketingStage = {
     emailEnviado: false,
     influencersVerificados: false,
   },
-  naoFazerSemana: '',
-  decisaoSemana: null,
-  observacaoDecisao: '',
 };
 
 export const DEFAULT_SUPPLYCHAIN_DATA: SupplyChainStage = {
@@ -304,7 +376,40 @@ export const DEFAULT_SUPPLYCHAIN_DATA: SupplyChainStage = {
 };
 
 export const DEFAULT_BACKLOG_DATA: BacklogStage = {
-  tempoDisponivelHoje: 480, // 8 horas default
+  tempoDisponivelHoje: 480,
   tarefas: [],
   ideias: [],
+};
+
+export const DEFAULT_PREREUNIAO_GERAL_DATA: PreReuniaoGeralStage = {
+  estoque: {
+    top3Percentual: '',
+    coberturaMedia: null,
+    statusCompras: null,
+  },
+  decisaoSemana: null,
+  registroDecisao: '',
+};
+
+export const DEFAULT_PREREUNIAO_ADS_DATA: PreReuniaoAdsStage = {
+  roasMedio7d: '',
+  roasMedio14d: '',
+  roasMedio30d: '',
+  cpaMedio: '',
+  ticketMedio: '',
+  gastoAdsAtual: '',
+  decisaoSemana: null,
+};
+
+export const DEFAULT_REUNIAO_ADS_DATA: ReuniaoAdsStage = {
+  orcamentoDiario: '',
+  orcamentoSemanal: '',
+  distribuicaoMeta: '70',
+  distribuicaoGoogle: '30',
+  roasMinimoAceitavel: '3',
+  cpaMaximoAceitavel: '',
+  metricasMeta: { roas: '', cpa: '', spend: '', receita: '' },
+  metricasGoogle: { roas: '', cpa: '', spend: '', receita: '' },
+  acoes: [],
+  registroDecisao: '',
 };

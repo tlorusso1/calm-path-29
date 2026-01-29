@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, PreReuniaoAdsStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports } from '@/types/focus-mode';
 import { Button } from '@/components/ui/button';
 import { FinanceiroMode } from '@/components/modes/FinanceiroMode';
 import { MarketingMode } from '@/components/modes/MarketingMode';
@@ -6,6 +6,7 @@ import { SupplyChainMode } from '@/components/modes/SupplyChainMode';
 import { PreReuniaoGeralMode } from '@/components/modes/PreReuniaoGeralMode';
 import { PreReuniaoAdsMode } from '@/components/modes/PreReuniaoAdsMode';
 import { PreReuniaoVerterMode } from '@/components/modes/PreReuniaoVerterMode';
+import { ReuniaoAdsMode } from '@/components/modes/ReuniaoAdsMode';
 import { BacklogMode } from '@/components/modes/BacklogMode';
 
 interface ModeContentProps {
@@ -17,17 +18,27 @@ interface ModeContentProps {
   onSetNotes: (itemId: string, notes: string) => void;
   onAddItem: (text: string) => void;
   onRemoveItem: (itemId: string) => void;
-  // Financeiro-specific
+  // Financeiro
   onUpdateFinanceiroData?: (data: Partial<FinanceiroStage>) => void;
   onAddFinanceiroItem?: (text: string) => void;
   onToggleFinanceiroItem?: (itemId: string) => void;
   onSetFinanceiroItemClassification?: (itemId: string, classification: 'A' | 'B' | 'C') => void;
   onRemoveFinanceiroItem?: (itemId: string) => void;
-  // Marketing-specific
+  // Marketing
   onUpdateMarketingData?: (data: Partial<MarketingStage>) => void;
-  // Supply Chain-specific
+  // Supply Chain
   onUpdateSupplyChainData?: (data: Partial<SupplyChainStage>) => void;
-  // Backlog-specific
+  // Pre-Reunião Geral
+  financeiroExports?: FinanceiroExports;
+  onUpdatePreReuniaoGeralData?: (data: Partial<PreReuniaoGeralStage>) => void;
+  // Pre-Reunião Ads
+  prioridadeSemana?: string | null;
+  onUpdatePreReuniaoAdsData?: (data: Partial<PreReuniaoAdsStage>) => void;
+  // Reunião Ads
+  onUpdateReuniaoAdsData?: (data: Partial<ReuniaoAdsStage>) => void;
+  onAddReuniaoAdsAcao?: (acao: Omit<ReuniaoAdsAcao, 'id'>) => ReuniaoAdsAcao;
+  onRemoveReuniaoAdsAcao?: (id: string) => void;
+  // Backlog
   onUpdateBacklogData?: (data: Partial<BacklogStage>) => void;
   onAddBacklogTarefa?: (tarefa: Omit<BacklogTarefa, 'id'>) => void;
   onUpdateBacklogTarefa?: (id: string, data: Partial<BacklogTarefa>) => void;
@@ -52,6 +63,13 @@ export function ModeContent({
   onRemoveFinanceiroItem,
   onUpdateMarketingData,
   onUpdateSupplyChainData,
+  financeiroExports,
+  onUpdatePreReuniaoGeralData,
+  prioridadeSemana,
+  onUpdatePreReuniaoAdsData,
+  onUpdateReuniaoAdsData,
+  onAddReuniaoAdsAcao,
+  onRemoveReuniaoAdsAcao,
   onUpdateBacklogData,
   onAddBacklogTarefa,
   onUpdateBacklogTarefa,
@@ -60,26 +78,12 @@ export function ModeContent({
   onRemoveBacklogIdeia,
 }: ModeContentProps) {
   const renderModeContent = () => {
-    const commonProps = {
-      mode,
-      onToggleItem,
-      onSetClassification,
-      onSetDecision,
-      onSetNotes,
-      onAddItem,
-      onRemoveItem,
-    };
-
     switch (mode.id) {
       case 'financeiro':
         return (
           <FinanceiroMode 
             mode={mode}
             onUpdateFinanceiroData={onUpdateFinanceiroData!}
-            onAddItem={onAddFinanceiroItem!}
-            onToggleItem={onToggleFinanceiroItem!}
-            onSetClassification={onSetFinanceiroItemClassification!}
-            onRemoveItem={onRemoveFinanceiroItem!}
           />
         );
       case 'marketing':
@@ -97,11 +101,42 @@ export function ModeContent({
           />
         );
       case 'pre-reuniao-geral':
-        return <PreReuniaoGeralMode {...commonProps} />;
+        return (
+          <PreReuniaoGeralMode 
+            mode={mode}
+            financeiroExports={financeiroExports!}
+            preReuniaoAdsData={mode.preReuniaoAdsData}
+            onUpdatePreReuniaoGeralData={onUpdatePreReuniaoGeralData!}
+          />
+        );
       case 'pre-reuniao-ads':
-        return <PreReuniaoAdsMode {...commonProps} />;
+        return (
+          <PreReuniaoAdsMode 
+            mode={mode}
+            financeiroExports={financeiroExports!}
+            prioridadeSemana={prioridadeSemana ?? null}
+            onUpdatePreReuniaoAdsData={onUpdatePreReuniaoAdsData!}
+          />
+        );
+      case 'reuniao-ads':
+        return (
+          <ReuniaoAdsMode 
+            mode={mode}
+            onUpdateReuniaoAdsData={onUpdateReuniaoAdsData!}
+            onAddAcao={onAddReuniaoAdsAcao!}
+            onRemoveAcao={onRemoveReuniaoAdsAcao!}
+          />
+        );
       case 'pre-reuniao-verter':
-        return <PreReuniaoVerterMode {...commonProps} />;
+        return (
+          <PreReuniaoVerterMode 
+            mode={mode}
+            onToggleItem={onToggleItem}
+            onSetClassification={onSetClassification}
+            onSetDecision={onSetDecision}
+            onSetNotes={onSetNotes}
+          />
+        );
       case 'backlog':
         return (
           <BacklogMode 
@@ -123,7 +158,6 @@ export function ModeContent({
 
   return (
     <div className="flex-1 flex flex-col p-6 space-y-8">
-      {/* Mode Header */}
       <div className="text-center space-y-2">
         <p className="text-3xl">{mode.icon}</p>
         <h1 className="text-xl font-semibold text-foreground">
@@ -137,12 +171,10 @@ export function ModeContent({
         </p>
       </div>
 
-      {/* Mode-specific content */}
       <div className="flex-1">
         {renderModeContent()}
       </div>
 
-      {/* Complete button */}
       <div className="pt-4 border-t border-border">
         <Button 
           onClick={onComplete}

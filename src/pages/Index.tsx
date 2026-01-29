@@ -21,6 +21,8 @@ const Index = () => {
     modes,
     lastCompletedMode,
     isLoading,
+    financeiroExports,
+    prioridadeSemana,
     setActiveMode,
     toggleItemComplete,
     setItemClassification,
@@ -29,17 +31,25 @@ const Index = () => {
     addItem,
     removeItem,
     completeMode,
-    // Financeiro-specific
+    // Financeiro
     updateFinanceiroData,
     addFinanceiroItem,
     toggleFinanceiroItemComplete,
     setFinanceiroItemClassification,
     removeFinanceiroItem,
-    // Marketing-specific
+    // Marketing
     updateMarketingData,
-    // Supply Chain-specific
+    // Supply Chain
     updateSupplyChainData,
-    // Backlog-specific
+    // Pre-Reunião Geral
+    updatePreReuniaoGeralData,
+    // Pre-Reunião Ads
+    updatePreReuniaoAdsData,
+    // Reunião Ads
+    updateReuniaoAdsData,
+    addReuniaoAdsAcao,
+    removeReuniaoAdsAcao,
+    // Backlog
     updateBacklogData,
     addBacklogTarefa,
     updateBacklogTarefa,
@@ -48,7 +58,6 @@ const Index = () => {
     removeBacklogIdeia,
   } = useFocusModes();
 
-  // Check for localStorage data to migrate
   useEffect(() => {
     if (!isLoading && !migrationChecked) {
       const focusModesData = localStorage.getItem(FOCUS_MODES_KEY);
@@ -77,7 +86,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Logout button in top-right corner */}
       <div className="absolute top-3 right-4 z-20">
         <Button
           variant="ghost"
@@ -106,17 +114,27 @@ const Index = () => {
             onSetNotes={(itemId, n) => setItemNotes(activeMode, itemId, n)}
             onAddItem={(text) => addItem(activeMode, text)}
             onRemoveItem={(itemId) => removeItem(activeMode, itemId)}
-            // Financeiro-specific
+            // Financeiro
             onUpdateFinanceiroData={updateFinanceiroData}
             onAddFinanceiroItem={addFinanceiroItem}
             onToggleFinanceiroItem={toggleFinanceiroItemComplete}
             onSetFinanceiroItemClassification={setFinanceiroItemClassification}
             onRemoveFinanceiroItem={removeFinanceiroItem}
-            // Marketing-specific
+            // Marketing
             onUpdateMarketingData={updateMarketingData}
-            // Supply Chain-specific
+            // Supply Chain
             onUpdateSupplyChainData={updateSupplyChainData}
-            // Backlog-specific
+            // Pre-Reunião Geral
+            financeiroExports={financeiroExports}
+            onUpdatePreReuniaoGeralData={updatePreReuniaoGeralData}
+            // Pre-Reunião Ads
+            prioridadeSemana={prioridadeSemana}
+            onUpdatePreReuniaoAdsData={updatePreReuniaoAdsData}
+            // Reunião Ads
+            onUpdateReuniaoAdsData={updateReuniaoAdsData}
+            onAddReuniaoAdsAcao={addReuniaoAdsAcao}
+            onRemoveReuniaoAdsAcao={removeReuniaoAdsAcao}
+            // Backlog
             onUpdateBacklogData={updateBacklogData}
             onAddBacklogTarefa={addBacklogTarefa}
             onUpdateBacklogTarefa={updateBacklogTarefa}

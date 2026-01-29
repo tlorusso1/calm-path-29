@@ -1,42 +1,344 @@
-import { FocusMode } from '@/types/focus-mode';
-import { ChecklistItem } from '@/components/ChecklistItem';
+import { FocusMode, PreReuniaoAdsStage, FinanceiroExports, DEFAULT_PREREUNIAO_ADS_DATA } from '@/types/focus-mode';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+import { Target, Lock, TrendingUp } from 'lucide-react';
+import { formatCurrency, parseCurrency, getRoasStatus, getCpaStatus, getLeituraCombinada, MARGEM_OPERACIONAL } from '@/utils/modeStatusCalculator';
 
 interface PreReuniaoAdsModeProps {
   mode: FocusMode;
-  onToggleItem: (itemId: string) => void;
-  onSetClassification: (itemId: string, classification: 'A' | 'B' | 'C') => void;
-  onSetDecision: (itemId: string, decision: string) => void;
-  onSetNotes: (itemId: string, notes: string) => void;
+  financeiroExports: FinanceiroExports;
+  prioridadeSemana: string | null;
+  onUpdatePreReuniaoAdsData: (data: Partial<PreReuniaoAdsStage>) => void;
 }
+
+const getStatusColor = (status: 'verde' | 'amarelo' | 'vermelho') => {
+  switch (status) {
+    case 'verde': return 'text-green-600 bg-green-100 dark:bg-green-900/30';
+    case 'amarelo': return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30';
+    default: return 'text-destructive bg-destructive/10';
+  }
+};
+
+const getTermometroBarColor = (status: 'verde' | 'amarelo' | 'vermelho') => {
+  switch (status) {
+    case 'verde': return 'bg-green-500';
+    case 'amarelo': return 'bg-yellow-500';
+    default: return 'bg-destructive';
+  }
+};
 
 export function PreReuniaoAdsMode({
   mode,
-  onToggleItem,
-  onSetNotes,
+  financeiroExports,
+  prioridadeSemana,
+  onUpdatePreReuniaoAdsData,
 }: PreReuniaoAdsModeProps) {
-  const allCompleted = mode.items.length > 0 && mode.items.every(item => item.completed);
+  // Merge com defaults
+  const data: PreReuniaoAdsStage = {
+    ...DEFAULT_PREREUNIAO_ADS_DATA,
+    ...mode.preReuniaoAdsData,
+  };
+
+  // Calcular status dos indicadores
+  const roasValue = parseFloat(data.roasMedio7d) || 0;
+  const cpaValue = parseCurrency(data.cpaMedio);
+  const ticketValue = parseCurrency(data.ticketMedio);
   
+  const roasStatus = getRoasStatus(roasValue);
+  const cpaStatus = getCpaStatus(cpaValue, ticketValue);
+  
+  // CPA máximo permitido
+  const cpaMaximo = ticketValue * MARGEM_OPERACIONAL;
+  const cpaPercentual = cpaMaximo > 0 ? (cpaValue / cpaMaximo) * 100 : 0;
+
+  // Leitura combinada
+  const leitura = getLeituraCombinada(
+    financeiroExports.statusFinanceiro,
+    null, // estoque não está aqui
+    roasStatus
+  );
+
+  // Verificar se escalar está bloqueado
+  const escalarBloqueado = prioridadeSemana === 'preservar_caixa';
+
+  // Calcular orçamentos se decisão for escalar ou manter
+  const gastoAtual = parseCurrency(data.gastoAdsAtual);
+  const orcamentoSemanal = data.decisaoSemana === 'escalar' 
+    ? Math.min(gastoAtual * 1.2, financeiroExports.adsMaximoPermitido)
+    : data.decisaoSemana === 'reduzir'
+    ? gastoAtual * 0.7
+    : gastoAtual;
+  const orcamentoDiario = orcamentoSemanal / 7;
+
   return (
-    <div className="space-y-4">
-      <div className="space-y-3">
-        {mode.items.map(item => (
-          <ChecklistItem
-            key={item.id}
-            item={item}
-            onToggle={() => onToggleItem(item.id)}
-            onSetNotes={(n) => onSetNotes(item.id, n)}
-            showNotes
-          />
-        ))}
-      </div>
-      
-      {allCompleted && (
-        <div className="p-4 rounded-lg bg-primary/10 border border-primary/20 text-center">
-          <p className="text-sm font-medium text-primary">
-            ✓ Preparação de Ads concluída
+    <div className="space-y-6">
+      {/* ========== LIMITES RECEBIDOS ========== */}
+      <Card className="bg-muted/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Lock className="h-4 w-4" />
+            Limites do Financeiro
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Ads máximo permitido</span>
+            <span className="font-bold text-primary">{formatCurrency(financeiroExports.adsMaximoPermitido)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Prioridade da semana</span>
+            <span className={cn(
+              "px-2 py-0.5 rounded text-xs font-medium",
+              prioridadeSemana === 'preservar_caixa' ? 'bg-destructive/10 text-destructive' :
+              prioridadeSemana === 'crescer_agressivo' ? 'bg-green-100 text-green-600' :
+              'bg-muted text-foreground'
+            )}>
+              {prioridadeSemana === 'preservar_caixa' ? '🔴 Preservar caixa' :
+               prioridadeSemana === 'repor_estoque' ? '📦 Repor estoque' :
+               prioridadeSemana === 'crescer_controlado' ? '🟡 Crescer controlado' :
+               prioridadeSemana === 'crescer_agressivo' ? '🟢 Crescer agressivo' :
+               '— Não definida'}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ========== INPUTS DE PERFORMANCE ========== */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <TrendingUp className="h-4 w-4" />
+            Performance
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">ROAS 7d</Label>
+              <Input
+                placeholder="0.0"
+                value={data.roasMedio7d}
+                onChange={(e) => onUpdatePreReuniaoAdsData({ roasMedio7d: e.target.value })}
+                className="h-9 text-center"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">ROAS 14d</Label>
+              <Input
+                placeholder="0.0"
+                value={data.roasMedio14d}
+                onChange={(e) => onUpdatePreReuniaoAdsData({ roasMedio14d: e.target.value })}
+                className="h-9 text-center"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">ROAS 30d</Label>
+              <Input
+                placeholder="0.0"
+                value={data.roasMedio30d}
+                onChange={(e) => onUpdatePreReuniaoAdsData({ roasMedio30d: e.target.value })}
+                className="h-9 text-center"
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">CPA médio</Label>
+              <div className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.cpaMedio}
+                  onChange={(e) => onUpdatePreReuniaoAdsData({ cpaMedio: e.target.value })}
+                  className="h-9 pl-7"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Ticket médio</Label>
+              <div className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.ticketMedio}
+                  onChange={(e) => onUpdatePreReuniaoAdsData({ ticketMedio: e.target.value })}
+                  className="h-9 pl-7"
+                />
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Gasto atual semanal</Label>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+              <Input
+                placeholder="0,00"
+                value={data.gastoAdsAtual}
+                onChange={(e) => onUpdatePreReuniaoAdsData({ gastoAdsAtual: e.target.value })}
+                className="h-10 pl-9"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ========== TERMÔMETROS ========== */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Termômetros</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* ROAS */}
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">ROAS</span>
+              <span className={cn("px-2 py-0.5 rounded text-xs font-medium", getStatusColor(roasStatus))}>
+                {roasValue > 0 ? roasValue.toFixed(1) : '—'}
+              </span>
+            </div>
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <div 
+                className={cn("h-full rounded-full transition-all", getTermometroBarColor(roasStatus))}
+                style={{ width: `${Math.min((roasValue / 5) * 100, 100)}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Meta: ROAS ≥ 3.0
+            </p>
+          </div>
+          
+          {/* CPA */}
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">CPA vs Máximo</span>
+              <span className={cn("px-2 py-0.5 rounded text-xs font-medium", getStatusColor(cpaStatus))}>
+                {cpaValue > 0 ? `${Math.round(cpaPercentual)}%` : '—'}
+              </span>
+            </div>
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <div 
+                className={cn("h-full rounded-full transition-all", getTermometroBarColor(cpaStatus))}
+                style={{ width: `${Math.min(cpaPercentual, 100)}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              CPA máx: {formatCurrency(cpaMaximo)} (Ticket × 40%)
+            </p>
+          </div>
+          
+          {/* Financeiro */}
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Status Financeiro</span>
+              <span className={cn(
+                "px-2 py-0.5 rounded text-xs font-medium",
+                financeiroExports.statusFinanceiro === 'estrategia' ? 'bg-green-100 text-green-600' :
+                financeiroExports.statusFinanceiro === 'atencao' ? 'bg-yellow-100 text-yellow-600' :
+                'bg-destructive/10 text-destructive'
+              )}>
+                {financeiroExports.statusFinanceiro === 'estrategia' ? '🟢 Estratégia' :
+                 financeiroExports.statusFinanceiro === 'atencao' ? '🟡 Atenção' : '🔴 Sobrevivência'}
+              </span>
+            </div>
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <div 
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  financeiroExports.statusFinanceiro === 'estrategia' ? 'bg-green-500' :
+                  financeiroExports.statusFinanceiro === 'atencao' ? 'bg-yellow-500' : 'bg-destructive'
+                )}
+                style={{ width: `${financeiroExports.scoreFinanceiro}%` }}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ========== LEITURA COMBINADA ========== */}
+      <Card className="bg-primary/5 border-primary/20">
+        <CardContent className="p-4">
+          <p className="text-sm font-medium text-center">
+            "{leitura}"
           </p>
-        </div>
-      )}
+        </CardContent>
+      </Card>
+
+      {/* ========== DECISÃO DA SEMANA ========== */}
+      <Card className="border-2 border-primary/30">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Target className="h-4 w-4" />
+            Decisão da Semana
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <RadioGroup
+            value={data.decisaoSemana ?? ''}
+            onValueChange={(value) => onUpdatePreReuniaoAdsData({ 
+              decisaoSemana: value as PreReuniaoAdsStage['decisaoSemana'] 
+            })}
+            className="space-y-2"
+          >
+            <div className={cn(
+              "flex items-center gap-3 p-3 rounded-lg border transition-colors",
+              escalarBloqueado ? 'opacity-50 cursor-not-allowed bg-muted' : 'hover:bg-muted/50',
+              data.decisaoSemana === 'escalar' && !escalarBloqueado && 'border-green-500 bg-green-50'
+            )}>
+              <RadioGroupItem value="escalar" id="escalar" disabled={escalarBloqueado} />
+              <Label htmlFor="escalar" className={cn("flex-1", escalarBloqueado && 'cursor-not-allowed')}>
+                <span className="font-medium flex items-center gap-2">
+                  🚀 Escalar
+                  {escalarBloqueado && <Lock className="h-3 w-3 text-muted-foreground" />}
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  {escalarBloqueado ? 'Bloqueado: prioridade é preservar caixa' : 'Aumentar investimento'}
+                </p>
+              </Label>
+            </div>
+            
+            <div className={cn(
+              "flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors",
+              data.decisaoSemana === 'manter' && 'border-yellow-500 bg-yellow-50'
+            )}>
+              <RadioGroupItem value="manter" id="manter" />
+              <Label htmlFor="manter" className="flex-1 cursor-pointer">
+                <span className="font-medium">⏸️ Manter</span>
+                <p className="text-xs text-muted-foreground">Continuar no ritmo atual</p>
+              </Label>
+            </div>
+            
+            <div className={cn(
+              "flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors",
+              data.decisaoSemana === 'reduzir' && 'border-destructive bg-destructive/5'
+            )}>
+              <RadioGroupItem value="reduzir" id="reduzir" />
+              <Label htmlFor="reduzir" className="flex-1 cursor-pointer">
+                <span className="font-medium">📉 Reduzir</span>
+                <p className="text-xs text-muted-foreground">Diminuir investimento</p>
+              </Label>
+            </div>
+          </RadioGroup>
+          
+          {/* Orçamento calculado */}
+          {data.decisaoSemana && gastoAtual > 0 && (
+            <div className="mt-4 p-3 bg-muted/50 rounded-lg space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Orçamento semanal</span>
+                <span className="font-bold">{formatCurrency(orcamentoSemanal)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Orçamento diário</span>
+                <span className="font-medium">{formatCurrency(orcamentoDiario)}</span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
