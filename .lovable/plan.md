@@ -1,96 +1,157 @@
 
 
-# Melhoria: Demanda Individual por Produto
+# Melhoria: Lista de Itens Criticos e Campo de Validade
 
 ## Problema Atual
 
-O sistema usa uma demanda semanal global (pedidos/semana) e aplica igualmente para todos os produtos. Isso gera previsões incorretas porque cada produto tem um comportamento diferente de venda.
+1. **Itens criticos aparecem como texto corrido**: "Produto A, Produto B, Produto C" - dificil de ler e agir
+2. **Campo de validade nao esta acessivel**: Existe na estrutura de dados mas nao tem campo editavel inline
+3. **Alertas de vencimento limitados**: Atualmente so mostra <30 e <60 dias
 
-## Solução Proposta
+## Solucao Proposta
 
-### Duas Abordagens Complementares
+### 1. Lista Visual de Itens Criticos
 
-```text
-+-----------------------------------------------------+
-|           DEMANDA INDIVIDUAL POR PRODUTO            |
-+-----------------------------------------------------+
-|                                                     |
-|  Abordagem 1: Inserir Saída Real (Manual)           |
-|  +-----------------------------------------------+  |
-|  | NICE MILK AVEIA 450G                          |  |
-|  | Estoque: 653un   |   Saída/sem: [___]         |  |
-|  | >> Cobertura calculada: X dias                |  |
-|  +-----------------------------------------------+  |
-|                                                     |
-|  Abordagem 2: Multiplicador por Produto (Rapido)   |
-|  +-----------------------------------------------+  |
-|  | Pedidos/sem: 200   x   Fator: 1.5             |  |
-|  | = 300 un/semana de saída esperada             |  |
-|  +-----------------------------------------------+  |
-|                                                     |
-+-----------------------------------------------------+
-```
-
-### O que sera implementado
-
-1. **Campo de Saida Semanal na Lista**
-   - Cada item tera um campo editavel de "Saida/sem"
-   - Ao importar, o campo fica vazio (usa a demanda global como fallback)
-   - O usuario pode clicar e preencher a saida real do produto
-
-2. **Calculo Inteligente de Cobertura**
-   - Se o item tem saida semanal definida: usa esse valor
-   - Se nao tem: usa a demanda global como aproximacao
-
-3. **Sugestao de Saida Baseada em Historico**
-   - Opcional: campo para inserir a saida do mes anterior
-   - Sistema calcula a media semanal automaticamente (saida mes / 4)
-
-### Interface Atualizada
-
-Na lista de itens, adicionar um campo editavel inline:
+Transformar a area de alertas (linhas 216-237) de texto corrido para lista estruturada:
 
 ```text
-+--------------------------------------------------------------+
-| NICE MILK AVEIA 450G                          Produto        |
-| 653 un  |  Saída: [80___] /sem  |  8 dias  | [Editar] [X]   |
-+--------------------------------------------------------------+
-| NICE CHEESY PARMESAO                          Produto        |
-| 1799 un |  Saída: [____] /sem   |  -- dias | [Editar] [X]   |
-| >> Sem saída definida, usando demanda global                 |
-+--------------------------------------------------------------+
+ANTES:
++------------------------------------------+
+| Ruptura iminente: Produto A, Produto B   |
++------------------------------------------+
+
+DEPOIS:
++------------------------------------------+
+| Ruptura Iminente                         |
+| - NICE MILK AVEIA 450G (8 dias)          |
+| - CHOCONICE AO LEITE (12 dias)           |
++------------------------------------------+
+| Vencendo em Breve                        |
+| - LEVEDURA 100G (25 dias)                |
+| - NICE CHEESY (58 dias)                  |
++------------------------------------------+
 ```
 
-### Fluxo de Uso Simplificado
+### 2. Campo de Validade Inline
 
-1. Usuario cola lista do Bling (como ja faz)
-2. Itens sao importados com quantidade atual
-3. Usuario clica em um item para adicionar a saida semanal
-4. Cobertura e recalculada automaticamente
+Adicionar campo de data ao lado do campo de saida semanal:
+
+```text
++----------------------------------------------------------+
+| NICE MILK AVEIA 450G                      Produto        |
+| 653 un  |  8 dias  |  [Editar] [X]                       |
+|----------------------------------------------------------|
+| Saida/sem: [80___] un   |   Validade: [2026-03-15]       |
++----------------------------------------------------------+
+```
+
+### 3. Reguas de Alerta de Vencimento
+
+Tres niveis visuais baseados em dias ate vencimento:
+
+| Dias Restantes | Cor | Icone |
+|----------------|-----|-------|
+| < 30 dias | Vermelho | Alerta |
+| 30-59 dias | Amarelo | Relogio |
+| 60-89 dias | Cinza/Info | Info |
+| >= 90 dias | Sem alerta | - |
 
 ## Arquivos a Modificar
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/components/modes/SupplyChainMode.tsx` | Adicionar campo editavel de saida semanal na lista de itens |
-| `src/types/focus-mode.ts` | Ja tem `demandaSemanal` em ItemEstoque (sem mudanca necessaria) |
-| `src/utils/supplyCalculator.ts` | Ja usa `item.demandaSemanal` quando disponivel (sem mudanca) |
+| `src/components/modes/SupplyChainMode.tsx` | Transformar alertas em lista, adicionar campo de validade inline |
+| `src/utils/supplyCalculator.ts` | Atualizar processarSupply para incluir cobertura nos itens criticos |
 
 ## Detalhes Tecnicos
 
-A estrutura de dados ja suporta demanda individual:
+### Mudanca 1: Alertas como Lista (linha 216-237)
 
-```typescript
-// Ja existe em ItemEstoque
-demandaSemanal?: number;  // Consumo especifico do item por semana
+Substituir `resumo.itensCriticos.join(', ')` por lista mapeada:
+
+```tsx
+{resumo.itensCriticos.length > 0 && (
+  <div className="space-y-1">
+    <div className="flex items-center gap-2">
+      <AlertTriangle className="h-4 w-4 text-destructive" />
+      <span className="font-medium text-destructive text-sm">
+        Ruptura Iminente
+      </span>
+    </div>
+    <ul className="ml-6 space-y-1">
+      {itensProcessados
+        .filter(i => i.status === 'vermelho')
+        .map(item => (
+          <li key={item.id} className="text-sm text-muted-foreground">
+            {item.nome} 
+            {item.coberturaDias !== undefined && 
+              <span className="text-destructive font-medium">
+                ({item.coberturaDias}d)
+              </span>
+            }
+          </li>
+        ))}
+    </ul>
+  </div>
+)}
 ```
 
-O calculo tambem ja usa isso:
+### Mudanca 2: Campo de Validade Inline (apos linha 404)
 
-```typescript
-// Em SupplyChainMode.tsx linha 122
-const demanda = item.demandaSemanal ?? data.demandaSemanalMedia;
+Adicionar input de data no bloco do item:
+
+```tsx
+<div className="flex items-center gap-2">
+  <Label className="text-xs text-muted-foreground whitespace-nowrap">
+    Validade:
+  </Label>
+  <Input
+    type="date"
+    value={item.dataValidade ?? ''}
+    onChange={(e) => onUpdateItem(item.id, { 
+      dataValidade: e.target.value || undefined 
+    })}
+    className="h-7 w-32 text-xs"
+  />
+  {diasVenc !== null && (
+    <Badge 
+      variant="outline"
+      className={cn(
+        "text-[10px]",
+        diasVenc < 30 ? "border-destructive text-destructive" :
+        diasVenc < 60 ? "border-yellow-500 text-yellow-600" :
+        diasVenc < 90 ? "border-muted-foreground text-muted-foreground" :
+        "border-green-500 text-green-600"
+      )}
+    >
+      {diasVenc}d
+    </Badge>
+  )}
+</div>
 ```
 
-So precisa expor na interface para o usuario poder editar.
+### Mudanca 3: Atualizar Alertas de Vencimento
+
+No `supplyCalculator.ts`, atualizar para incluir itens com <90 dias (com indicacao do nivel):
+
+```tsx
+const itensVencendo: string[] = [];
+itensProcessados.forEach(item => {
+  const dias = calcularDiasAteVencimento(item.dataValidade);
+  if (dias !== null && dias < 90) {
+    itensVencendo.push({ 
+      nome: item.nome, 
+      dias, 
+      nivel: dias < 30 ? 'critico' : dias < 60 ? 'alerta' : 'aviso' 
+    });
+  }
+});
+```
+
+## Resultado Esperado
+
+- Itens criticos aparecem como lista clara e acionavel
+- Campo de validade editavel diretamente na lista
+- Alertas visuais em 3 niveis (30d, 60d, 90d)
+- Melhor visibilidade para tomada de decisao
 
