@@ -163,12 +163,21 @@ export interface MarketingOrganico {
   alcanceMediaSemanas: string;
   postAcimaDaMedia: boolean;
   taxaEngajamento: string;
+  
+  // Sessões do Site (NOVO - validação final da demanda)
+  sessoesSemana: string;
+  sessoesMedia30d: string;
 }
 
 export interface MarketingExports {
   scoreOrganico: number;
   statusOrganico: 'forte' | 'medio' | 'fraco';
   recomendacaoAds: string;
+  // Score de Demanda (inclui sessões)
+  scoreDemanda: number;
+  statusDemanda: 'forte' | 'neutro' | 'fraco';
+  scoreSessoes: number;
+  statusSessoes: 'forte' | 'neutro' | 'fraco';
 }
 
 export interface MarketingStage {
@@ -390,6 +399,8 @@ export const DEFAULT_MARKETING_ORGANICO: MarketingOrganico = {
   alcanceMediaSemanas: '',
   postAcimaDaMedia: false,
   taxaEngajamento: '',
+  sessoesSemana: '',
+  sessoesMedia30d: '',
 };
 
 export const DEFAULT_MARKETING_DATA: MarketingStage = {

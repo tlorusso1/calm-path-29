@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { CheckCircle2, AlertTriangle, Clock, Plus, Trash2, Mail, Users, Megaphone, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Clock, Plus, Trash2, Mail, Users, Megaphone, TrendingUp, TrendingDown, Minus, Globe, Activity } from 'lucide-react';
 import { calculateMarketingStatusSimples, calculateMarketingOrganico } from '@/utils/modeStatusCalculator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useState } from 'react';
@@ -76,6 +76,40 @@ const getOrganicoStatusInfo = (status: 'forte' | 'medio' | 'fraco') => {
         border: 'border-destructive/30',
         description: 'Ads compensa — mais topo de funil',
       };
+  }
+};
+
+const getDemandaStatusInfo = (status: 'forte' | 'neutro' | 'fraco') => {
+  switch (status) {
+    case 'forte':
+      return {
+        color: 'text-green-600',
+        bg: 'bg-green-500',
+        label: '🟢 Forte',
+      };
+    case 'neutro':
+      return {
+        color: 'text-yellow-600',
+        bg: 'bg-yellow-500',
+        label: '🟡 Neutro',
+      };
+    default:
+      return {
+        color: 'text-destructive',
+        bg: 'bg-destructive',
+        label: '🔴 Fraco',
+      };
+  }
+};
+
+const getSessoesStatusInfo = (status: 'forte' | 'neutro' | 'fraco') => {
+  switch (status) {
+    case 'forte':
+      return { label: '🟢 Acima', description: '+10% vs média' };
+    case 'neutro':
+      return { label: '🟡 Na média', description: '±10%' };
+    default:
+      return { label: '🔴 Abaixo', description: '-10% vs média' };
   }
 };
 
@@ -172,9 +206,115 @@ export function MarketingMode({
     { key: 'influencersVerificados' as const, label: 'Influencers/parcerias verificados', description: 'Conteúdo no ar ou combinado' },
   ];
 
+  const demandaInfo = getDemandaStatusInfo(organicoResult.statusDemanda);
+  const sessoesInfo = getSessoesStatusInfo(organicoResult.statusSessoes);
+
   return (
     <div className="space-y-6">
-      {/* ========== TERMÔMETRO ORGÂNICO (PRINCIPAL) ========== */}
+      {/* ========== SCORE DE DEMANDA (VISÃO GERAL) ========== */}
+      <Card className="border-2 border-primary/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Activity className="h-5 w-5 text-primary" />
+            DEMANDA — VISÃO GERAL
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Grid de status */}
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="p-3 rounded-lg bg-muted/50">
+              <p className="text-xs text-muted-foreground mb-1">Orgânico</p>
+              <p className="font-semibold">
+                {organicoResult.statusOrganico === 'forte' ? '🟢' : 
+                 organicoResult.statusOrganico === 'medio' ? '🟡' : '🔴'}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/50">
+              <p className="text-xs text-muted-foreground mb-1">Sessões</p>
+              <p className="font-semibold">{sessoesInfo.label}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/50">
+              <p className="text-xs text-muted-foreground mb-1">Demanda Total</p>
+              <p className={cn("font-bold text-lg", demandaInfo.color)}>
+                {organicoResult.scoreDemanda}
+              </p>
+            </div>
+          </div>
+          
+          {/* Barra de demanda */}
+          <div className="space-y-1">
+            <div className="h-3 rounded-full overflow-hidden bg-muted">
+              <div 
+                className={cn("h-full transition-all duration-500", demandaInfo.bg)}
+                style={{ width: `${organicoResult.scoreDemanda}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>0</span>
+              <span className={cn("font-medium", demandaInfo.color)}>
+                {demandaInfo.label}
+              </span>
+              <span>100</span>
+            </div>
+          </div>
+          
+          {/* Leitura inteligente */}
+          <div className="p-3 rounded-lg bg-muted/30 border">
+            <p className="text-sm text-center">
+              <span className="font-medium">📊 Leitura:</span>
+              <br />
+              <span className="text-muted-foreground">{organicoResult.leituraDemanda}</span>
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ========== SESSÕES DO SITE ========== */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Globe className="h-4 w-4 text-cyan-500" />
+            Sessões do Site
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Sessões da semana</Label>
+              <Input
+                type="text"
+                placeholder="Ex: 12.000"
+                value={data.organico?.sessoesSemana || ''}
+                onChange={(e) => handleOrganicoChange('sessoesSemana', e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Média 30 dias</Label>
+              <Input
+                type="text"
+                placeholder="Ex: 10.000"
+                value={data.organico?.sessoesMedia30d || ''}
+                onChange={(e) => handleOrganicoChange('sessoesMedia30d', e.target.value)}
+                className="h-9"
+              />
+            </div>
+          </div>
+          
+          {/* Status das sessões */}
+          <div className={cn(
+            "p-3 rounded-lg border text-center",
+            organicoResult.statusSessoes === 'forte' ? 'bg-green-50 dark:bg-green-900/20 border-green-200' :
+            organicoResult.statusSessoes === 'neutro' ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200' :
+            'bg-red-50 dark:bg-red-900/20 border-red-200'
+          )}>
+            <p className="text-sm font-medium">{sessoesInfo.label}</p>
+            <p className="text-xs text-muted-foreground">{sessoesInfo.description}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ========== TERMÔMETRO ORGÂNICO ========== */}
       <Card className={cn("border-2", organicoInfo.border)}>
         <CardContent className={cn("p-4", organicoInfo.bg)}>
           <div className="flex items-center gap-3">
