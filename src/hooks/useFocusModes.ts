@@ -35,6 +35,8 @@ import {
   calculatePreReuniaoAdsStatus,
   calculateReuniaoAdsStatus,
   calculateFinanceiroV2,
+  calculateMarketingOrganico,
+  parseCurrency,
 } from '@/utils/modeStatusCalculator';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -118,15 +120,27 @@ function createDefaultState(): FocusModeState {
   };
 }
 
-function processLoadedState(state: FocusModeState | null): FocusModeState {
+interface ProcessResult {
+  state: FocusModeState;
+  shouldSaveSnapshot: boolean;
+  prevWeekStart: string | null;
+}
+
+function processLoadedState(state: FocusModeState | null): ProcessResult {
   if (!state) {
-    return createDefaultState();
+    return {
+      state: createDefaultState(),
+      shouldSaveSnapshot: false,
+      prevWeekStart: null,
+    };
   }
 
   const today = getTodayDate();
   const currentWeekStart = getWeekStart();
   
   let needsUpdate = false;
+  let shouldSaveSnapshot = false;
+  const prevWeekStart = state.weekStart;
   const updatedModes = { ...state.modes };
 
   // Ensure all modes exist (for new modes like reuniao-ads)
@@ -154,8 +168,10 @@ function processLoadedState(state: FocusModeState | null): FocusModeState {
     });
   }
 
-  // Reset weekly modes if new week
+  // Reset weekly modes if new week - SAVE SNAPSHOT FIRST
   if (state.weekStart !== currentWeekStart) {
+    shouldSaveSnapshot = true; // Flag to save before reset
+    
     (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
       if (MODE_CONFIGS[id].frequency === 'weekly') {
         updatedModes[id] = createDefaultMode(id);
@@ -174,17 +190,72 @@ function processLoadedState(state: FocusModeState | null): FocusModeState {
 
   if (needsUpdate) {
     return {
-      date: today,
-      weekStart: currentWeekStart,
-      activeMode: null,
-      modes: updatedModes,
+      state: {
+        date: today,
+        weekStart: currentWeekStart,
+        activeMode: null,
+        modes: updatedModes,
+      },
+      shouldSaveSnapshot,
+      prevWeekStart,
     };
   }
   
   return {
-    ...state,
-    modes: updatedModes,
+    state: {
+      ...state,
+      modes: updatedModes,
+    },
+    shouldSaveSnapshot: false,
+    prevWeekStart: null,
   };
+}
+
+// Helper function to save weekly snapshot
+async function saveWeeklySnapshot(
+  userId: string,
+  weekStart: string,
+  modes: FocusModeState['modes']
+) {
+  const finExports = calculateFinanceiroV2(modes.financeiro.financeiroData);
+  const preAds = modes['pre-reuniao-ads'].preReuniaoAdsData;
+  const preGeral = modes['pre-reuniao-geral'].preReuniaoGeralData;
+  const marketing = modes.marketing.marketingData;
+  const organico = calculateMarketingOrganico(marketing?.organico);
+  
+  const snapshot = {
+    user_id: userId,
+    week_start: weekStart,
+    caixa_livre_real: finExports.caixaLivreReal,
+    status_financeiro: finExports.statusFinanceiro,
+    score_financeiro: finExports.scoreFinanceiro,
+    resultado_mes: finExports.resultadoMes,
+    total_defasados: finExports.totalDefasados,
+    ads_maximo: finExports.adsMaximoPermitido,
+    roas_medio: parseFloat(preAds?.roasMedio7d || '0'),
+    cpa_medio: parseCurrency(preAds?.cpaMedio || ''),
+    ticket_medio: parseCurrency(preAds?.ticketMedio || ''),
+    gasto_ads: parseCurrency(preAds?.gastoAdsAtual || ''),
+    decisao_ads: preAds?.decisaoSemana ?? null,
+    score_demanda: organico.scoreDemanda,
+    status_demanda: organico.statusDemanda,
+    score_sessoes: organico.scoreSessoes,
+    sessoes_semana: parseCurrency(marketing?.organico?.sessoesSemana || ''),
+    score_organico: organico.scoreOrganico,
+    status_organico: organico.statusOrganico,
+    prioridade_semana: preGeral?.decisaoSemana ?? null,
+    registro_decisao: preGeral?.registroDecisao ?? null,
+  };
+  
+  const { error } = await supabase.from('weekly_snapshots').upsert([snapshot], {
+    onConflict: 'user_id,week_start'
+  });
+  
+  if (error) {
+    console.error('Error saving weekly snapshot:', error);
+  } else {
+    console.log('Weekly snapshot saved for week:', weekStart);
+  }
 }
 
 export function useFocusModes() {
@@ -211,7 +282,8 @@ export function useFocusModes() {
 
         if (error) {
           console.error('Error loading focus modes:', error);
-          setState(processLoadedState(null));
+          const result = processLoadedState(null);
+          setState(result.state);
         } else if (data) {
           const loadedState: FocusModeState = {
             date: data.date,
@@ -220,13 +292,22 @@ export function useFocusModes() {
             modes: data.modes as unknown as FocusModeState['modes'],
             lastCompletedMode: data.last_completed_mode as FocusModeState['lastCompletedMode'],
           };
-          setState(processLoadedState(loadedState));
+          const result = processLoadedState(loadedState);
+          
+          // Save snapshot before resetting weekly data
+          if (result.shouldSaveSnapshot && result.prevWeekStart) {
+            await saveWeeklySnapshot(user.id, result.prevWeekStart, loadedState.modes);
+          }
+          
+          setState(result.state);
         } else {
-          setState(processLoadedState(null));
+          const result = processLoadedState(null);
+          setState(result.state);
         }
       } catch (err) {
         console.error('Error loading focus modes:', err);
-        setState(processLoadedState(null));
+        const result = processLoadedState(null);
+        setState(result.state);
       } finally {
         setIsLoading(false);
         initialLoadDone.current = true;

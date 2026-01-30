@@ -459,6 +459,43 @@ export const DEFAULT_PREREUNIAO_ADS_DATA: PreReuniaoAdsStage = {
   decisaoSemana: null,
 };
 
+// ============= Weekly Snapshot (Histórico) =============
+export interface WeeklySnapshot {
+  id: string;
+  user_id: string;
+  week_start: string;
+  created_at: string;
+  
+  // Financeiro
+  caixa_livre_real: number | null;
+  status_financeiro: string | null;
+  score_financeiro: number | null;
+  resultado_mes: number | null;
+  total_defasados: number | null;
+  ads_maximo: number | null;
+  
+  // Ads
+  roas_medio: number | null;
+  cpa_medio: number | null;
+  ticket_medio: number | null;
+  gasto_ads: number | null;
+  decisao_ads: string | null;
+  
+  // Demanda
+  score_demanda: number | null;
+  status_demanda: string | null;
+  score_sessoes: number | null;
+  sessoes_semana: number | null;
+  
+  // Organico
+  score_organico: number | null;
+  status_organico: string | null;
+  
+  // Decisao
+  prioridade_semana: string | null;
+  registro_decisao: string | null;
+}
+
 export const DEFAULT_REUNIAO_ADS_DATA: ReuniaoAdsStage = {
   orcamentoDiario: '',
   orcamentoSemanal: '',
