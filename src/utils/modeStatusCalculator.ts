@@ -14,6 +14,8 @@ import {
   MarketingExports,
   ScoreNegocio,
   SupplyExports,
+  Tendencia,
+  HistoricoMedias,
 } from '@/types/focus-mode';
 
 export { MARGEM_OPERACIONAL };
@@ -497,9 +499,38 @@ export interface MarketingOrganicoResult {
   scoreDemanda: number;
   statusDemanda: 'forte' | 'neutro' | 'fraco';
   leituraDemanda: string;
+  // NOVO: Tendências por pilar (comparação com histórico)
+  tendenciaOrganico: Tendencia;
+  tendenciaSessoes: Tendencia;
+  tendenciaPedidos: Tendencia;
 }
 
-export function calculateMarketingOrganico(organico?: MarketingStage['organico']): MarketingOrganicoResult {
+// ============= Função de Score Relativo ao Histórico =============
+function calcularScoreRelativo(
+  valorAtual: number, 
+  mediaHistorica: number,
+  pontosTotais: number
+): { score: number; tendencia: Tendencia } {
+  // Sem histórico = neutro (50%)
+  if (mediaHistorica <= 0) {
+    return { score: pontosTotais * 0.5, tendencia: 'media' };
+  }
+  
+  const variacao = ((valorAtual - mediaHistorica) / mediaHistorica) * 100;
+  
+  if (variacao >= 10) {
+    return { score: pontosTotais, tendencia: 'acima' };
+  } else if (variacao >= -10) {
+    return { score: pontosTotais * 0.7, tendencia: 'media' };
+  } else {
+    return { score: pontosTotais * 0.4, tendencia: 'abaixo' };
+  }
+}
+
+export function calculateMarketingOrganico(
+  organico?: MarketingStage['organico'],
+  historicoMedias?: HistoricoMedias
+): MarketingOrganicoResult {
   if (!organico) {
     return {
       scoreOrganico: 0,
@@ -511,9 +542,13 @@ export function calculateMarketingOrganico(organico?: MarketingStage['organico']
       scoreDemanda: 0,
       statusDemanda: 'fraco',
       leituraDemanda: 'Sem dados suficientes para avaliar demanda.',
+      tendenciaOrganico: 'media',
+      tendenciaSessoes: 'media',
+      tendenciaPedidos: 'media',
     };
   }
   
+  // ========== SCORE ORGÂNICO ABSOLUTO (para referência) ==========
   // E-mail: enviado + clique/venda = 30 pontos
   const emailEnviados = parseInt(organico.emailEnviados) || 0;
   const emailScore = (emailEnviados > 0 && organico.emailGerouClique) ? 30 : 0;
@@ -530,42 +565,53 @@ export function calculateMarketingOrganico(organico?: MarketingStage['organico']
   const socialScore = (alcanceTotal > 0 && alcanceTotal >= alcanceMedia) ? 40 : 
                       (alcanceTotal > 0 && alcanceTotal >= alcanceMedia * 0.7) ? 20 : 0;
   
-  const scoreOrganico = emailScore + influencerScore + socialScore;
+  const scoreOrganicoAbsoluto = emailScore + influencerScore + socialScore;
   
-  // ========== SESSÕES DO SITE (NOVO) ==========
+  // Parse valores atuais
   const sessoesSemana = parseCurrency(organico.sessoesSemana || '');
-  const sessoesMedia = parseCurrency(organico.sessoesMedia30d || '');
+  const pedidosSemana = parseCurrency(organico.pedidosSemana || '');
   
-  let scoreSessoes: number;
-  let statusSessoes: 'forte' | 'neutro' | 'fraco';
+  // ========== CÁLCULO RELATIVO AO HISTÓRICO ==========
+  // PILAR 1: ORGÂNICO (30 pontos max)
+  const organicoResult = calcularScoreRelativo(
+    scoreOrganicoAbsoluto, 
+    historicoMedias?.scoreOrganico || 0,
+    30
+  );
   
-  if (sessoesMedia <= 0 || sessoesSemana <= 0) {
-    // Sem dados
-    scoreSessoes = 50; // Neutro por padrão
-    statusSessoes = 'neutro';
-  } else {
-    const variacao = ((sessoesSemana - sessoesMedia) / sessoesMedia) * 100;
-    
-    if (variacao >= 10) {
-      scoreSessoes = 100;
-      statusSessoes = 'forte';
-    } else if (variacao >= -10) {
-      scoreSessoes = 70;
-      statusSessoes = 'neutro';
-    } else {
-      scoreSessoes = 40;
-      statusSessoes = 'fraco';
-    }
-  }
+  // PILAR 2: SESSÕES (35 pontos max)
+  const sessoesResult = calcularScoreRelativo(
+    sessoesSemana,
+    historicoMedias?.sessoesSemana || 0,
+    35
+  );
   
-  // Status baseado no score orgânico
+  // PILAR 3: PEDIDOS (35 pontos max)
+  const pedidosResult = calcularScoreRelativo(
+    pedidosSemana,
+    historicoMedias?.pedidosSemana || 0,
+    35
+  );
+  
+  // SCORE FINAL DE DEMANDA (relativo)
+  const scoreDemanda = Math.round(
+    organicoResult.score + sessoesResult.score + pedidosResult.score
+  );
+  
+  // Status final
+  let statusDemanda: 'forte' | 'neutro' | 'fraco';
+  if (scoreDemanda >= 70) statusDemanda = 'forte';
+  else if (scoreDemanda >= 40) statusDemanda = 'neutro';
+  else statusDemanda = 'fraco';
+  
+  // Status orgânico (para recomendação de Ads)
   let statusOrganico: 'forte' | 'medio' | 'fraco';
   let recomendacaoAds: string;
   
-  if (scoreOrganico >= 70) {
+  if (scoreOrganicoAbsoluto >= 70) {
     statusOrganico = 'forte';
     recomendacaoAds = 'Ads pode focar em remarketing. Menos pressão em topo de funil.';
-  } else if (scoreOrganico >= 40) {
+  } else if (scoreOrganicoAbsoluto >= 40) {
     statusOrganico = 'medio';
     recomendacaoAds = 'Ads mantém estrutura atual. Testes pontuais.';
   } else {
@@ -573,29 +619,80 @@ export function calculateMarketingOrganico(organico?: MarketingStage['organico']
     recomendacaoAds = 'Ads compensa: mais topo de funil e remarketing.';
   }
   
-  // ========== SCORE DE DEMANDA COMBINADO ==========
-  // Orgânico: 60% (já calculado 0-100) + Sessões: 40%
-  const scoreDemanda = Math.round((scoreOrganico * 0.6) + (scoreSessoes * 0.4));
+  // Status sessões derivado da tendência
+  const statusSessoes: 'forte' | 'neutro' | 'fraco' = 
+    sessoesResult.tendencia === 'acima' ? 'forte' :
+    sessoesResult.tendencia === 'media' ? 'neutro' : 'fraco';
   
-  let statusDemanda: 'forte' | 'neutro' | 'fraco';
-  if (scoreDemanda >= 70) statusDemanda = 'forte';
-  else if (scoreDemanda >= 40) statusDemanda = 'neutro';
-  else statusDemanda = 'fraco';
-  
-  // Leitura inteligente baseada na combinação
-  const leituraDemanda = getLeituraDemanda(statusOrganico, statusSessoes);
+  // Leitura inteligente baseada nas tendências
+  const leituraDemanda = getLeituraDemandaRelativa(
+    organicoResult.tendencia,
+    sessoesResult.tendencia,
+    pedidosResult.tendencia
+  );
   
   return {
-    scoreOrganico,
+    scoreOrganico: scoreOrganicoAbsoluto,
     statusOrganico,
     recomendacaoAds,
     detalhes: { emailScore, influencerScore, socialScore },
-    scoreSessoes,
+    scoreSessoes: Math.round(sessoesResult.score),
     statusSessoes,
     scoreDemanda,
     statusDemanda,
     leituraDemanda,
+    tendenciaOrganico: organicoResult.tendencia,
+    tendenciaSessoes: sessoesResult.tendencia,
+    tendenciaPedidos: pedidosResult.tendencia,
   };
+}
+
+// Leitura inteligente baseada nas tendências relativas
+function getLeituraDemandaRelativa(
+  tendenciaOrganico: Tendencia,
+  tendenciaSessoes: Tendencia,
+  tendenciaPedidos: Tendencia
+): string {
+  // Todos acima
+  if (tendenciaOrganico === 'acima' && tendenciaSessoes === 'acima' && tendenciaPedidos === 'acima') {
+    return 'Performance excelente. Todos pilares acima do histórico.';
+  }
+  
+  // Pedidos caindo é o mais crítico
+  if (tendenciaPedidos === 'abaixo') {
+    if (tendenciaSessoes === 'acima' || tendenciaOrganico === 'acima') {
+      return 'Atenção: Orgânico/Sessões bons mas pedidos caindo. Verificar conversão.';
+    }
+    return 'Demanda geral em queda. Revisar oferta antes de escalar Ads.';
+  }
+  
+  // Sessões caindo
+  if (tendenciaSessoes === 'abaixo') {
+    if (tendenciaPedidos === 'acima') {
+      return 'Menos tráfego mas boa conversão. Considerar escalar topo de funil.';
+    }
+    return 'Tráfego caindo. Verificar sazonalidade ou oferta.';
+  }
+  
+  // Orgânico fraco
+  if (tendenciaOrganico === 'abaixo') {
+    if (tendenciaSessoes === 'acima' && tendenciaPedidos === 'acima') {
+      return 'Ads carregando a demanda. Orgânico precisa de atenção.';
+    }
+    return 'Orgânico abaixo da média. Ads compensando.';
+  }
+  
+  // Todos na média
+  if (tendenciaOrganico === 'media' && tendenciaSessoes === 'media' && tendenciaPedidos === 'media') {
+    return 'Demanda estável. Sem urgência, sem folga.';
+  }
+  
+  // Casos mistos positivos
+  if (tendenciaPedidos === 'acima') {
+    return 'Pedidos acima da média. Boa performance de conversão.';
+  }
+  
+  return 'Demanda dentro do esperado. Monitorar próxima semana.';
 }
 
 // Leitura inteligente da combinação Orgânico + Sessões

@@ -1,14 +1,15 @@
-import { FocusMode, MarketingStage, MarketingInfluencer, DEFAULT_MARKETING_DATA, DEFAULT_MARKETING_ORGANICO } from '@/types/focus-mode';
+import { FocusMode, MarketingStage, MarketingInfluencer, DEFAULT_MARKETING_DATA, DEFAULT_MARKETING_ORGANICO, Tendencia } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { CheckCircle2, AlertTriangle, Clock, Plus, Trash2, Mail, Users, Megaphone, TrendingUp, TrendingDown, Minus, Globe, Activity } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Clock, Plus, Trash2, Mail, Users, Megaphone, TrendingUp, TrendingDown, Minus, Globe, Activity, ShoppingCart, ArrowUp, ArrowDown } from 'lucide-react';
 import { calculateMarketingStatusSimples, calculateMarketingOrganico } from '@/utils/modeStatusCalculator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useState } from 'react';
+import { useWeeklyHistory, calcularMediasHistoricas } from '@/hooks/useWeeklyHistory';
 
 interface MarketingModeProps {
   mode: FocusMode;
@@ -113,11 +114,26 @@ const getSessoesStatusInfo = (status: 'forte' | 'neutro' | 'fraco') => {
   }
 };
 
+const getTendenciaIcon = (tendencia: Tendencia) => {
+  switch (tendencia) {
+    case 'acima':
+      return { Icon: ArrowUp, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900/30', label: '↑ Acima' };
+    case 'abaixo':
+      return { Icon: ArrowDown, color: 'text-destructive', bg: 'bg-red-100 dark:bg-red-900/30', label: '↓ Abaixo' };
+    default:
+      return { Icon: Minus, color: 'text-yellow-600', bg: 'bg-yellow-100 dark:bg-yellow-900/30', label: '= Média' };
+  }
+};
+
 export function MarketingMode({
   mode,
   onUpdateMarketingData,
 }: MarketingModeProps) {
   const [showChecklist, setShowChecklist] = useState(false);
+  
+  // Buscar histórico para cálculo relativo
+  const { history } = useWeeklyHistory(5);
+  const historicoMedias = calcularMediasHistoricas(history);
   
   // Merge com defaults
   const data: MarketingStage = {
@@ -139,10 +155,15 @@ export function MarketingMode({
   const statusInfo = getStatusInfo(status);
   const StatusIcon = statusInfo.icon;
   
-  // Calcular termômetro orgânico
-  const organicoResult = calculateMarketingOrganico(data.organico);
+  // Calcular termômetro orgânico COM histórico
+  const organicoResult = calculateMarketingOrganico(data.organico, historicoMedias);
   const organicoInfo = getOrganicoStatusInfo(organicoResult.statusOrganico);
   const OrganicoIcon = organicoInfo.icon;
+  
+  // Tendências por pilar
+  const tendenciaOrganicoInfo = getTendenciaIcon(organicoResult.tendenciaOrganico);
+  const tendenciaSessoesInfo = getTendenciaIcon(organicoResult.tendenciaSessoes);
+  const tendenciaPedidosInfo = getTendenciaIcon(organicoResult.tendenciaPedidos);
 
   const handleVerificacaoChange = (key: keyof MarketingStage['verificacoes'], checked: boolean) => {
     onUpdateMarketingData({
@@ -208,6 +229,9 @@ export function MarketingMode({
 
   const demandaInfo = getDemandaStatusInfo(organicoResult.statusDemanda);
   const sessoesInfo = getSessoesStatusInfo(organicoResult.statusSessoes);
+  
+  // Verificar se há histórico
+  const temHistorico = historicoMedias.temDados;
 
   return (
     <div className="space-y-6">
@@ -217,28 +241,46 @@ export function MarketingMode({
           <CardTitle className="text-base flex items-center gap-2">
             <Activity className="h-5 w-5 text-primary" />
             DEMANDA — VISÃO GERAL
+            {temHistorico && (
+              <span className="text-xs font-normal text-muted-foreground ml-auto">
+                vs últimas 4 semanas
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Grid de status */}
+          {/* Grid de tendências por pilar */}
           <div className="grid grid-cols-3 gap-3 text-center">
-            <div className="p-3 rounded-lg bg-muted/50">
+            <div className={cn("p-3 rounded-lg", tendenciaOrganicoInfo.bg)}>
               <p className="text-xs text-muted-foreground mb-1">Orgânico</p>
-              <p className="font-semibold">
-                {organicoResult.statusOrganico === 'forte' ? '🟢' : 
-                 organicoResult.statusOrganico === 'medio' ? '🟡' : '🔴'}
+              <p className={cn("font-semibold flex items-center justify-center gap-1", tendenciaOrganicoInfo.color)}>
+                <tendenciaOrganicoInfo.Icon className="h-4 w-4" />
+                {tendenciaOrganicoInfo.label}
               </p>
             </div>
-            <div className="p-3 rounded-lg bg-muted/50">
+            <div className={cn("p-3 rounded-lg", tendenciaSessoesInfo.bg)}>
               <p className="text-xs text-muted-foreground mb-1">Sessões</p>
-              <p className="font-semibold">{sessoesInfo.label}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-muted/50">
-              <p className="text-xs text-muted-foreground mb-1">Demanda Total</p>
-              <p className={cn("font-bold text-lg", demandaInfo.color)}>
-                {organicoResult.scoreDemanda}
+              <p className={cn("font-semibold flex items-center justify-center gap-1", tendenciaSessoesInfo.color)}>
+                <tendenciaSessoesInfo.Icon className="h-4 w-4" />
+                {tendenciaSessoesInfo.label}
               </p>
             </div>
+            <div className={cn("p-3 rounded-lg", tendenciaPedidosInfo.bg)}>
+              <p className="text-xs text-muted-foreground mb-1">Pedidos</p>
+              <p className={cn("font-semibold flex items-center justify-center gap-1", tendenciaPedidosInfo.color)}>
+                <tendenciaPedidosInfo.Icon className="h-4 w-4" />
+                {tendenciaPedidosInfo.label}
+              </p>
+            </div>
+          </div>
+          
+          {/* Score total */}
+          <div className="p-3 rounded-lg bg-muted/50 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Score de Demanda</p>
+            <p className={cn("font-bold text-2xl", demandaInfo.color)}>
+              {organicoResult.scoreDemanda}
+              <span className="text-sm font-normal text-muted-foreground">/100</span>
+            </p>
           </div>
           
           {/* Barra de demanda */}
@@ -265,6 +307,50 @@ export function MarketingMode({
               <br />
               <span className="text-muted-foreground">{organicoResult.leituraDemanda}</span>
             </p>
+          </div>
+          
+          {!temHistorico && (
+            <p className="text-xs text-muted-foreground text-center italic">
+              ⏳ Sem histórico suficiente. Score será mais preciso após 2+ semanas.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ========== PEDIDOS DA SEMANA ========== */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShoppingCart className="h-4 w-4 text-emerald-500" />
+            Pedidos da Semana
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Quantidade de pedidos</Label>
+            <Input
+              type="text"
+              placeholder="Ex: 250"
+              value={data.organico?.pedidosSemana || ''}
+              onChange={(e) => handleOrganicoChange('pedidosSemana', e.target.value)}
+              className="h-9"
+            />
+          </div>
+          
+          {/* Indicador de tendência */}
+          <div className={cn(
+            "p-3 rounded-lg border text-center",
+            tendenciaPedidosInfo.bg
+          )}>
+            <p className={cn("text-sm font-medium flex items-center justify-center gap-2", tendenciaPedidosInfo.color)}>
+              <tendenciaPedidosInfo.Icon className="h-4 w-4" />
+              {tendenciaPedidosInfo.label} vs média histórica
+            </p>
+            {temHistorico && historicoMedias.pedidosSemana > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Média: {Math.round(historicoMedias.pedidosSemana)} pedidos/semana
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

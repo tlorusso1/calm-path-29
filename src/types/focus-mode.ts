@@ -192,20 +192,29 @@ export interface MarketingOrganico {
   postAcimaDaMedia: boolean;
   taxaEngajamento: string;
   
-  // Sessões do Site (NOVO - validação final da demanda)
+  // Sessões do Site (validação da demanda)
   sessoesSemana: string;
   sessoesMedia30d: string;
+  
+  // NOVO: Pedidos da Semana (validação de conversão)
+  pedidosSemana: string;
 }
+
+export type Tendencia = 'acima' | 'media' | 'abaixo';
 
 export interface MarketingExports {
   scoreOrganico: number;
   statusOrganico: 'forte' | 'medio' | 'fraco';
   recomendacaoAds: string;
-  // Score de Demanda (inclui sessões)
+  // Score de Demanda (agora relativo ao histórico)
   scoreDemanda: number;
   statusDemanda: 'forte' | 'neutro' | 'fraco';
   scoreSessoes: number;
   statusSessoes: 'forte' | 'neutro' | 'fraco';
+  // NOVO: Tendências por pilar (comparação com histórico)
+  tendenciaOrganico: Tendencia;
+  tendenciaSessoes: Tendencia;
+  tendenciaPedidos: Tendencia;
 }
 
 export interface MarketingStage {
@@ -486,7 +495,16 @@ export const DEFAULT_MARKETING_ORGANICO: MarketingOrganico = {
   taxaEngajamento: '',
   sessoesSemana: '',
   sessoesMedia30d: '',
+  pedidosSemana: '',
 };
+
+// ============= Interface de Médias Históricas =============
+export interface HistoricoMedias {
+  scoreOrganico: number;
+  sessoesSemana: number;
+  pedidosSemana: number;
+  temDados: boolean;
+}
 
 export const DEFAULT_MARKETING_DATA: MarketingStage = {
   verificacoes: {
