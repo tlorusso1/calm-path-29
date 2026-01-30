@@ -1,141 +1,114 @@
 
+# Separação Visual por Categoria no Backlog
 
-# Melhoria: Editar Textos de Tarefas e Ideias no Backlog
+## Proposta
 
-## Problema Atual
-
-1. **Tarefas**: O texto da descrição aparece como `<span>` simples (linha 207-211), sem campo para edição. A função `onUpdateTarefa` existe e funciona, mas não está sendo usada para editar o texto.
-
-2. **Ideias**: O texto aparece como `<span>` (linha 313), e **não existe função `onUpdateIdeia`** no sistema. A interface só permite adicionar e remover.
-
-## Solução Proposta
-
-### 1. Tarefas Editáveis
-
-Transformar o texto da tarefa em um campo de input editável inline:
+Agrupar tarefas em três seções com headers simples e bordas sutis à esquerda para diferenciar visualmente:
 
 ```text
-ANTES:
-+------------------------------------------+
-| [x] Revisar planilha financeira     [🗑]  |
-+------------------------------------------+
-
-DEPOIS:
-+------------------------------------------+
-| [x] [Revisar planilha financeira___] [🗑] |
-+------------------------------------------+
+┌─────────────────────────────────────────┐
+│ 🟢 HOJE                                 │
+├─────────────────────────────────────────┤
+│ ▌ [x] Tarefa 1 - 30min                  │
+│ ▌ [ ] Tarefa 2 - 1h ★                   │
+├─────────────────────────────────────────┤
+│ 🔵 PRÓXIMO                              │
+├─────────────────────────────────────────┤
+│ ▌ [ ] Tarefa 3 - 2h                     │
+├─────────────────────────────────────────┤
+│ ⚪ DEPOIS                               │
+├─────────────────────────────────────────┤
+│ ▌ [ ] Tarefa 4 - 15min                  │
+│ ▌ [ ] Tarefa 5 - 30min                  │
+└─────────────────────────────────────────┘
 ```
 
-Comportamento:
-- Campo de texto editável diretamente
-- Atualiza ao digitar (onChange)
-- Mantém estilo de riscado quando completada
+## Diferenciação Visual
 
-### 2. Ideias Editáveis
+| Categoria | Borda Esquerda | Header |
+|-----------|----------------|--------|
+| Hoje | Verde (`border-l-green-500`) | "HOJE" com fundo leve |
+| Próximo | Azul (`border-l-blue-500`) | "PRÓXIMO" com fundo leve |
+| Depois | Cinza (`border-l-muted`) | "DEPOIS" com fundo leve |
 
-Criar função de atualização e transformar em input:
+## Mudanças
 
-```text
-ANTES:
-+------------------------------------------+
-| - Ideia de novo sabor                [🗑] |
-+------------------------------------------+
+### Arquivo: `src/components/modes/BacklogMode.tsx`
 
-DEPOIS:
-+------------------------------------------+
-| - [Ideia de novo sabor___________]   [🗑] |
-+------------------------------------------+
-```
-
-## Arquivos a Modificar
-
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/hooks/useFocusModes.ts` | Adicionar funcao `updateBacklogIdeia` |
-| `src/components/modes/BacklogMode.tsx` | Adicionar prop `onUpdateIdeia`, transformar textos em inputs |
-
-## Detalhes Tecnicos
-
-### Mudanca 1: Criar funcao updateBacklogIdeia (useFocusModes.ts)
-
-Adicionar nova funcao seguindo o padrao existente de `updateBacklogTarefa`:
+**1. Separar tarefas por categoria:**
 
 ```typescript
-const updateBacklogIdeia = useCallback((id: string, texto: string) => {
-  setState(prev => {
-    const currentBacklog = prev.modes.backlog.backlogData ?? {
-      tempoDisponivelHoje: 480,
-      tarefas: [],
-      ideias: [],
-    };
-    
-    return {
-      ...prev,
-      modes: {
-        ...prev.modes,
-        backlog: {
-          ...prev.modes.backlog,
-          backlogData: {
-            ...currentBacklog,
-            ideias: currentBacklog.ideias.map(ideia =>
-              ideia.id === id ? { ...ideia, texto } : ideia
-            ),
-          },
-        },
-      },
-    };
-  });
-}, []);
+const tarefasHoje = tarefas.filter(t => t.quandoFazer === 'hoje');
+const tarefasProximo = tarefas.filter(t => t.quandoFazer === 'proximo');
+const tarefasDepois = tarefas.filter(t => t.quandoFazer === 'depois');
 ```
 
-### Mudanca 2: Atualizar interface do BacklogMode
+**2. Criar componente de seção reutilizável:**
 
-Adicionar nova prop:
-
-```typescript
-interface BacklogModeProps {
-  // ... existentes
-  onUpdateIdeia: (id: string, texto: string) => void;
+```tsx
+function TarefaSection({ 
+  titulo, 
+  tarefas, 
+  borderColor,
+  bgColor 
+}: { 
+  titulo: string; 
+  tarefas: BacklogTarefa[]; 
+  borderColor: string;
+  bgColor: string;
+}) {
+  if (tarefas.length === 0) return null;
+  
+  return (
+    <div className="space-y-2">
+      <div className={cn("text-xs font-medium uppercase tracking-wide px-2 py-1 rounded", bgColor)}>
+        {titulo} ({tarefas.length})
+      </div>
+      {tarefas.map(tarefa => (
+        <Card className={cn("border-l-4", borderColor)}>
+          {/* Card content existente */}
+        </Card>
+      ))}
+    </div>
+  );
 }
 ```
 
-### Mudanca 3: Input editavel para Tarefas (linha 207-212)
-
-Substituir o `<span>` por `<Input>`:
+**3. Renderizar as três seções:**
 
 ```tsx
-<Input
-  value={tarefa.descricao}
-  onChange={(e) => onUpdateTarefa(tarefa.id, { descricao: e.target.value })}
-  className={cn(
-    "flex-1 text-sm h-7 border-none shadow-none px-1",
-    tarefa.completed && "line-through text-muted-foreground"
-  )}
-/>
-```
-
-### Mudanca 4: Input editavel para Ideias (linha 313)
-
-Substituir o `<span>` por `<Input>`:
-
-```tsx
-<div className="flex items-center gap-2 p-2 bg-background rounded border">
-  <span className="text-sm text-muted-foreground">-</span>
-  <Input
-    value={ideia.texto}
-    onChange={(e) => onUpdateIdeia(ideia.id, e.target.value)}
-    className="flex-1 text-sm h-7 border-none shadow-none px-1 bg-transparent"
+<div className="space-y-6">
+  <TarefaSection 
+    titulo="Hoje" 
+    tarefas={tarefasHoje}
+    borderColor="border-l-green-500"
+    bgColor="bg-green-500/10 text-green-700"
   />
-  <Button ...>
-    <Trash2 />
-  </Button>
+  <TarefaSection 
+    titulo="Próximo" 
+    tarefas={tarefasProximo}
+    borderColor="border-l-blue-500"
+    bgColor="bg-blue-500/10 text-blue-700"
+  />
+  <TarefaSection 
+    titulo="Depois" 
+    tarefas={tarefasDepois}
+    borderColor="border-l-muted"
+    bgColor="bg-muted/50 text-muted-foreground"
+  />
 </div>
 ```
 
+## Comportamento
+
+- Cada seção só aparece se tiver tarefas
+- Ordenação dentro de cada seção: urgentes primeiro, depois não-completas
+- Os botões de "Hoje/Próximo/Depois" continuam funcionando para mover entre seções
+- Visualmente fica claro onde cada tarefa está sem mudar a estrutura
+
 ## Resultado Esperado
 
-- Usuario pode clicar diretamente no texto de qualquer tarefa ou ideia e editar
-- Edicoes sao salvas automaticamente (como ja funciona para outros campos)
-- Interface permanece limpa e minimalista
-- Dados persistem corretamente no banco
-
+- Separação visual clara mas minimalista
+- Cores sutis que não distraem
+- Contagem de tarefas por seção
+- Mantém a simplicidade da interface atual
