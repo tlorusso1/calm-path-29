@@ -334,7 +334,7 @@ export function SupplyChainMode({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="max-h-[300px]">
+            <ScrollArea className={cn(itensProcessados.length > 5 ? "h-[350px]" : "h-auto")}>
               <div className="space-y-2">
                 {itensProcessados.map((item) => {
                   const diasVenc = calcularDiasAteVencimento(item.dataValidade);
