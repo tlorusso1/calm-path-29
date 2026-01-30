@@ -159,9 +159,15 @@ function processLoadedState(state: FocusModeState | null): ProcessResult {
     (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
       if (MODE_CONFIGS[id].frequency === 'daily') {
         if (id === 'backlog') {
+          // PROTEÇÃO: Garantir que backlog sempre tenha arrays válidos
+          const existingBacklog = state.modes.backlog?.backlogData;
           updatedModes[id] = {
             ...createDefaultMode(id),
-            backlogData: state.modes.backlog?.backlogData ?? { ...DEFAULT_BACKLOG_DATA, tarefas: [], ideias: [] },
+            backlogData: {
+              tempoDisponivelHoje: existingBacklog?.tempoDisponivelHoje ?? 480,
+              tarefas: Array.isArray(existingBacklog?.tarefas) ? existingBacklog.tarefas : [],
+              ideias: Array.isArray(existingBacklog?.ideias) ? existingBacklog.ideias : [],
+            },
           };
         } else {
           updatedModes[id] = createDefaultMode(id);
@@ -320,6 +326,29 @@ export function useFocusModes() {
     loadFromSupabase();
   }, [user]);
 
+  // Helper function to build and save payload
+  const saveToSupabase = useCallback(async () => {
+    if (!user || !initialLoadDone.current) return;
+    
+    const payload = {
+      user_id: user.id,
+      date: state.date,
+      week_start: state.weekStart,
+      active_mode: state.activeMode,
+      modes: JSON.parse(JSON.stringify(state.modes)) as Json,
+      last_completed_mode: state.lastCompletedMode,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('focus_mode_states')
+      .upsert([payload], { onConflict: 'user_id' });
+
+    if (error) {
+      console.error('Error saving focus modes:', error);
+    }
+  }, [user, state]);
+
   // Save to Supabase with debounce
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -328,32 +357,51 @@ export function useFocusModes() {
       clearTimeout(debounceRef.current);
     }
 
-    debounceRef.current = setTimeout(async () => {
-      const payload = {
-        user_id: user.id,
-        date: state.date,
-        week_start: state.weekStart,
-        active_mode: state.activeMode,
-        modes: JSON.parse(JSON.stringify(state.modes)) as Json,
-        last_completed_mode: state.lastCompletedMode,
-        updated_at: new Date().toISOString(),
-      };
-
-      const { error } = await supabase
-        .from('focus_mode_states')
-        .upsert([payload], { onConflict: 'user_id' });
-
-      if (error) {
-        console.error('Error saving focus modes:', error);
-      }
-    }, DEBOUNCE_MS);
+    debounceRef.current = setTimeout(saveToSupabase, DEBOUNCE_MS);
 
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [state, user]);
+  }, [state, user, saveToSupabase]);
+
+  // Flush immediately on page unload to prevent data loss
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (user && initialLoadDone.current) {
+        // Cancel pending debounce
+        if (debounceRef.current) {
+          clearTimeout(debounceRef.current);
+        }
+        // Save immediately using sendBeacon for reliability
+        const payload = {
+          user_id: user.id,
+          date: state.date,
+          week_start: state.weekStart,
+          active_mode: state.activeMode,
+          modes: JSON.parse(JSON.stringify(state.modes)),
+          last_completed_mode: state.lastCompletedMode,
+          updated_at: new Date().toISOString(),
+        };
+        
+        // Use sendBeacon for guaranteed delivery on page close
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/focus_mode_states?on_conflict=user_id`;
+        const headers = {
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates',
+        };
+        
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        navigator.sendBeacon(url, blob);
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [user, state]);
 
   // ============= Financeiro Exports (para outros modos) =============
   const getFinanceiroExports = useCallback((): FinanceiroExports => {
@@ -958,19 +1006,30 @@ export function useFocusModes() {
 
   // ============= Backlog =============
   const updateBacklogData = useCallback((data: Partial<BacklogStage>) => {
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        backlog: {
-          ...prev.modes.backlog,
-          backlogData: {
-            ...prev.modes.backlog.backlogData!,
-            ...data,
+    setState(prev => {
+      // PROTEÇÃO: Garantir que backlogData nunca seja undefined
+      const currentBacklog = prev.modes.backlog.backlogData ?? {
+        tempoDisponivelHoje: 480,
+        tarefas: [],
+        ideias: [],
+      };
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          backlog: {
+            ...prev.modes.backlog,
+            backlogData: {
+              // Preserva valores existentes, só atualiza o que veio
+              tempoDisponivelHoje: data.tempoDisponivelHoje ?? currentBacklog.tempoDisponivelHoje,
+              tarefas: data.tarefas ?? currentBacklog.tarefas,
+              ideias: data.ideias ?? currentBacklog.ideias,
+            },
           },
         },
-      },
-    }));
+      };
+    });
   }, []);
 
   const addBacklogTarefa = useCallback((tarefa: Omit<BacklogTarefa, 'id'>) => {
@@ -979,55 +1038,79 @@ export function useFocusModes() {
       id: generateId(),
     };
     
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        backlog: {
-          ...prev.modes.backlog,
-          backlogData: {
-            ...prev.modes.backlog.backlogData!,
-            tarefas: [...(prev.modes.backlog.backlogData?.tarefas || []), newTarefa],
+    setState(prev => {
+      const currentBacklog = prev.modes.backlog.backlogData ?? {
+        tempoDisponivelHoje: 480,
+        tarefas: [],
+        ideias: [],
+      };
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          backlog: {
+            ...prev.modes.backlog,
+            backlogData: {
+              ...currentBacklog,
+              tarefas: [...(currentBacklog.tarefas || []), newTarefa],
+            },
           },
         },
-      },
-    }));
+      };
+    });
     
     return newTarefa;
   }, []);
 
   const updateBacklogTarefa = useCallback((id: string, data: Partial<BacklogTarefa>) => {
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        backlog: {
-          ...prev.modes.backlog,
-          backlogData: {
-            ...prev.modes.backlog.backlogData!,
-            tarefas: prev.modes.backlog.backlogData!.tarefas.map(t =>
-              t.id === id ? { ...t, ...data } : t
-            ),
+    setState(prev => {
+      const currentBacklog = prev.modes.backlog.backlogData ?? {
+        tempoDisponivelHoje: 480,
+        tarefas: [],
+        ideias: [],
+      };
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          backlog: {
+            ...prev.modes.backlog,
+            backlogData: {
+              ...currentBacklog,
+              tarefas: (currentBacklog.tarefas || []).map(t =>
+                t.id === id ? { ...t, ...data } : t
+              ),
+            },
           },
         },
-      },
-    }));
+      };
+    });
   }, []);
 
   const removeBacklogTarefa = useCallback((id: string) => {
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        backlog: {
-          ...prev.modes.backlog,
-          backlogData: {
-            ...prev.modes.backlog.backlogData!,
-            tarefas: prev.modes.backlog.backlogData!.tarefas.filter(t => t.id !== id),
+    setState(prev => {
+      const currentBacklog = prev.modes.backlog.backlogData ?? {
+        tempoDisponivelHoje: 480,
+        tarefas: [],
+        ideias: [],
+      };
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          backlog: {
+            ...prev.modes.backlog,
+            backlogData: {
+              ...currentBacklog,
+              tarefas: (currentBacklog.tarefas || []).filter(t => t.id !== id),
+            },
           },
         },
-      },
-    }));
+      };
+    });
   }, []);
 
   const addBacklogIdeia = useCallback((texto: string) => {
@@ -1036,38 +1119,55 @@ export function useFocusModes() {
       texto: texto.trim(),
     };
     
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        backlog: {
-          ...prev.modes.backlog,
-          backlogData: {
-            ...prev.modes.backlog.backlogData!,
-            ideias: [...(prev.modes.backlog.backlogData?.ideias || []), newIdeia],
+    setState(prev => {
+      const currentBacklog = prev.modes.backlog.backlogData ?? {
+        tempoDisponivelHoje: 480,
+        tarefas: [],
+        ideias: [],
+      };
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          backlog: {
+            ...prev.modes.backlog,
+            backlogData: {
+              ...currentBacklog,
+              ideias: [...(currentBacklog.ideias || []), newIdeia],
+            },
           },
         },
-      },
-    }));
+      };
+    });
     
     return newIdeia;
   }, []);
 
   const removeBacklogIdeia = useCallback((id: string) => {
-    setState(prev => ({
-      ...prev,
-      modes: {
-        ...prev.modes,
-        backlog: {
-          ...prev.modes.backlog,
-          backlogData: {
-            ...prev.modes.backlog.backlogData!,
-            ideias: prev.modes.backlog.backlogData!.ideias.filter(i => i.id !== id),
+    setState(prev => {
+      const currentBacklog = prev.modes.backlog.backlogData ?? {
+        tempoDisponivelHoje: 480,
+        tarefas: [],
+        ideias: [],
+      };
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          backlog: {
+            ...prev.modes.backlog,
+            backlogData: {
+              ...currentBacklog,
+              ideias: (currentBacklog.ideias || []).filter(i => i.id !== id),
+            },
           },
         },
-      },
-    }));
+      };
+    });
   }, []);
+
 
   return {
     activeMode: state.activeMode,
