@@ -338,48 +338,76 @@ export function SupplyChainMode({
               <div className="space-y-2">
                 {itensProcessados.map((item) => {
                   const diasVenc = calcularDiasAteVencimento(item.dataValidade);
+                  const usandoGlobal = item.demandaSemanal === undefined;
                   
                   return (
                     <div 
                       key={item.id}
                       className={cn(
-                        "flex items-center justify-between p-3 rounded-lg border",
+                        "p-3 rounded-lg border",
                         item.status === 'vermelho' ? 'border-destructive/50 bg-destructive/5' :
                         item.status === 'amarelo' ? 'border-yellow-500/50 bg-yellow-50/50 dark:bg-yellow-950/10' :
                         'border-border'
                       )}
                     >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {getStatusIcon(item.status)}
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm truncate">{item.nome}</p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Badge variant="outline" className="text-[10px]">
-                              {TIPO_LABELS[item.tipo]}
-                            </Badge>
-                            <span>{item.quantidade} {item.unidade}</span>
-                            {item.coberturaDias !== undefined && (
-                              <span className="font-medium">• {item.coberturaDias}d</span>
-                            )}
-                            {diasVenc !== null && diasVenc < 60 && (
-                              <span className={cn(
-                                "font-medium",
-                                diasVenc < 30 ? "text-destructive" : "text-yellow-600"
-                              )}>
-                                • Vence em {diasVenc}d
-                              </span>
-                            )}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          {getStatusIcon(item.status)}
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm truncate">{item.nome}</p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Badge variant="outline" className="text-[10px]">
+                                {TIPO_LABELS[item.tipo]}
+                              </Badge>
+                              <span>{item.quantidade} {item.unidade}</span>
+                              {item.coberturaDias !== undefined && (
+                                <span className="font-medium">• {item.coberturaDias}d</span>
+                              )}
+                              {diasVenc !== null && diasVenc < 60 && (
+                                <span className={cn(
+                                  "font-medium",
+                                  diasVenc < 30 ? "text-destructive" : "text-yellow-600"
+                                )}>
+                                  • Vence em {diasVenc}d
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onRemoveItem(item.id)}
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onRemoveItem(item.id)}
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      
+                      {/* Campo editável de saída semanal */}
+                      <div className="mt-2 flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                          Saída/sem:
+                        </Label>
+                        <Input
+                          type="number"
+                          placeholder={usandoGlobal ? `~${data.demandaSemanalMedia || 0}` : ""}
+                          value={item.demandaSemanal ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            onUpdateItem(item.id, { 
+                              demandaSemanal: val ? parseFloat(val) : undefined 
+                            });
+                          }}
+                          className="h-7 w-20 text-xs"
+                        />
+                        <span className="text-xs text-muted-foreground">un</span>
+                        {usandoGlobal && data.demandaSemanalMedia > 0 && (
+                          <span className="text-[10px] text-muted-foreground italic">
+                            (usando global)
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
