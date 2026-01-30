@@ -92,6 +92,7 @@ export type Database = {
           decisao_ads: string | null
           gasto_ads: number | null
           id: string
+          pedidos_semana: number | null
           prioridade_semana: string | null
           registro_decisao: string | null
           resultado_mes: number | null
@@ -117,6 +118,7 @@ export type Database = {
           decisao_ads?: string | null
           gasto_ads?: number | null
           id?: string
+          pedidos_semana?: number | null
           prioridade_semana?: string | null
           registro_decisao?: string | null
           resultado_mes?: number | null
@@ -142,6 +144,7 @@ export type Database = {
           decisao_ads?: string | null
           gasto_ads?: number | null
           id?: string
+          pedidos_semana?: number | null
           prioridade_semana?: string | null
           registro_decisao?: string | null
           resultado_mes?: number | null
