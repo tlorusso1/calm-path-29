@@ -708,17 +708,18 @@ export function useFocusModes() {
       const newSupplyChainData = {
         ...currentData,
         ...data,
+        itens: data.itens ?? currentData.itens ?? [],
         semanal: {
-          ...currentData.semanal,
-          ...data.semanal,
+          ...(currentData.semanal ?? DEFAULT_SUPPLYCHAIN_DATA.semanal),
+          ...(data.semanal ?? {}),
         },
         quinzenal: {
-          ...currentData.quinzenal,
-          ...data.quinzenal,
+          ...(currentData.quinzenal ?? DEFAULT_SUPPLYCHAIN_DATA.quinzenal),
+          ...(data.quinzenal ?? {}),
         },
         mensal: {
-          ...currentData.mensal,
-          ...data.mensal,
+          ...(currentData.mensal ?? DEFAULT_SUPPLYCHAIN_DATA.mensal),
+          ...(data.mensal ?? {}),
         },
       };
       const newStatus = calculateSupplyChainStatus(newSupplyChainData);
@@ -745,9 +746,10 @@ export function useFocusModes() {
     
     setState(prev => {
       const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
+      const currentItens = currentData.itens ?? [];
       const newData = {
         ...currentData,
-        itens: [...currentData.itens, newItem],
+        itens: [...currentItens, newItem],
       };
       const newStatus = calculateSupplyChainStatus(newData);
       
@@ -770,9 +772,10 @@ export function useFocusModes() {
   const updateSupplyItem = useCallback((id: string, data: Partial<ItemEstoque>) => {
     setState(prev => {
       const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
+      const currentItens = currentData.itens ?? [];
       const newData = {
         ...currentData,
-        itens: currentData.itens.map(item =>
+        itens: currentItens.map(item =>
           item.id === id ? { ...item, ...data } : item
         ),
       };
@@ -795,9 +798,10 @@ export function useFocusModes() {
   const removeSupplyItem = useCallback((id: string) => {
     setState(prev => {
       const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
+      const currentItens = currentData.itens ?? [];
       const newData = {
         ...currentData,
-        itens: currentData.itens.filter(item => item.id !== id),
+        itens: currentItens.filter(item => item.id !== id),
       };
       const newStatus = calculateSupplyChainStatus(newData);
       
