@@ -37,6 +37,7 @@ import {
   calculateFinanceiroV2,
   calculateMarketingOrganico,
   parseCurrency,
+  calcScoreNegocio,
 } from '@/utils/modeStatusCalculator';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -367,10 +368,9 @@ export function useFocusModes() {
 
   // ============= Score do Negócio (NOVO) =============
   const scoreNegocio = useMemo(() => {
-    const { calcScoreNegocio } = require('@/utils/modeStatusCalculator');
     const estoqueData = state.modes['pre-reuniao-geral']?.preReuniaoGeralData?.estoque;
     return calcScoreNegocio(financeiroExports, estoqueData, marketingExports);
-  }, [financeiroExports, state.modes['pre-reuniao-geral']?.preReuniaoGeralData?.estoque, marketingExports]);
+  }, [financeiroExports, state.modes, marketingExports]);
 
   // ============= Prioridade da Semana (de Pre-Reuniao Geral) =============
   const prioridadeSemana = useMemo(() => 
