@@ -1,96 +1,308 @@
-# Reestruturação: Marketing Estrutural vs Ads (Tráfego Pago)
 
-## Status: ✅ IMPLEMENTADO
+# Score de Marketing Relativo ao Histórico
 
----
+## Resumo da Mudança
 
-## O Problema Resolvido
+O score de Marketing/Demanda vai deixar de ser **absoluto** (pontos por preencher) e passar a ser **relativo** (comparação com média das últimas 4 semanas). Além disso, vamos adicionar o pilar de **Pedidos** para validar a conversão real.
 
-O sistema antigo tratava "Marketing Base" como Ads, permitindo investimento em tráfego pago crescer automaticamente com base no Caixa Livre Real sem limite.
+## O Que Muda Para Você
 
-### Lógica antiga (problemática):
-```text
-adsIncremental = caixaLivreReal * (10% a 30%)
-adsMaximoPermitido = marketingBase + adsIncremental
-```
+### Antes (Absoluto)
+- Preencher e-mail = 30 pontos
+- Influencer ativo = 30 pontos
+- Alcance >= média manual = 40 pontos
+- **Problema:** Score "bom" só por preencher, mesmo que performance esteja caindo
 
-Com Caixa Livre de R$ 79.000, permitia Ads de até R$ 30.000+ - sem considerar faturamento.
+### Depois (Relativo)
+- Cada pilar compara com a **média das últimas 4 semanas**
+- Acima da média (+10%): pontuação máxima
+- Na média (±10%): 70% dos pontos
+- Abaixo da média (-10%): 40% dos pontos
 
----
+### Novo Campo: Pedidos da Semana
+- Você vai informar quantos pedidos teve na semana
+- Sistema vai comparar com média histórica
+- Valida se o orgânico está convertendo em vendas reais
 
-## A Solução Implementada
-
-### 1. Separação em Dois Conceitos
-
-| Campo | Natureza | Onde entra |
-|-------|----------|------------|
-| **Marketing Estrutural** | Custo fixo (agência, influencers, conteúdo, ferramentas) | Queima Operacional |
-| **Ads Base** | Tráfego pago mínimo para campanhas vivas | Cálculo de Ads |
-
-### 2. Nova Regra de Teto para Ads
+## Nova Fórmula de Demanda
 
 ```text
-Ads Total ≤ 10% do Faturamento Esperado (30d)
+Score Demanda = Organico (30%) + Sessoes (35%) + Pedidos (35%)
 ```
 
-### 3. Nova Fórmula de Ads Incremental
+Sessões e Pedidos pesam mais porque validam conversão real.
 
-O incremento só acontece se TODAS forem verdadeiras:
-- Caixa Livre Real > 0
-- alertaRisco30d ≠ vermelho
+## Visualização com Tendências
 
-Percentuais de incremento sobre Ads Base:
+Cada pilar mostrará sua tendência:
 
-| Status Financeiro | Incremento |
-|-------------------|------------|
-| Sobrevivência | 0% |
-| Atenção | +10% |
-| Estratégia | +20% |
+```text
++-----------------------------------------+
+| DEMANDA - VISAO GERAL                   |
++-----------------------------------------+
+|  Organico    Sessoes      Pedidos       |
+|  ↑ Acima     = Media      ↓ Abaixo      |
+|                                         |
+|  [============================] 65/100  |
+|                                         |
+|  Leitura: Sessoes OK, pedidos           |
+|     caindo. Verificar conversao.        |
++-----------------------------------------+
+```
+
+Indicadores visuais:
+- ↑ Verde = Acima da média histórica
+- = Amarelo = Na média
+- ↓ Vermelho = Abaixo da média
 
 ---
 
-## Arquivos Modificados
+## Detalhes Técnicos
+
+### 1. Migração do Banco
+
+Adicionar coluna para pedidos no histórico:
+
+```sql
+ALTER TABLE weekly_snapshots 
+ADD COLUMN IF NOT EXISTS pedidos_semana NUMERIC;
+```
+
+### 2. Novos Campos nos Tipos (`src/types/focus-mode.ts`)
+
+```typescript
+// Em MarketingOrganico
+interface MarketingOrganico {
+  // ... existentes ...
+  pedidosSemana: string;  // NOVO
+}
+
+// Em MarketingExports
+interface MarketingExports {
+  // ... existentes ...
+  tendenciaOrganico: 'acima' | 'media' | 'abaixo';
+  tendenciaSessoes: 'acima' | 'media' | 'abaixo';
+  tendenciaPedidos: 'acima' | 'media' | 'abaixo';
+}
+```
+
+### 3. Interface de Médias Históricas (`src/hooks/useWeeklyHistory.ts`)
+
+```typescript
+export interface HistoricoMedias {
+  scoreOrganico: number;
+  sessoesSemana: number;
+  pedidosSemana: number;
+  temDados: boolean;
+}
+
+export function calcularMediasHistoricas(
+  snapshots: WeeklySnapshot[]
+): HistoricoMedias {
+  // Pegar ultimas 4 semanas (excluindo a atual)
+  const ultimas4 = snapshots.slice(1, 5);
+  
+  if (ultimas4.length < 2) {
+    return { 
+      temDados: false, 
+      scoreOrganico: 0, 
+      sessoesSemana: 0, 
+      pedidosSemana: 0 
+    };
+  }
+  
+  const media = (arr: number[]) => 
+    arr.reduce((a, b) => a + b, 0) / arr.length;
+  
+  return {
+    temDados: true,
+    scoreOrganico: media(ultimas4.map(s => s.score_organico || 0)),
+    sessoesSemana: media(ultimas4.map(s => s.sessoes_semana || 0)),
+    pedidosSemana: media(ultimas4.map(s => s.pedidos_semana || 0)),
+  };
+}
+```
+
+### 4. Função de Score Relativo (`src/utils/modeStatusCalculator.ts`)
+
+```typescript
+type Tendencia = 'acima' | 'media' | 'abaixo';
+
+function calcularScoreRelativo(
+  valorAtual: number, 
+  mediaHistorica: number,
+  pontosTotais: number
+): { score: number; tendencia: Tendencia } {
+  // Sem historico = neutro (50%)
+  if (mediaHistorica <= 0) {
+    return { score: pontosTotais * 0.5, tendencia: 'media' };
+  }
+  
+  const variacao = ((valorAtual - mediaHistorica) / mediaHistorica) * 100;
+  
+  if (variacao >= 10) {
+    return { score: pontosTotais, tendencia: 'acima' };
+  } else if (variacao >= -10) {
+    return { score: pontosTotais * 0.7, tendencia: 'media' };
+  } else {
+    return { score: pontosTotais * 0.4, tendencia: 'abaixo' };
+  }
+}
+```
+
+### 5. Atualização de calculateMarketingOrganico
+
+A função passará a receber o histórico como parâmetro opcional:
+
+```typescript
+export function calculateMarketingOrganico(
+  organico?: MarketingStage['organico'],
+  historicoMedias?: HistoricoMedias
+): MarketingOrganicoResult {
+  // ... calcular scoreOrganicoAbsoluto (0-100) ...
+  
+  // PILAR 1: ORGANICO (30 pontos max)
+  const organicoResult = calcularScoreRelativo(
+    scoreOrganicoAbsoluto, 
+    historicoMedias?.scoreOrganico || 0,
+    30
+  );
+  
+  // PILAR 2: SESSOES (35 pontos max)
+  const sessoes = parseCurrency(organico?.sessoesSemana || '');
+  const sessoesResult = calcularScoreRelativo(
+    sessoes,
+    historicoMedias?.sessoesSemana || 0,
+    35
+  );
+  
+  // PILAR 3: PEDIDOS (35 pontos max)
+  const pedidos = parseCurrency(organico?.pedidosSemana || '');
+  const pedidosResult = calcularScoreRelativo(
+    pedidos,
+    historicoMedias?.pedidosSemana || 0,
+    35
+  );
+  
+  // SCORE FINAL DE DEMANDA
+  const scoreDemanda = Math.round(
+    organicoResult.score + sessoesResult.score + pedidosResult.score
+  );
+  
+  return {
+    scoreDemanda,
+    statusDemanda: scoreDemanda >= 70 ? 'forte' : 
+                   scoreDemanda >= 40 ? 'neutro' : 'fraco',
+    tendenciaOrganico: organicoResult.tendencia,
+    tendenciaSessoes: sessoesResult.tendencia,
+    tendenciaPedidos: pedidosResult.tendencia,
+    // ... outros campos ...
+  };
+}
+```
+
+### 6. Atualização do MarketingMode.tsx
+
+Adicionar input de pedidos e indicadores de tendência:
+
+```tsx
+{/* Novo Card: Pedidos da Semana */}
+<Card>
+  <CardHeader>
+    <CardTitle>Pedidos da Semana</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <Input
+      placeholder="Ex: 250"
+      value={data.organico?.pedidosSemana || ''}
+      onChange={(e) => handleOrganicoChange('pedidosSemana', e.target.value)}
+    />
+    
+    {/* Indicador de tendencia */}
+    <div className={cn("p-3 rounded-lg", bgByTendencia)}>
+      <p>{tendenciaPedidos === 'acima' ? '↑' : 
+          tendenciaPedidos === 'abaixo' ? '↓' : '='} 
+         vs média histórica</p>
+    </div>
+  </CardContent>
+</Card>
+
+{/* Grid de demanda atualizado */}
+<div className="grid grid-cols-3 gap-3">
+  <div className="text-center">
+    <p>Organico</p>
+    <p className={colorByTendencia[tendenciaOrganico]}>
+      {tendenciaOrganico === 'acima' ? '↑' : 
+       tendenciaOrganico === 'abaixo' ? '↓' : '='}
+    </p>
+  </div>
+  <div className="text-center">
+    <p>Sessoes</p>
+    <p className={colorByTendencia[tendenciaSessoes]}>
+      {tendenciaSessoes === 'acima' ? '↑' : 
+       tendenciaSessoes === 'abaixo' ? '↓' : '='}
+    </p>
+  </div>
+  <div className="text-center">
+    <p>Pedidos</p>
+    <p className={colorByTendencia[tendenciaPedidos]}>
+      {tendenciaPedidos === 'acima' ? '↑' : 
+       tendenciaPedidos === 'abaixo' ? '↓' : '='}
+    </p>
+  </div>
+</div>
+```
+
+### 7. Uso do Histórico no MarketingMode
+
+O componente vai buscar o histórico via hook:
+
+```tsx
+import { useWeeklyHistory, calcularMediasHistoricas } from '@/hooks/useWeeklyHistory';
+
+function MarketingMode({ mode, onUpdateMarketingData }) {
+  const { history } = useWeeklyHistory(5); // Ultimas 5 semanas
+  const historicoMedias = calcularMediasHistoricas(history);
+  
+  // Calcular com historico
+  const organicoResult = calculateMarketingOrganico(
+    data.organico, 
+    historicoMedias
+  );
+  // ...
+}
+```
+
+## Arquivos a Modificar
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/types/focus-mode.ts` | ✅ Adicionado `marketingEstrutural` e `adsBase`, novos exports |
-| `src/utils/modeStatusCalculator.ts` | ✅ Nova lógica de cálculo com teto e travas |
-| `src/components/modes/FinanceiroMode.tsx` | ✅ Inputs separados + card de limites de Ads |
-| `src/components/modes/PreReuniaoAdsMode.tsx` | ✅ Card reformulado com detalhes de Ads |
-| `src/components/ScoreNegocioCard.tsx` | ✅ Novo pilar de Ads no termômetro |
+| Migracao SQL | Adicionar `pedidos_semana` na tabela `weekly_snapshots` |
+| `src/types/focus-mode.ts` | Adicionar `pedidosSemana` e tendencias |
+| `src/hooks/useWeeklyHistory.ts` | Adicionar `calcularMediasHistoricas()` |
+| `src/utils/modeStatusCalculator.ts` | Reescrever `calculateMarketingOrganico` com score relativo |
+| `src/components/modes/MarketingMode.tsx` | Adicionar input de pedidos e indicadores de tendencia |
 
----
+## Exemplo Pratico
 
-## Migração de Dados
+**Historico (media 4 semanas):**
+- Score organico: 60
+- Sessoes: 10.000
+- Pedidos: 250
 
-O sistema mantém compatibilidade com dados existentes:
-```typescript
-const marketingEstrutural = parseCurrency(d.marketingEstrutural || d.marketingBase || '');
-const adsBase = parseCurrency(d.adsBase || '');
-```
+**Semana atual:**
+- Score organico: 70 (+17% -> Acima) -> 30 pontos
+- Sessoes: 11.500 (+15% -> Acima) -> 35 pontos
+- Pedidos: 220 (-12% -> Abaixo) -> 14 pontos (35 x 0.4)
 
----
+**Score Demanda:** 30 + 35 + 14 = **79** (Forte)
 
-## Exemplo com Números Reais
+**Leitura:** "Organico e sessoes acima da media, mas pedidos caindo. Verificar conversao."
 
-**Entradas:**
-- Faturamento esperado: R$ 130.000
-- Marketing estrutural: R$ 7.000
-- Ads base: R$ 4.000
-- Status: Estratégia
+## Resultado Esperado
 
-**Cálculos:**
-- Teto absoluto: R$ 130.000 × 10% = **R$ 13.000**
-- Incremento: R$ 4.000 × 20% = R$ 800
-- Ads máximo: min(R$ 4.800, R$ 13.000) = **R$ 4.800**
-
----
-
-## Resultado
-
-1. ✅ Ads NUNCA ultrapassa 10% do faturamento esperado
-2. ✅ Marketing Estrutural entra na queima operacional
-3. ✅ Ads Base separado e controlado
-4. ✅ Incremento proporcional ao status financeiro
-5. ✅ Travas automáticas impedem escala em risco
-6. ✅ Termômetro semanal reflete nova estrutura
+1. Score so e "bom" se performance estiver **melhor que o historico**
+2. Cross com sessoes e pedidos **valida o organico**
+3. Tendencias visuais (↑ = ↓) facilitam leitura rapida
+4. Sem historico = neutro (nao pune nem beneficia)
+5. Termometro semanal reflete demanda real com dados de conversao
