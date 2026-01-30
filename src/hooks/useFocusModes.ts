@@ -371,7 +371,7 @@ export function useFocusModes() {
   // ============= Supply Exports (para Score e Pre-Reunião Geral) =============
   const supplyExports = useMemo(() => {
     const supplyData = state.modes.supplychain?.supplyChainData;
-    if (!supplyData || supplyData.itens.length === 0) return null;
+    if (!supplyData || !supplyData.itens || supplyData.itens.length === 0) return null;
     return calculateSupplyExports(supplyData);
   }, [state.modes.supplychain?.supplyChainData]);
 
