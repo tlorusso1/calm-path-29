@@ -1,10 +1,14 @@
-import { FocusMode, MarketingStage, DEFAULT_MARKETING_DATA } from '@/types/focus-mode';
+import { FocusMode, MarketingStage, MarketingInfluencer, DEFAULT_MARKETING_DATA, DEFAULT_MARKETING_ORGANICO } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
-import { calculateMarketingStatusSimples } from '@/utils/modeStatusCalculator';
+import { CheckCircle2, AlertTriangle, Clock, Plus, Trash2, Mail, Users, Megaphone, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { calculateMarketingStatusSimples, calculateMarketingOrganico } from '@/utils/modeStatusCalculator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useState } from 'react';
 
 interface MarketingModeProps {
   mode: FocusMode;
@@ -43,10 +47,44 @@ const getStatusInfo = (status: 'saudavel' | 'fragil' | 'dependente') => {
   }
 };
 
+const getOrganicoStatusInfo = (status: 'forte' | 'medio' | 'fraco') => {
+  switch (status) {
+    case 'forte':
+      return {
+        icon: TrendingUp,
+        label: 'Orgânico Forte',
+        color: 'text-green-600',
+        bg: 'bg-green-100 dark:bg-green-900/30',
+        border: 'border-green-300',
+        description: 'Ajuda Ads — pode focar remarketing',
+      };
+    case 'medio':
+      return {
+        icon: Minus,
+        label: 'Orgânico Médio',
+        color: 'text-yellow-600',
+        bg: 'bg-yellow-100 dark:bg-yellow-900/30',
+        border: 'border-yellow-300',
+        description: 'Ads sustenta — manter estrutura',
+      };
+    default:
+      return {
+        icon: TrendingDown,
+        label: 'Orgânico Fraco',
+        color: 'text-destructive',
+        bg: 'bg-destructive/10',
+        border: 'border-destructive/30',
+        description: 'Ads compensa — mais topo de funil',
+      };
+  }
+};
+
 export function MarketingMode({
   mode,
   onUpdateMarketingData,
 }: MarketingModeProps) {
+  const [showChecklist, setShowChecklist] = useState(false);
+  
   // Merge com defaults
   const data: MarketingStage = {
     ...DEFAULT_MARKETING_DATA,
@@ -55,18 +93,73 @@ export function MarketingMode({
       ...DEFAULT_MARKETING_DATA.verificacoes,
       ...mode.marketingData?.verificacoes,
     },
+    organico: {
+      ...DEFAULT_MARKETING_ORGANICO,
+      ...mode.marketingData?.organico,
+      influencers: mode.marketingData?.organico?.influencers || [],
+    },
   };
 
-  // Calcular status
+  // Calcular status do checklist
   const { status, checks } = calculateMarketingStatusSimples(data.verificacoes);
   const statusInfo = getStatusInfo(status);
   const StatusIcon = statusInfo.icon;
+  
+  // Calcular termômetro orgânico
+  const organicoResult = calculateMarketingOrganico(data.organico);
+  const organicoInfo = getOrganicoStatusInfo(organicoResult.statusOrganico);
+  const OrganicoIcon = organicoInfo.icon;
 
   const handleVerificacaoChange = (key: keyof MarketingStage['verificacoes'], checked: boolean) => {
     onUpdateMarketingData({
       verificacoes: {
         ...data.verificacoes,
         [key]: checked,
+      },
+    });
+  };
+
+  const handleOrganicoChange = (field: string, value: string | boolean) => {
+    onUpdateMarketingData({
+      organico: {
+        ...data.organico!,
+        [field]: value,
+      },
+    });
+  };
+
+  const handleAddInfluencer = () => {
+    const newInfluencer: MarketingInfluencer = {
+      id: crypto.randomUUID(),
+      nome: '',
+      conteudoNoAr: false,
+      alcanceEstimado: '',
+      linkCupomAtivo: false,
+    };
+    onUpdateMarketingData({
+      organico: {
+        ...data.organico!,
+        influencers: [...data.organico!.influencers, newInfluencer],
+      },
+    });
+  };
+
+  const handleUpdateInfluencer = (id: string, field: string, value: string | boolean) => {
+    onUpdateMarketingData({
+      organico: {
+        ...data.organico!,
+        influencers: data.organico!.influencers.map(inf =>
+          inf.id === id ? { ...inf, [field]: value } : inf
+        ),
+      },
+    });
+  };
+
+  const handleRemoveInfluencer = (id: string) => {
+    onUpdateMarketingData({
+      organico: {
+        ...data.organico!,
+        influencers: data.organico!.influencers.filter(inf => inf.id !== id),
       },
     });
   };
@@ -81,114 +174,329 @@ export function MarketingMode({
 
   return (
     <div className="space-y-6">
-      {/* ========== STATUS AUTOMÁTICO ========== */}
-      <Card className={cn("border-2", statusInfo.border)}>
-        <CardContent className={cn("p-4", statusInfo.bg)}>
+      {/* ========== TERMÔMETRO ORGÂNICO (PRINCIPAL) ========== */}
+      <Card className={cn("border-2", organicoInfo.border)}>
+        <CardContent className={cn("p-4", organicoInfo.bg)}>
           <div className="flex items-center gap-3">
-            <StatusIcon className={cn("h-6 w-6", statusInfo.color)} />
+            <OrganicoIcon className={cn("h-8 w-8", organicoInfo.color)} />
             <div className="flex-1">
-              <p className={cn("font-medium", statusInfo.color)}>
-                {statusInfo.label}
+              <p className={cn("font-semibold text-lg", organicoInfo.color)}>
+                {organicoInfo.label}
               </p>
               <p className="text-sm text-muted-foreground">
-                {statusInfo.description}
+                {organicoInfo.description}
               </p>
             </div>
             <div className="text-right">
-              <p className={cn("text-2xl font-bold", statusInfo.color)}>
-                {checks}/5
+              <p className={cn("text-3xl font-bold", organicoInfo.color)}>
+                {organicoResult.scoreOrganico}
               </p>
+              <p className="text-xs text-muted-foreground">/100</p>
             </div>
           </div>
           
-          {/* Barra de progresso */}
-          <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
-            <div 
-              className={cn(
-                "h-full rounded-full transition-all duration-500",
-                status === 'saudavel' ? 'bg-green-500' :
-                status === 'fragil' ? 'bg-yellow-500' : 'bg-destructive'
-              )}
-              style={{ width: `${(checks / 5) * 100}%` }}
-            />
+          {/* Barra de progresso com detalhes */}
+          <div className="mt-4 space-y-2">
+            <div className="flex gap-1 h-3 rounded-full overflow-hidden bg-muted">
+              <div 
+                className="bg-blue-500 transition-all duration-500"
+                style={{ width: `${(organicoResult.detalhes.emailScore / 100) * 100}%` }}
+                title="E-mail"
+              />
+              <div 
+                className="bg-purple-500 transition-all duration-500"
+                style={{ width: `${(organicoResult.detalhes.influencerScore / 100) * 100}%` }}
+                title="Influencers"
+              />
+              <div 
+                className="bg-pink-500 transition-all duration-500"
+                style={{ width: `${(organicoResult.detalhes.socialScore / 100) * 100}%` }}
+                title="Social"
+              />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 bg-blue-500 rounded-full" />
+                E-mail: {organicoResult.detalhes.emailScore}/30
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 bg-purple-500 rounded-full" />
+                Influencers: {organicoResult.detalhes.influencerScore}/30
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 bg-pink-500 rounded-full" />
+                Social: {organicoResult.detalhes.socialScore}/40
+              </span>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* ========== CHECKLIST SEMANAL ========== */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">
-            👀 O que preciso ver / cobrar
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Se tiver "não", alguém está devendo.
+      {/* ========== RECOMENDAÇÃO ADS ========== */}
+      <Card className="bg-muted/30">
+        <CardContent className="p-4">
+          <p className="text-sm text-center">
+            <span className="font-medium">👉 Recomendação para Ads:</span>
+            <br />
+            <span className="text-muted-foreground">{organicoResult.recomendacaoAds}</span>
           </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {checkItems.map(({ key, label, description }) => (
-            <label 
-              key={key}
-              className={cn(
-                "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
-                data.verificacoes[key] 
-                  ? "bg-green-50 dark:bg-green-900/20 border-green-200" 
-                  : "bg-muted/30 border-border hover:bg-muted/50"
-              )}
-            >
-              <Checkbox
-                checked={data.verificacoes[key]}
-                onCheckedChange={(checked) => handleVerificacaoChange(key, checked === true)}
-                className="mt-0.5"
-              />
-              <div className="flex-1">
-                <span className={cn(
-                  "text-sm font-medium",
-                  data.verificacoes[key] && "text-green-700 dark:text-green-400"
-                )}>
-                  {label}
-                </span>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {description}
-                </p>
-              </div>
-            </label>
-          ))}
+          {organicoResult.statusOrganico === 'fraco' && (
+            <p className="text-xs text-center text-destructive mt-2">
+              ⚠️ Orgânico fraco não justifica escalar Ads. Só reorganiza onde gastar.
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {/* ========== INSIGHT ========== */}
-      <Card className="bg-muted/30">
-        <CardContent className="p-4">
-          <p className="text-sm text-center text-muted-foreground">
-            {status === 'saudavel' && (
-              <>
-                <span className="text-green-600 font-medium">Bom trabalho!</span>
-                <br />
-                Marketing está sustentando a demanda fora do Ads.
-              </>
-            )}
-            {status === 'fragil' && (
-              <>
-                <span className="text-yellow-600 font-medium">Atenção</span>
-                <br />
-                Alguns canais precisam ser cobrados ou ativados.
-              </>
-            )}
-            {status === 'dependente' && (
-              <>
-                <span className="text-destructive font-medium">Alerta</span>
-                <br />
-                Quase toda demanda vem de Ads. Se parar, para tudo.
-              </>
-            )}
-          </p>
+      {/* ========== PILAR 1: E-MAIL ========== */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Mail className="h-4 w-4 text-blue-500" />
+            E-mail
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">E-mails enviados</Label>
+              <Input
+                type="number"
+                placeholder="0"
+                value={data.organico?.emailEnviados || ''}
+                onChange={(e) => handleOrganicoChange('emailEnviados', e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Abertura média (%)</Label>
+              <Input
+                type="text"
+                placeholder="Ex: 25%"
+                value={data.organico?.emailAbertura || ''}
+                onChange={(e) => handleOrganicoChange('emailAbertura', e.target.value)}
+                className="h-9"
+              />
+            </div>
+          </div>
+          <label className={cn(
+            "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+            data.organico?.emailGerouClique 
+              ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200" 
+              : "bg-muted/30 border-border hover:bg-muted/50"
+          )}>
+            <Checkbox
+              checked={data.organico?.emailGerouClique || false}
+              onCheckedChange={(checked) => handleOrganicoChange('emailGerouClique', checked === true)}
+            />
+            <span className="text-sm">Gerou cliques ou vendas?</span>
+          </label>
         </CardContent>
       </Card>
+
+      {/* ========== PILAR 2: INFLUENCERS ========== */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4 text-purple-500" />
+              Influencers / Parcerias
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={handleAddInfluencer}>
+              <Plus className="h-4 w-4 mr-1" />
+              Adicionar
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {data.organico?.influencers.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Nenhum influencer/parceria cadastrado esta semana
+            </p>
+          ) : (
+            data.organico?.influencers.map((inf) => (
+              <div key={inf.id} className="p-3 rounded-lg border bg-muted/30 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Nome do influencer/parceria"
+                    value={inf.nome}
+                    onChange={(e) => handleUpdateInfluencer(inf.id, 'nome', e.target.value)}
+                    className="h-8 flex-1"
+                  />
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleRemoveInfluencer(inf.id)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className={cn(
+                    "flex items-center gap-2 p-2 rounded border cursor-pointer text-xs",
+                    inf.conteudoNoAr ? "bg-purple-50 dark:bg-purple-900/20 border-purple-200" : "bg-background"
+                  )}>
+                    <Checkbox
+                      checked={inf.conteudoNoAr}
+                      onCheckedChange={(checked) => handleUpdateInfluencer(inf.id, 'conteudoNoAr', checked === true)}
+                    />
+                    <span>Conteúdo no ar</span>
+                  </label>
+                  <label className={cn(
+                    "flex items-center gap-2 p-2 rounded border cursor-pointer text-xs",
+                    inf.linkCupomAtivo ? "bg-purple-50 dark:bg-purple-900/20 border-purple-200" : "bg-background"
+                  )}>
+                    <Checkbox
+                      checked={inf.linkCupomAtivo}
+                      onCheckedChange={(checked) => handleUpdateInfluencer(inf.id, 'linkCupomAtivo', checked === true)}
+                    />
+                    <span>Link/cupom ativo</span>
+                  </label>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Alcance estimado</Label>
+                  <Input
+                    type="text"
+                    placeholder="Ex: 50.000"
+                    value={inf.alcanceEstimado}
+                    onChange={(e) => handleUpdateInfluencer(inf.id, 'alcanceEstimado', e.target.value)}
+                    className="h-8"
+                  />
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ========== PILAR 3: CONTEÚDO / SOCIAL ========== */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Megaphone className="h-4 w-4 text-pink-500" />
+            Conteúdo / Social
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Posts publicados</Label>
+              <Input
+                type="number"
+                placeholder="0"
+                value={data.organico?.postsPublicados || ''}
+                onChange={(e) => handleOrganicoChange('postsPublicados', e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Taxa engajamento (%)</Label>
+              <Input
+                type="text"
+                placeholder="Ex: 3.5%"
+                value={data.organico?.taxaEngajamento || ''}
+                onChange={(e) => handleOrganicoChange('taxaEngajamento', e.target.value)}
+                className="h-9"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Alcance total semana</Label>
+              <Input
+                type="text"
+                placeholder="Ex: 150.000"
+                value={data.organico?.alcanceTotal || ''}
+                onChange={(e) => handleOrganicoChange('alcanceTotal', e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Média últimas semanas</Label>
+              <Input
+                type="text"
+                placeholder="Ex: 120.000"
+                value={data.organico?.alcanceMediaSemanas || ''}
+                onChange={(e) => handleOrganicoChange('alcanceMediaSemanas', e.target.value)}
+                className="h-9"
+              />
+            </div>
+          </div>
+          <label className={cn(
+            "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+            data.organico?.postAcimaDaMedia 
+              ? "bg-pink-50 dark:bg-pink-900/20 border-pink-200" 
+              : "bg-muted/30 border-border hover:bg-muted/50"
+          )}>
+            <Checkbox
+              checked={data.organico?.postAcimaDaMedia || false}
+              onCheckedChange={(checked) => handleOrganicoChange('postAcimaDaMedia', checked === true)}
+            />
+            <span className="text-sm">Houve post que performou acima da média?</span>
+          </label>
+        </CardContent>
+      </Card>
+
+      {/* ========== CHECKLIST SEMANAL (COLAPSÁVEL) ========== */}
+      <Collapsible open={showChecklist} onOpenChange={setShowChecklist}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">
+                  👀 Checklist Semanal
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <span className={cn("text-sm font-medium", statusInfo.color)}>
+                    {checks}/5
+                  </span>
+                  <StatusIcon className={cn("h-4 w-4", statusInfo.color)} />
+                </div>
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-3 pt-0">
+              <p className="text-xs text-muted-foreground">
+                Se tiver "não", alguém está devendo.
+              </p>
+              {checkItems.map(({ key, label, description }) => (
+                <label 
+                  key={key}
+                  className={cn(
+                    "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    data.verificacoes[key] 
+                      ? "bg-green-50 dark:bg-green-900/20 border-green-200" 
+                      : "bg-muted/30 border-border hover:bg-muted/50"
+                  )}
+                >
+                  <Checkbox
+                    checked={data.verificacoes[key]}
+                    onCheckedChange={(checked) => handleVerificacaoChange(key, checked === true)}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <span className={cn(
+                      "text-sm font-medium",
+                      data.verificacoes[key] && "text-green-700 dark:text-green-400"
+                    )}>
+                      {label}
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {description}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {/* Texto âncora */}
       <p className="text-xs text-muted-foreground italic text-center pt-2">
-        "Marketing não é fazer mais. É escolher onde prestar atenção."
+        "O orgânico dessa semana ajudou a vender, foi neutro ou está fraco?"
       </p>
     </div>
   );

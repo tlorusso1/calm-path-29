@@ -140,6 +140,37 @@ export interface ReuniaoAdsStage {
 }
 
 // ============= Marketing (Simplificado) =============
+export interface MarketingInfluencer {
+  id: string;
+  nome: string;
+  conteudoNoAr: boolean;
+  alcanceEstimado: string;
+  linkCupomAtivo: boolean;
+}
+
+export interface MarketingOrganico {
+  // E-mail
+  emailEnviados: string;
+  emailAbertura: string;
+  emailGerouClique: boolean;
+  
+  // Influencers
+  influencers: MarketingInfluencer[];
+  
+  // Conteúdo / Social
+  postsPublicados: string;
+  alcanceTotal: string;
+  alcanceMediaSemanas: string;
+  postAcimaDaMedia: boolean;
+  taxaEngajamento: string;
+}
+
+export interface MarketingExports {
+  scoreOrganico: number;
+  statusOrganico: 'forte' | 'medio' | 'fraco';
+  recomendacaoAds: string;
+}
+
 export interface MarketingStage {
   verificacoes: {
     campanhasAtivas: boolean;
@@ -148,6 +179,9 @@ export interface MarketingStage {
     emailEnviado: boolean;
     influencersVerificados: boolean;
   };
+  
+  // Termômetro Orgânico (NOVO)
+  organico?: MarketingOrganico;
   
   // DEPRECATED (compatibilidade)
   mesFechouPositivo?: boolean | null;
@@ -346,6 +380,18 @@ export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
   },
 };
 
+export const DEFAULT_MARKETING_ORGANICO: MarketingOrganico = {
+  emailEnviados: '',
+  emailAbertura: '',
+  emailGerouClique: false,
+  influencers: [],
+  postsPublicados: '',
+  alcanceTotal: '',
+  alcanceMediaSemanas: '',
+  postAcimaDaMedia: false,
+  taxaEngajamento: '',
+};
+
 export const DEFAULT_MARKETING_DATA: MarketingStage = {
   verificacoes: {
     campanhasAtivas: false,
@@ -354,6 +400,7 @@ export const DEFAULT_MARKETING_DATA: MarketingStage = {
     emailEnviado: false,
     influencersVerificados: false,
   },
+  organico: DEFAULT_MARKETING_ORGANICO,
 };
 
 export const DEFAULT_SUPPLYCHAIN_DATA: SupplyChainStage = {
