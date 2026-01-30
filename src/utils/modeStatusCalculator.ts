@@ -44,15 +44,17 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
   const caixaMinimo = parseCurrency(d.caixaMinimo || '');
   const faturamentoEsperado = parseCurrency(d.faturamentoEsperado30d || '');
   
-  // Total defasados
+  // Impostos automáticos: 16% do faturamento do mês
+  const impostosCalculados = faturamento * 0.16;
+  
+  // Total defasados (impostos automáticos + outros inputs manuais)
   const defasados = d.custosDefasados;
-  const totalDefasados = defasados ? (
-    parseCurrency(defasados.impostosProximoMes || '') +
+  const totalDefasados = impostosCalculados + (defasados ? (
     parseCurrency(defasados.adsCartaoAnterior || '') +
     parseCurrency(defasados.parcelasEmprestimos || '') +
     parseCurrency(defasados.comprasEstoqueComprometidas || '') +
     parseCurrency(defasados.outrosCompromissos || '')
-  ) : 0;
+  ) : 0);
   
   // CAIXA LIVRE REAL (o número que manda)
   const caixaLivreReal = caixaAtual - caixaMinimo - totalDefasados;

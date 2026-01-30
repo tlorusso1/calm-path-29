@@ -220,8 +220,18 @@ export function FinanceiroMode({
                 Valores já comprometidos que saem nos próximos 30 dias
               </p>
               
+              {/* Impostos calculados automaticamente (16%) */}
+              <div className="flex items-center justify-between gap-3 p-2 rounded bg-muted/50">
+                <label className="text-sm text-foreground flex-1">
+                  Impostos próx. mês (16%)
+                </label>
+                <span className="text-sm font-medium text-right w-[130px]">
+                  {formatCurrency(parseCurrency(data.faturamentoMes) * 0.16)}
+                </span>
+              </div>
+              
+              {/* Campos manuais */}
               {[
-                { key: 'impostosProximoMes', label: 'Impostos próximo mês' },
                 { key: 'adsCartaoAnterior', label: 'Ads (cartão anterior)' },
                 { key: 'parcelasEmprestimos', label: 'Parcelas empréstimos' },
                 { key: 'comprasEstoqueComprometidas', label: 'Compras estoque contratadas' },
