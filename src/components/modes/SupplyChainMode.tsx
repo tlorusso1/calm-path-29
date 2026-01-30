@@ -213,26 +213,118 @@ export function SupplyChainMode({
           </div>
 
           {/* Alertas */}
-          {(resumo.itensCriticos.length > 0 || resumo.itensVencendo.length > 0) && (
-            <div className="pt-3 border-t border-border space-y-2">
-              {resumo.itensCriticos.length > 0 && (
-                <div className="flex items-start gap-2 text-sm">
-                  <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
-                  <div>
-                    <span className="font-medium text-destructive">Ruptura iminente:</span>
-                    <p className="text-muted-foreground">{resumo.itensCriticos.join(', ')}</p>
+          {/* Alertas como Lista Estruturada */}
+          {(itensProcessados.some(i => i.status === 'vermelho') || 
+            itensProcessados.some(i => {
+              const dias = calcularDiasAteVencimento(i.dataValidade);
+              return dias !== null && dias < 90;
+            })) && (
+            <div className="pt-3 border-t border-border space-y-3">
+              {/* Ruptura Iminente */}
+              {itensProcessados.some(i => i.status === 'vermelho') && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                    <span className="font-medium text-destructive text-sm">
+                      Ruptura Iminente
+                    </span>
                   </div>
+                  <ul className="ml-6 space-y-0.5">
+                    {itensProcessados
+                      .filter(i => i.status === 'vermelho')
+                      .map(item => (
+                        <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
+                          <span>•</span>
+                          <span>{item.nome}</span>
+                          {item.coberturaDias !== undefined && (
+                            <span className="text-destructive font-medium">
+                              ({item.coberturaDias}d)
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                  </ul>
                 </div>
               )}
-              {resumo.itensVencendo.length > 0 && (
-                <div className="flex items-start gap-2 text-sm">
-                  <Clock className="h-4 w-4 text-yellow-500 mt-0.5" />
-                  <div>
-                    <span className="font-medium text-yellow-600">Vencendo:</span>
-                    <p className="text-muted-foreground">{resumo.itensVencendo.join(', ')}</p>
+
+              {/* Vencendo em Breve - 3 níveis */}
+              {(() => {
+                const itensComVencimento = itensProcessados
+                  .map(item => ({
+                    ...item,
+                    diasVenc: calcularDiasAteVencimento(item.dataValidade)
+                  }))
+                  .filter(item => item.diasVenc !== null && item.diasVenc < 90)
+                  .sort((a, b) => (a.diasVenc ?? 999) - (b.diasVenc ?? 999));
+
+                if (itensComVencimento.length === 0) return null;
+
+                const criticos = itensComVencimento.filter(i => i.diasVenc !== null && i.diasVenc < 30);
+                const alerta = itensComVencimento.filter(i => i.diasVenc !== null && i.diasVenc >= 30 && i.diasVenc < 60);
+                const aviso = itensComVencimento.filter(i => i.diasVenc !== null && i.diasVenc >= 60 && i.diasVenc < 90);
+
+                return (
+                  <div className="space-y-2">
+                    {criticos.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-destructive" />
+                          <span className="font-medium text-destructive text-sm">
+                            Vencimento Crítico (&lt;30d)
+                          </span>
+                        </div>
+                        <ul className="ml-6 space-y-0.5">
+                          {criticos.map(item => (
+                            <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
+                              <span>•</span>
+                              <span>{item.nome}</span>
+                              <span className="text-destructive font-medium">({item.diasVenc}d)</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {alerta.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-yellow-500" />
+                          <span className="font-medium text-yellow-600 text-sm">
+                            Vencendo em Breve (30-60d)
+                          </span>
+                        </div>
+                        <ul className="ml-6 space-y-0.5">
+                          {alerta.map(item => (
+                            <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
+                              <span>•</span>
+                              <span>{item.nome}</span>
+                              <span className="text-yellow-600 font-medium">({item.diasVenc}d)</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {aviso.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium text-muted-foreground text-sm">
+                            Atenção Vencimento (60-90d)
+                          </span>
+                        </div>
+                        <ul className="ml-6 space-y-0.5">
+                          {aviso.map(item => (
+                            <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
+                              <span>•</span>
+                              <span>{item.nome}</span>
+                              <span className="font-medium">({item.diasVenc}d)</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
         </CardContent>
@@ -384,29 +476,61 @@ export function SupplyChainMode({
                         </Button>
                       </div>
                       
-                      {/* Campo editável de saída semanal */}
-                      <div className="mt-2 flex items-center gap-2">
-                        <Label className="text-xs text-muted-foreground whitespace-nowrap">
-                          Saída/sem:
-                        </Label>
-                        <Input
-                          type="number"
-                          placeholder={usandoGlobal ? `~${data.demandaSemanalMedia || 0}` : ""}
-                          value={item.demandaSemanal ?? ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            onUpdateItem(item.id, { 
-                              demandaSemanal: val ? parseFloat(val) : undefined 
-                            });
-                          }}
-                          className="h-7 w-20 text-xs"
-                        />
-                        <span className="text-xs text-muted-foreground">un</span>
-                        {usandoGlobal && data.demandaSemanalMedia > 0 && (
-                          <span className="text-[10px] text-muted-foreground italic">
-                            (usando global)
-                          </span>
-                        )}
+                      {/* Campos editáveis: Saída semanal + Validade */}
+                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+                        {/* Saída semanal */}
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                            Saída/sem:
+                          </Label>
+                          <Input
+                            type="number"
+                            placeholder={usandoGlobal ? `~${data.demandaSemanalMedia || 0}` : ""}
+                            value={item.demandaSemanal ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              onUpdateItem(item.id, { 
+                                demandaSemanal: val ? parseFloat(val) : undefined 
+                              });
+                            }}
+                            className="h-7 w-20 text-xs"
+                          />
+                          <span className="text-xs text-muted-foreground">un</span>
+                          {usandoGlobal && data.demandaSemanalMedia > 0 && (
+                            <span className="text-[10px] text-muted-foreground italic">
+                              (global)
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Validade */}
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                            Validade:
+                          </Label>
+                          <Input
+                            type="date"
+                            value={item.dataValidade ?? ''}
+                            onChange={(e) => onUpdateItem(item.id, { 
+                              dataValidade: e.target.value || undefined 
+                            })}
+                            className="h-7 w-32 text-xs"
+                          />
+                          {diasVenc !== null && (
+                            <Badge 
+                              variant="outline"
+                              className={cn(
+                                "text-[10px]",
+                                diasVenc < 30 ? "border-destructive text-destructive" :
+                                diasVenc < 60 ? "border-yellow-500 text-yellow-600" :
+                                diasVenc < 90 ? "border-muted-foreground text-muted-foreground" :
+                                "border-green-500 text-green-600"
+                              )}
+                            >
+                              {diasVenc}d
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
