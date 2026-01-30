@@ -225,38 +225,189 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
 // ============= Parser de Lista Colada =============
 
 /**
+ * Normaliza header para comparação (remove acentos, lowercase)
+ */
+function normalizeHeader(header: string): string {
+  if (!header) return "";
+  return header
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove diacritics
+    .replace(/[^a-z0-9]/g, ""); // Remove special chars
+}
+
+/**
+ * Detecta o delimitador usado (tab, pipe, comma)
+ */
+function detectDelimiter(lines: string[]): string {
+  // Check first few non-empty lines
+  for (const line of lines.slice(0, 5)) {
+    if (line.includes('\t')) return '\t';
+    if (line.includes('|')) return '|';
+  }
+  return '\t'; // default to tab
+}
+
+/**
+ * Mapeia colunas conhecidas para seus índices
+ */
+interface ColumnMap {
+  nome: number;
+  quantidade: number;
+  tipo?: number;
+  codigo?: number;
+  unidade?: number;
+}
+
+function buildColumnMap(headers: string[]): ColumnMap | null {
+  const map: Partial<ColumnMap> = {};
+  
+  headers.forEach((header, index) => {
+    const normalized = normalizeHeader(header);
+    
+    // Nome/Descrição
+    if (normalized.includes('descricao') || normalized.includes('produto') || normalized.includes('item') && !normalized.includes('cod')) {
+      if (map.nome === undefined) map.nome = index;
+    }
+    // Quantidade
+    else if (normalized.includes('disponivel') || normalized.includes('qtd') || normalized.includes('quantidade') || normalized.includes('estoque') || normalized === 'saldo') {
+      if (map.quantidade === undefined) map.quantidade = index;
+    }
+    // Tipo
+    else if (normalized.includes('tipo') || normalized.includes('categoria')) {
+      map.tipo = index;
+    }
+    // Código (pode ser usado como fallback para nome)
+    else if (normalized.includes('cod') || normalized.includes('sku') || normalized.includes('gtin')) {
+      if (map.codigo === undefined) map.codigo = index;
+    }
+    // Unidade
+    else if (normalized.includes('unidade') || normalized.includes('un')) {
+      map.unidade = index;
+    }
+  });
+  
+  // Validar que temos pelo menos nome/descrição e quantidade
+  if (map.nome !== undefined && map.quantidade !== undefined) {
+    return map as ColumnMap;
+  }
+  
+  return null;
+}
+
+/**
+ * Limpa texto de aspas e caracteres especiais
+ */
+function cleanText(text: string): string {
+  return text
+    .replace(/^["']|["']$/g, '') // Remove quotes
+    .replace(/^[\[B\]\s]+/i, '') // Remove prefixes like [B]
+    .trim();
+}
+
+/**
  * Tenta parsear uma lista colada em itens de estoque
- * Formato esperado: "Nome | Tipo | Quantidade | Unidade"
- * ou: "Nome, Quantidade unidade"
+ * Suporta múltiplos formatos:
+ * - Tab-separated (planilhas)
+ * - Pipe-separated: "Nome | Tipo | Quantidade | Unidade"
+ * - Simple: "Nome - 450un"
  */
 export function parsearListaEstoque(texto: string): Partial<ItemEstoque>[] {
   const linhas = texto.split('\n').filter(l => l.trim());
-  const itens: Partial<ItemEstoque>[] = [];
+  if (linhas.length === 0) return [];
   
+  const itens: Partial<ItemEstoque>[] = [];
+  const delimiter = detectDelimiter(linhas);
+  
+  // Split all lines
+  const parsedLines = linhas.map(linha => 
+    linha.split(delimiter).map(cell => cell.trim())
+  );
+  
+  // Try to find header row (look for known column names)
+  let headerRowIndex = -1;
+  let columnMap: ColumnMap | null = null;
+  
+  for (let i = 0; i < Math.min(5, parsedLines.length); i++) {
+    const row = parsedLines[i];
+    const normalized = row.map(normalizeHeader);
+    
+    // Check if this row looks like a header
+    const hasDescricao = normalized.some(h => h.includes('descricao') || h.includes('produto'));
+    const hasQuantidade = normalized.some(h => h.includes('disponivel') || h.includes('quantidade') || h.includes('estoque'));
+    
+    if (hasDescricao || hasQuantidade) {
+      columnMap = buildColumnMap(row);
+      if (columnMap) {
+        headerRowIndex = i;
+        break;
+      }
+    }
+  }
+  
+  // If we found a header with column mapping, use structured parsing
+  if (columnMap && headerRowIndex >= 0) {
+    for (let i = headerRowIndex + 1; i < parsedLines.length; i++) {
+      const row = parsedLines[i];
+      if (row.length <= 1 && !row[0]) continue; // Skip empty rows
+      
+      const nomeRaw = row[columnMap.nome] || '';
+      const quantidadeRaw = row[columnMap.quantidade] || '0';
+      
+      const nome = cleanText(nomeRaw);
+      const quantidade = parseFloat(quantidadeRaw.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+      
+      if (!nome || quantidade === 0) continue;
+      
+      const tipo = columnMap.tipo !== undefined ? 
+        detectarTipo(row[columnMap.tipo] || '') : 
+        detectarTipoPorNome(nome);
+      
+      const unidade = columnMap.unidade !== undefined ? 
+        (row[columnMap.unidade] || 'un') : 'un';
+      
+      itens.push({ nome, tipo, quantidade, unidade });
+    }
+    
+    return itens;
+  }
+  
+  // Fallback: try legacy parsing for each line
   for (const linha of linhas) {
-    // Tentar formato com pipe: "Mel 500g | produto | 450 | un"
+    // Skip likely header rows
+    const normalized = normalizeHeader(linha);
+    if (normalized.includes('descricao') || normalized.includes('coditem') || normalized.includes('disponivel')) {
+      continue;
+    }
+    
+    // Try pipe format: "Nome | Tipo | Quantidade | Unidade"
     if (linha.includes('|')) {
       const partes = linha.split('|').map(p => p.trim());
       if (partes.length >= 3) {
-        const nome = partes[0];
+        const nome = cleanText(partes[0]);
         const tipo = detectarTipo(partes[1]);
         const quantidade = parseFloat(partes[2].replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
         const unidade = partes[3] || 'un';
         
-        itens.push({ nome, tipo, quantidade, unidade });
+        if (nome && quantidade > 0) {
+          itens.push({ nome, tipo, quantidade, unidade });
+        }
         continue;
       }
     }
     
-    // Tentar formato simples: "Mel 500g - 450un" ou "Mel: 450"
+    // Try simple format: "Nome - 450un" or "Nome: 450"
     const matchSimples = linha.match(/^(.+?)[\s:\-]+(\d+[\d.,]*)\s*(un|kg|g|l|ml|pç|cx|pt)?/i);
     if (matchSimples) {
-      const nome = matchSimples[1].trim();
+      const nome = cleanText(matchSimples[1]);
       const quantidade = parseFloat(matchSimples[2].replace(',', '.')) || 0;
       const unidade = matchSimples[3] || 'un';
       const tipo = detectarTipoPorNome(nome);
       
-      itens.push({ nome, tipo, quantidade, unidade });
+      if (nome && quantidade > 0) {
+        itens.push({ nome, tipo, quantidade, unidade });
+      }
     }
   }
   
@@ -274,10 +425,10 @@ function detectarTipo(texto: string): TipoEstoque {
 
 function detectarTipoPorNome(nome: string): TipoEstoque {
   const n = nome.toLowerCase();
-  if (n.includes('pote') || n.includes('tampa') || n.includes('caixa') || n.includes('embal') || n.includes('sachet')) {
+  if (n.includes('pote') || n.includes('tampa') || n.includes('caixa') || n.includes('embal') || n.includes('sachet') || n.includes('copo') || n.includes('mug')) {
     return 'embalagem';
   }
-  if (n.includes('açúcar') || n.includes('acucar') || n.includes('óleo') || n.includes('oleo') || n.includes('farinha')) {
+  if (n.includes('açúcar') || n.includes('acucar') || n.includes('óleo') || n.includes('oleo') || n.includes('farinha') || n.includes('levedura')) {
     return 'insumo';
   }
   return 'produto_acabado';
