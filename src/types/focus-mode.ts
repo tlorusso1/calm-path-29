@@ -219,12 +219,65 @@ export interface MarketingStage {
   observacaoDecisao?: string;
 }
 
-// ============= Supply Chain =============
+// ============= Supply Chain V2 =============
 export type SupplyChainRitmo = 'semanal' | 'quinzenal' | 'mensal';
 
+// Tipos de Estoque
+export type TipoEstoque = 
+  | 'produto_acabado' 
+  | 'embalagem' 
+  | 'insumo' 
+  | 'materia_prima';
+
+// Item individual de estoque
+export interface ItemEstoque {
+  id: string;
+  nome: string;
+  tipo: TipoEstoque;
+  quantidade: number;
+  unidade: string;
+  demandaSemanal?: number;  // Consumo específico do item por semana
+  dataValidade?: string;   // ISO date string
+  // Calculados automaticamente
+  coberturaDias?: number;
+  status?: 'verde' | 'amarelo' | 'vermelho';
+}
+
+// Resumo calculado do Supply
+export interface SupplyResumo {
+  coberturaProdutos: number | null;
+  coberturaEmbalagens: number | null;
+  coberturaInsumos: number | null;
+  statusGeral: 'verde' | 'amarelo' | 'vermelho';
+  riscoRuptura: boolean;
+  riscoVencimento: boolean;
+  itensVencendo: string[];
+  itensCriticos: string[];
+}
+
+// Exports para outros módulos (Pre-Reunião Geral, Score)
+export interface SupplyExports {
+  statusEstoque: 'verde' | 'amarelo' | 'vermelho';
+  coberturaProdutosDias: number | null;
+  coberturaEmbalagensDias: number | null;
+  riscoRuptura: boolean;
+  riscoVencimento: boolean;
+  scorePilar: number;  // 0-30 para Score Negócio
+}
+
+// Estado do módulo Supply Chain
 export interface SupplyChainStage {
-  ritmoAtual: SupplyChainRitmo;
+  // V2: Input de Demanda
+  demandaSemanalMedia: number;  // Pedidos/semana (base para cálculos)
   
+  // V2: Itens do Estoque
+  itens: ItemEstoque[];
+  
+  // V2: Resumo (calculado)
+  resumo?: SupplyResumo;
+  
+  // Checklists legados (manter compatibilidade)
+  ritmoAtual: SupplyChainRitmo;
   semanal: {
     saidaEstoque: boolean;
     verificarBling: boolean;
@@ -434,6 +487,11 @@ export const DEFAULT_MARKETING_DATA: MarketingStage = {
 };
 
 export const DEFAULT_SUPPLYCHAIN_DATA: SupplyChainStage = {
+  // V2
+  demandaSemanalMedia: 0,
+  itens: [],
+  resumo: undefined,
+  // Legado
   ritmoAtual: 'semanal',
   semanal: {
     saidaEstoque: false,

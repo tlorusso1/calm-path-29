@@ -13,9 +13,13 @@ import {
   DEFAULT_FINANCEIRO_DATA,
   MarketingExports,
   ScoreNegocio,
+  SupplyExports,
 } from '@/types/focus-mode';
 
 export { MARGEM_OPERACIONAL };
+
+// Re-export supply calculator functions
+export { calculateSupplyExports, processarSupply } from '@/utils/supplyCalculator';
 
 // ============= Utilitários =============
 export const parseCurrency = (value: string): number => {
@@ -146,8 +150,102 @@ function calcScoreFinanceiro(caixaLivre: number): number {
   return Math.min(100, 80 + Math.round(((caixaLivre - 60000) / 40000) * 20));
 }
 
-// ============= Score Semanal do Negócio (0-100) =============
+// Score Semanal V2 que aceita SupplyExports diretamente
+export function calcScoreNegocioV2(
+  financeiroExports: FinanceiroExports,
+  supplyExports: SupplyExports | null,
+  marketingExports: MarketingExports
+): ScoreNegocio {
+  // === PILAR 1: FINANCEIRO (0-40 pontos) ===
+  let scoreFinanceiroPilar: number;
+  const { caixaLivreReal, alertaRisco30d } = financeiroExports;
+  
+  if (caixaLivreReal <= 0) {
+    scoreFinanceiroPilar = 0;
+  } else if (alertaRisco30d === 'vermelho') {
+    scoreFinanceiroPilar = 10;
+  } else if (alertaRisco30d === 'amarelo') {
+    scoreFinanceiroPilar = 25;
+  } else {
+    scoreFinanceiroPilar = 40;
+  }
+  
+  // === PILAR 2: ESTOQUE (0-30 pontos) - AGORA USA SUPPLY EXPORTS ===
+  let scoreEstoquePilar: number;
+  let coberturaLabel: string;
+  
+  if (supplyExports) {
+    // Usar dados calculados do Supply
+    scoreEstoquePilar = supplyExports.scorePilar;
+    
+    if (supplyExports.coberturaProdutosDias !== null) {
+      if (supplyExports.coberturaProdutosDias >= 30) {
+        coberturaLabel = `${supplyExports.coberturaProdutosDias}d (OK)`;
+      } else if (supplyExports.coberturaProdutosDias >= 15) {
+        coberturaLabel = `${supplyExports.coberturaProdutosDias}d (Atenção)`;
+      } else {
+        coberturaLabel = `${supplyExports.coberturaProdutosDias}d (Crítico)`;
+      }
+    } else {
+      coberturaLabel = 'sem dados';
+    }
+  } else {
+    // Fallback - sem dados
+    scoreEstoquePilar = 15;
+    coberturaLabel = 'sem dados';
+  }
+  
+  // === PILAR 3: DEMANDA (0-30 pontos) ===
+  let scoreDemandaPilar: number;
+  let tendenciaLabel: string;
+  
+  const sessoesForte = marketingExports.statusSessoes === 'forte';
+  const sessoesNeutro = marketingExports.statusSessoes === 'neutro';
+  
+  const demandaForte = marketingExports.statusDemanda === 'forte';
+  const demandaNeutro = marketingExports.statusDemanda === 'neutro';
+  
+  if (sessoesForte && demandaForte) {
+    scoreDemandaPilar = 30;
+    tendenciaLabel = 'Sessões ↑ + Demanda forte';
+  } else if (sessoesForte || demandaForte) {
+    scoreDemandaPilar = 20;
+    tendenciaLabel = sessoesForte ? 'Sessões ↑' : 'Demanda ok';
+  } else if (sessoesNeutro || demandaNeutro) {
+    scoreDemandaPilar = 10;
+    tendenciaLabel = 'Estável';
+  } else {
+    scoreDemandaPilar = 5;
+    tendenciaLabel = 'Demanda fraca';
+  }
+  
+  // === SCORE TOTAL ===
+  const total = scoreFinanceiroPilar + scoreEstoquePilar + scoreDemandaPilar;
+  
+  // === STATUS FINAL ===
+  const status: ScoreNegocio['status'] = 
+    total >= 70 ? 'saudavel' :
+    total >= 40 ? 'atencao' : 'risco';
+  
+  return {
+    total,
+    status,
+    financeiro: { 
+      score: scoreFinanceiroPilar, 
+      alertaRisco: alertaRisco30d 
+    },
+    estoque: { 
+      score: scoreEstoquePilar, 
+      cobertura: coberturaLabel 
+    },
+    demanda: { 
+      score: scoreDemandaPilar, 
+      tendencia: tendenciaLabel 
+    },
+  };
+}
 
+// Legacy - mantido para compatibilidade
 export function calcScoreNegocio(
   financeiroExports: FinanceiroExports,
   estoqueData: PreReuniaoGeralStage['estoque'] | undefined,
@@ -184,21 +282,19 @@ export function calcScoreNegocio(
     scoreEstoquePilar = 30;
     coberturaLabel = '>30 dias + compras ok';
   } else if (cobertura === 'mais30') {
-    scoreEstoquePilar = 22; // mais30 sem compras ok
+    scoreEstoquePilar = 22;
     coberturaLabel = '>30 dias';
   } else {
-    scoreEstoquePilar = 15; // sem dados = neutro
+    scoreEstoquePilar = 15;
     coberturaLabel = 'sem dados';
   }
   
   // === PILAR 3: DEMANDA (0-30 pontos) ===
-  // Baseado em sessões + orgânico
   let scoreDemandaPilar: number;
   let tendenciaLabel: string;
   
   const sessoesForte = marketingExports.statusSessoes === 'forte';
   const sessoesNeutro = marketingExports.statusSessoes === 'neutro';
-  const sessoesFragil = marketingExports.statusSessoes === 'fraco';
   
   const demandaForte = marketingExports.statusDemanda === 'forte';
   const demandaNeutro = marketingExports.statusDemanda === 'neutro';
@@ -552,15 +648,40 @@ export function calculateMarketingStatus(data?: MarketingStage): ModeStatus {
 }
 
 /**
- * Status do Supply Chain
+ * Status do Supply Chain V2
+ * Baseado em: ter demanda + ter itens + cobertura
  */
 export function calculateSupplyChainStatus(data?: SupplyChainStage): ModeStatus {
   if (!data) return 'neutral';
   
+  // V2: baseado em demanda e itens
+  if (data.itens && data.itens.length > 0) {
+    // Se tem itens, está em progresso ou completo
+    if (data.demandaSemanalMedia > 0) {
+      // Verificar se todos os itens têm cobertura calculada e não há críticos
+      const temCriticos = data.itens.some(item => {
+        if (!data.demandaSemanalMedia) return false;
+        const demanda = item.demandaSemanal ?? data.demandaSemanalMedia;
+        const cobertura = item.quantidade / (demanda / 7);
+        const regras: Record<string, { critico: number }> = {
+          produto_acabado: { critico: 15 },
+          embalagem: { critico: 30 },
+          insumo: { critico: 20 },
+          materia_prima: { critico: 20 },
+        };
+        return cobertura < (regras[item.tipo]?.critico ?? 15);
+      });
+      
+      return temCriticos ? 'in-progress' : 'completed';
+    }
+    return 'in-progress';
+  }
+  
+  // Fallback legado: baseado em checklists
   const ritmoAtual = data.ritmoAtual ?? 'semanal';
   const ritmo = data[ritmoAtual];
   
-  if (!ritmo) return 'neutral';
+  if (!ritmo || typeof ritmo !== 'object') return 'neutral';
   
   const checks = Object.values(ritmo).filter(Boolean).length;
   const total = Object.keys(ritmo).length;

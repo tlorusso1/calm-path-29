@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, PreReuniaoAdsStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, ScoreNegocio } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, PreReuniaoAdsStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, ScoreNegocio, ItemEstoque } from '@/types/focus-mode';
 import { Button } from '@/components/ui/button';
 import { FinanceiroMode } from '@/components/modes/FinanceiroMode';
 import { MarketingMode } from '@/components/modes/MarketingMode';
@@ -28,6 +28,9 @@ interface ModeContentProps {
   onUpdateMarketingData?: (data: Partial<MarketingStage>) => void;
   // Supply Chain
   onUpdateSupplyChainData?: (data: Partial<SupplyChainStage>) => void;
+  onAddSupplyItem?: (item: Omit<ItemEstoque, 'id'>) => void;
+  onUpdateSupplyItem?: (id: string, data: Partial<ItemEstoque>) => void;
+  onRemoveSupplyItem?: (id: string) => void;
   // Pre-Reunião Geral
   financeiroExports?: FinanceiroExports;
   scoreNegocio?: ScoreNegocio;
@@ -65,6 +68,9 @@ export function ModeContent({
   onRemoveFinanceiroItem,
   onUpdateMarketingData,
   onUpdateSupplyChainData,
+  onAddSupplyItem,
+  onUpdateSupplyItem,
+  onRemoveSupplyItem,
   financeiroExports,
   scoreNegocio,
   onUpdatePreReuniaoGeralData,
@@ -102,6 +108,9 @@ export function ModeContent({
           <SupplyChainMode 
             mode={mode}
             onUpdateSupplyChainData={onUpdateSupplyChainData!}
+            onAddItem={onAddSupplyItem!}
+            onUpdateItem={onUpdateSupplyItem!}
+            onRemoveItem={onRemoveSupplyItem!}
           />
         );
       case 'pre-reuniao-geral':
