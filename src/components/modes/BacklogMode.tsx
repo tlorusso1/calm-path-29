@@ -48,6 +48,149 @@ function formatarTempo(minutos: number): string {
   return `${horas}h ${mins}min`;
 }
 
+// Componente para renderizar uma tarefa individual
+interface TarefaCardProps {
+  tarefa: BacklogTarefa;
+  borderColor: string;
+  onUpdateTarefa: (id: string, data: Partial<BacklogTarefa>) => void;
+  onRemoveTarefa: (id: string) => void;
+}
+
+function TarefaCard({ tarefa, borderColor, onUpdateTarefa, onRemoveTarefa }: TarefaCardProps) {
+  return (
+    <Card 
+      className={cn(
+        "p-3 space-y-3 border-l-4",
+        borderColor,
+        tarefa.completed && "opacity-50",
+        tarefa.urgente && !tarefa.completed && "border-l-yellow-500"
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <Checkbox
+          checked={tarefa.completed}
+          onCheckedChange={() => onUpdateTarefa(tarefa.id, { completed: !tarefa.completed })}
+          className="mt-0.5"
+        />
+        <Input
+          value={tarefa.descricao}
+          onChange={(e) => onUpdateTarefa(tarefa.id, { descricao: e.target.value })}
+          className={cn(
+            "flex-1 text-sm h-7 border-none shadow-none px-1 bg-transparent focus-visible:ring-1",
+            tarefa.completed && "line-through text-muted-foreground"
+          )}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+          onClick={() => onRemoveTarefa(tarefa.id)}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+
+      {!tarefa.completed && (
+        <>
+          {/* Tempo estimado */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground">⏱️</span>
+            {TEMPO_OPTIONS.map(tempo => (
+              <Button
+                key={tempo}
+                variant={tarefa.tempoEstimado === tempo ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => onUpdateTarefa(tarefa.id, { tempoEstimado: tempo })}
+              >
+                {tempo}
+              </Button>
+            ))}
+          </div>
+
+          {/* Urgente */}
+          <Button
+            variant={tarefa.urgente ? "default" : "outline"}
+            size="sm"
+            className={cn(
+              "h-6 text-xs gap-1",
+              tarefa.urgente && "bg-yellow-500 hover:bg-yellow-600 text-yellow-950"
+            )}
+            onClick={() => onUpdateTarefa(tarefa.id, { urgente: !tarefa.urgente })}
+          >
+            <Star className={cn("h-3 w-3", tarefa.urgente && "fill-current")} />
+            Urgente
+          </Button>
+
+          {/* Quando fazer */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground">🗓️</span>
+            {QUANDO_OPTIONS.map(({ value, label }) => (
+              <Button
+                key={value}
+                variant={tarefa.quandoFazer === value ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => onUpdateTarefa(tarefa.id, { quandoFazer: value })}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+// Componente para renderizar uma seção de tarefas
+interface TarefaSectionProps {
+  titulo: string;
+  emoji: string;
+  tarefas: BacklogTarefa[];
+  borderColor: string;
+  bgColor: string;
+  onUpdateTarefa: (id: string, data: Partial<BacklogTarefa>) => void;
+  onRemoveTarefa: (id: string) => void;
+}
+
+function TarefaSection({ 
+  titulo, 
+  emoji,
+  tarefas, 
+  borderColor,
+  bgColor,
+  onUpdateTarefa,
+  onRemoveTarefa,
+}: TarefaSectionProps) {
+  if (tarefas.length === 0) return null;
+  
+  // Ordenar: urgentes primeiro, depois não-completas
+  const sortedTarefas = [...tarefas].sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    if (a.urgente !== b.urgente) return a.urgente ? -1 : 1;
+    return 0;
+  });
+  
+  return (
+    <div className="space-y-2">
+      <div className={cn("text-xs font-medium uppercase tracking-wide px-2 py-1 rounded flex items-center gap-2", bgColor)}>
+        <span>{emoji}</span>
+        {titulo} ({tarefas.length})
+      </div>
+      {sortedTarefas.map(tarefa => (
+        <TarefaCard
+          key={tarefa.id}
+          tarefa={tarefa}
+          borderColor={borderColor}
+          onUpdateTarefa={onUpdateTarefa}
+          onRemoveTarefa={onRemoveTarefa}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function BacklogMode({
   mode,
   onUpdateBacklogData,
@@ -65,6 +208,11 @@ export function BacklogMode({
   const tempoDisponivelHoje = backlogData.tempoDisponivelHoje ?? 480;
   const tarefas = backlogData.tarefas ?? [];
   const ideias = backlogData.ideias ?? [];
+
+  // Separar tarefas por categoria
+  const tarefasHoje = tarefas.filter(t => t.quandoFazer === 'hoje');
+  const tarefasProximo = tarefas.filter(t => t.quandoFazer === 'proximo');
+  const tarefasDepois = tarefas.filter(t => t.quandoFazer === 'depois');
 
   const tempoHoje = calcularTempoHoje(tarefas);
   const percentual = tempoDisponivelHoje > 0 ? (tempoHoje / tempoDisponivelHoje) * 100 : 0;
@@ -104,14 +252,6 @@ export function BacklogMode({
   const handleKeyDownIdeia = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleAddIdeia();
   };
-
-  // Sort: urgentes primeiro, depois por quandoFazer (hoje > proximo > depois), depois não completas
-  const sortedTarefas = [...tarefas].sort((a, b) => {
-    if (a.completed !== b.completed) return a.completed ? 1 : -1;
-    if (a.urgente !== b.urgente) return a.urgente ? -1 : 1;
-    const ordem = { hoje: 0, proximo: 1, depois: 2 };
-    return ordem[a.quandoFazer] - ordem[b.quandoFazer];
-  });
 
   return (
     <div className="space-y-6">
@@ -185,96 +325,42 @@ export function BacklogMode({
           </Button>
         </div>
 
-        <div className="space-y-3">
-          {sortedTarefas.length === 0 ? (
+        {/* Seções por categoria */}
+        <div className="space-y-6">
+          {tarefas.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               Nenhuma tarefa no backlog.
             </p>
           ) : (
-            sortedTarefas.map(tarefa => (
-              <Card 
-                key={tarefa.id} 
-                className={cn(
-                  "p-3 space-y-3",
-                  tarefa.completed && "opacity-50",
-                  tarefa.urgente && !tarefa.completed && "border-yellow-500/50"
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    checked={tarefa.completed}
-                    onCheckedChange={() => onUpdateTarefa(tarefa.id, { completed: !tarefa.completed })}
-                    className="mt-0.5"
-                  />
-                  <Input
-                    value={tarefa.descricao}
-                    onChange={(e) => onUpdateTarefa(tarefa.id, { descricao: e.target.value })}
-                    className={cn(
-                      "flex-1 text-sm h-7 border-none shadow-none px-1 bg-transparent focus-visible:ring-1",
-                      tarefa.completed && "line-through text-muted-foreground"
-                    )}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                    onClick={() => onRemoveTarefa(tarefa.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-
-                {!tarefa.completed && (
-                  <>
-                    {/* Tempo estimado */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-muted-foreground">⏱️</span>
-                      {TEMPO_OPTIONS.map(tempo => (
-                        <Button
-                          key={tempo}
-                          variant={tarefa.tempoEstimado === tempo ? "default" : "outline"}
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => onUpdateTarefa(tarefa.id, { tempoEstimado: tempo })}
-                        >
-                          {tempo}
-                        </Button>
-                      ))}
-                    </div>
-
-                    {/* Urgente */}
-                    <Button
-                      variant={tarefa.urgente ? "default" : "outline"}
-                      size="sm"
-                      className={cn(
-                        "h-6 text-xs gap-1",
-                        tarefa.urgente && "bg-yellow-500 hover:bg-yellow-600 text-yellow-950"
-                      )}
-                      onClick={() => onUpdateTarefa(tarefa.id, { urgente: !tarefa.urgente })}
-                    >
-                      <Star className={cn("h-3 w-3", tarefa.urgente && "fill-current")} />
-                      Urgente
-                    </Button>
-
-                    {/* Quando fazer */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-muted-foreground">🗓️</span>
-                      {QUANDO_OPTIONS.map(({ value, label }) => (
-                        <Button
-                          key={value}
-                          variant={tarefa.quandoFazer === value ? "default" : "outline"}
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => onUpdateTarefa(tarefa.id, { quandoFazer: value })}
-                        >
-                          {label}
-                        </Button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </Card>
-            ))
+            <>
+              <TarefaSection 
+                titulo="Hoje" 
+                emoji="🟢"
+                tarefas={tarefasHoje}
+                borderColor="border-l-green-500"
+                bgColor="bg-green-500/10 text-green-700 dark:text-green-400"
+                onUpdateTarefa={onUpdateTarefa}
+                onRemoveTarefa={onRemoveTarefa}
+              />
+              <TarefaSection 
+                titulo="Próximo" 
+                emoji="🔵"
+                tarefas={tarefasProximo}
+                borderColor="border-l-blue-500"
+                bgColor="bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                onUpdateTarefa={onUpdateTarefa}
+                onRemoveTarefa={onRemoveTarefa}
+              />
+              <TarefaSection 
+                titulo="Depois" 
+                emoji="⚪"
+                tarefas={tarefasDepois}
+                borderColor="border-l-muted"
+                bgColor="bg-muted/50 text-muted-foreground"
+                onUpdateTarefa={onUpdateTarefa}
+                onRemoveTarefa={onRemoveTarefa}
+              />
+            </>
           )}
         </div>
       </div>
