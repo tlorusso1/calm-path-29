@@ -1,11 +1,13 @@
-import { ScoreNegocio } from '@/types/focus-mode';
+import { ScoreNegocio, FinanceiroExports } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Brain, TrendingUp, Package, Target } from 'lucide-react';
+import { Brain, TrendingUp, Package, Target, Megaphone } from 'lucide-react';
+import { formatCurrency } from '@/utils/modeStatusCalculator';
 
 interface ScoreNegocioCardProps {
   score: ScoreNegocio;
   compact?: boolean;
+  financeiroExports?: FinanceiroExports;
 }
 
 const getStatusColor = (status: ScoreNegocio['status']) => {
@@ -44,7 +46,7 @@ const getAlertaRiscoIcon = (alerta: 'verde' | 'amarelo' | 'vermelho') => {
   }
 };
 
-export function ScoreNegocioCard({ score, compact = false }: ScoreNegocioCardProps) {
+export function ScoreNegocioCard({ score, compact = false, financeiroExports }: ScoreNegocioCardProps) {
   const statusLabel = 
     score.status === 'saudavel' ? 'Saudável — Pode crescer' :
     score.status === 'atencao' ? 'Atenção — Crescer com cautela' :
@@ -118,7 +120,7 @@ export function ScoreNegocioCard({ score, compact = false }: ScoreNegocioCardPro
         </div>
         
         {/* Detalhes por Pilar */}
-        <div className="grid grid-cols-3 gap-2 text-center">
+        <div className={cn("grid gap-2 text-center", financeiroExports ? "grid-cols-4" : "grid-cols-3")}>
           <div className="p-2 bg-muted/50 rounded-lg space-y-1">
             <TrendingUp className="h-4 w-4 mx-auto text-muted-foreground" />
             <p className="text-xs text-muted-foreground">Financeiro</p>
@@ -137,6 +139,38 @@ export function ScoreNegocioCard({ score, compact = false }: ScoreNegocioCardPro
             <p className="font-bold text-sm">{score.demanda.score}/30</p>
             <p className="text-[10px] text-muted-foreground truncate">{score.demanda.tendencia}</p>
           </div>
+          {/* NOVO: Status de Ads */}
+          {financeiroExports && (
+            <div className={cn(
+              "p-2 rounded-lg space-y-1",
+              financeiroExports.motivoBloqueioAds 
+                ? "bg-destructive/10" 
+                : "bg-muted/50"
+            )}>
+              <Megaphone className={cn(
+                "h-4 w-4 mx-auto",
+                financeiroExports.motivoBloqueioAds 
+                  ? "text-destructive" 
+                  : "text-muted-foreground"
+              )} />
+              <p className="text-xs text-muted-foreground">Ads</p>
+              <p className={cn(
+                "font-bold text-sm",
+                financeiroExports.motivoBloqueioAds 
+                  ? "text-destructive" 
+                  : "text-foreground"
+              )}>
+                {financeiroExports.adsMaximoPermitido > 0 
+                  ? formatCurrency(financeiroExports.adsMaximoPermitido) 
+                  : 'R$ 0'}
+              </p>
+              <p className="text-[10px] text-muted-foreground truncate">
+                {financeiroExports.motivoBloqueioAds 
+                  ? '🔴 Bloqueado' 
+                  : `max 10% fat.`}
+              </p>
+            </div>
+          )}
         </div>
         
         {/* Legenda de regras */}

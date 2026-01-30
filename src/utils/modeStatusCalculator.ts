@@ -43,10 +43,14 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
   // Parse valores básicos
   const faturamento = parseCurrency(d.faturamentoMes || '');
   const custoFixo = parseCurrency(d.custoFixoMensal || '');
-  const marketingBase = parseCurrency(d.marketingBase || '');
   const caixaAtual = parseCurrency(d.caixaAtual || '');
   const caixaMinimo = parseCurrency(d.caixaMinimo || '');
-  const faturamentoEsperado = parseCurrency(d.faturamentoEsperado30d || '');
+  const faturamentoEsperado = parseCurrency(d.faturamentoEsperado30d || '') || faturamento; // Fallback para faturamento atual
+  
+  // NOVO: Separação Marketing Estrutural vs Ads Base
+  // Migração: se novos campos não existem, usar marketingBase como fallback
+  const marketingEstrutural = parseCurrency(d.marketingEstrutural || d.marketingBase || '');
+  const adsBase = parseCurrency(d.adsBase || '');
   
   // Impostos automáticos: 16% do faturamento do mês
   const impostosCalculados = faturamento * 0.16;
@@ -63,12 +67,12 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
   // CAIXA LIVRE REAL (o número que manda)
   const caixaLivreReal = caixaAtual - caixaMinimo - totalDefasados;
   
-  // === NOVO: Queima Operacional e Resultado Esperado ===
-  const queimaOperacional = custoFixo + marketingBase;
+  // === QUEIMA OPERACIONAL (agora usa Marketing Estrutural, não Ads) ===
+  const queimaOperacional = custoFixo + marketingEstrutural;
   const margemEsperada = faturamentoEsperado * MARGEM_OPERACIONAL;
   const resultadoEsperado30d = margemEsperada - queimaOperacional;
   
-  // === NOVO: Fôlego de Caixa ===
+  // === Fôlego de Caixa ===
   let folegoEmDias: number | null;
   if (caixaLivreReal <= 0) {
     folegoEmDias = 0; // Sem fôlego
@@ -79,7 +83,7 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
     folegoEmDias = Math.round((caixaLivreReal / Math.abs(resultadoEsperado30d)) * 30);
   }
   
-  // === NOVO: Alerta de Risco 30d (simplificado) ===
+  // === Alerta de Risco 30d (simplificado) ===
   let alertaRisco30d: 'verde' | 'amarelo' | 'vermelho';
   if (caixaLivreReal <= 0) {
     alertaRisco30d = 'vermelho';
@@ -91,7 +95,7 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
   
   // Resultado do mês (referência contábil, não manda)
   const margemGerada = faturamento * MARGEM_OPERACIONAL;
-  const resultadoMes = margemGerada - custoFixo - marketingBase;
+  const resultadoMes = margemGerada - custoFixo - marketingEstrutural;
   
   // Status baseado em Caixa Livre (não resultado!)
   let statusFinanceiro: 'estrategia' | 'atencao' | 'sobrevivencia';
@@ -99,16 +103,41 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
   else if (caixaLivreReal < 30000) statusFinanceiro = 'atencao';
   else statusFinanceiro = 'estrategia';
   
-  // Ads baseado em Caixa Livre (10%/20%/30% conforme faixas)
-  let adsPercent = 0;
-  if (caixaLivreReal > 0) {
-    if (caixaLivreReal <= 30000) adsPercent = 0.10;
-    else if (caixaLivreReal <= 60000) adsPercent = 0.20;
-    else adsPercent = 0.30;
+  // === NOVO CÁLCULO DE ADS COM TETO E TRAVAS ===
+  
+  // TETO ABSOLUTO: Ads nunca passa de 10% do faturamento esperado
+  const tetoAdsAbsoluto = faturamentoEsperado * 0.10;
+  
+  // Verificar travas para incremento
+  let motivoBloqueioAds: string | null = null;
+  let adsIncremental = 0;
+  
+  const podeCrescerAds = 
+    caixaLivreReal > 0 &&
+    alertaRisco30d !== 'vermelho';
+  
+  if (podeCrescerAds) {
+    // Percentual baseado no status financeiro
+    let incrementoPercent = 0;
+    if (statusFinanceiro === 'estrategia') incrementoPercent = 0.20; // +20%
+    else if (statusFinanceiro === 'atencao') incrementoPercent = 0.10; // +10%
+    // sobrevivencia = 0%
+    
+    adsIncremental = adsBase * incrementoPercent;
+  } else {
+    motivoBloqueioAds = alertaRisco30d === 'vermelho' 
+      ? 'Bloqueado: Alerta de risco vermelho'
+      : caixaLivreReal <= 0 
+      ? 'Bloqueado: Caixa Livre negativo'
+      : null;
   }
   
-  const adsIncremental = caixaLivreReal > 0 ? caixaLivreReal * adsPercent : 0;
-  const adsMaximoPermitido = marketingBase + adsIncremental;
+  // Aplicar teto absoluto
+  const adsTotal = Math.min(adsBase + adsIncremental, tetoAdsAbsoluto);
+  const adsMaximoPermitido = adsTotal;
+  
+  // Recalcular incremental após aplicar teto
+  const adsIncrementalReal = Math.max(0, adsMaximoPermitido - adsBase);
   
   // Score para termômetro (0-100)
   const scoreFinanceiro = calcScoreFinanceiro(caixaLivreReal);
@@ -129,17 +158,21 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
     risco60d,
     risco90d,
     adsMaximoPermitido,
-    adsBase: marketingBase,
-    adsIncremental,
+    adsBase,
+    adsIncremental: adsIncrementalReal,
     scoreFinanceiro,
     resultadoMes,
     totalDefasados,
-    // NOVOS
+    // Exports V2
     queimaOperacional,
     faturamentoEsperado,
     resultadoEsperado30d,
     folegoEmDias,
     alertaRisco30d,
+    // NOVOS: Ads com teto e travas
+    tetoAdsAbsoluto,
+    motivoBloqueioAds,
+    marketingEstrutural,
   };
 }
 

@@ -26,12 +26,15 @@ export interface ChecklistItem {
 
 // ============= Financeiro V2 =============
 export interface FinanceiroStage {
-  // INPUTS BÁSICOS (5 campos simplificados)
+  // INPUTS BÁSICOS
   faturamentoMes: string;
   custoFixoMensal: string;
-  marketingBase: string;
   caixaAtual: string;
   caixaMinimo: string;
+  
+  // NOVO: Marketing Estrutural (custo fixo) vs Ads Base (tráfego pago)
+  marketingEstrutural: string;  // Agência, influencers, conteúdo, ferramentas
+  adsBase: string;              // Mínimo para manter campanhas vivas
   
   // NOVO: Faturamento Esperado próximos 30 dias (cenário conservador)
   faturamentoEsperado30d: string;
@@ -44,6 +47,9 @@ export interface FinanceiroStage {
     comprasEstoqueComprometidas: string;
     outrosCompromissos: string;
   };
+  
+  // DEPRECATED: mantido para compatibilidade com dados existentes
+  marketingBase?: string;
   
   // CHECKLISTS POR FREQUÊNCIA
   checklistDiario: {
@@ -103,6 +109,10 @@ export interface FinanceiroExports {
   resultadoEsperado30d: number;
   folegoEmDias: number | null;  // null = infinito (operação se sustenta)
   alertaRisco30d: 'verde' | 'amarelo' | 'vermelho';
+  // NOVOS: Ads com teto e travas
+  tetoAdsAbsoluto: number;         // 10% do faturamento esperado
+  motivoBloqueioAds: string | null; // Motivo se incremento bloqueado
+  marketingEstrutural: number;     // Marketing estrutural (custo fixo)
 }
 
 // ============= Score Semanal do Negócio =============
@@ -429,7 +439,8 @@ export const DEFAULT_CHECKLISTS: Record<FocusModeId, Omit<ChecklistItem, 'id' | 
 export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
   faturamentoMes: '',
   custoFixoMensal: '',
-  marketingBase: '',
+  marketingEstrutural: '',
+  adsBase: '',
   caixaAtual: '',
   caixaMinimo: '',
   faturamentoEsperado30d: '',
@@ -459,6 +470,8 @@ export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
     atualizouDefasados: false,
     comparouPrevistoRealizado: false,
   },
+  // Mantido para compatibilidade com dados existentes
+  marketingBase: '',
 };
 
 export const DEFAULT_MARKETING_ORGANICO: MarketingOrganico = {

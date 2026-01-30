@@ -1,6 +1,7 @@
 import { FocusMode, PreReuniaoAdsStage, FinanceiroExports, MarketingExports, DEFAULT_PREREUNIAO_ADS_DATA, ScoreNegocio } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
@@ -108,21 +109,48 @@ export function PreReuniaoAdsMode({
   return (
     <div className="space-y-6">
       {/* ========== SCORE SEMANAL DO NEGÓCIO (NOVO) ========== */}
-      {scoreNegocio && <ScoreNegocioCard score={scoreNegocio} compact />}
+      {scoreNegocio && <ScoreNegocioCard score={scoreNegocio} compact financeiroExports={financeiroExports} />}
 
-      {/* ========== LIMITES RECEBIDOS ========== */}
+      {/* ========== LIMITES DE ADS (REFORMULADO) ========== */}
       <Card className="bg-muted/30">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
             <Lock className="h-4 w-4" />
-            Limites do Financeiro
+            Limites de Ads (do Financeiro)
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Ads máximo permitido</span>
-            <span className="font-bold text-primary">{formatCurrency(financeiroExports.adsMaximoPermitido)}</span>
+        <CardContent className="space-y-3">
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Ads base</span>
+              <span>{formatCurrency(financeiroExports.adsBase)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Incremento permitido</span>
+              <span className={financeiroExports.adsIncremental > 0 ? "text-green-600" : "text-muted-foreground"}>
+                +{formatCurrency(financeiroExports.adsIncremental)}
+              </span>
+            </div>
+            <Separator />
+            <div className="flex justify-between text-sm font-bold">
+              <span>Ads máximo esta semana</span>
+              <span className="text-primary">{formatCurrency(financeiroExports.adsMaximoPermitido)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Teto absoluto (10% fat. esperado)</span>
+              <span>{formatCurrency(financeiroExports.tetoAdsAbsoluto)}</span>
+            </div>
           </div>
+          
+          {financeiroExports.motivoBloqueioAds && (
+            <div className="p-2 bg-destructive/10 rounded text-xs text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-3 w-3" />
+              {financeiroExports.motivoBloqueioAds}
+            </div>
+          )}
+          
+          <Separator />
+          
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Prioridade da semana</span>
             <span className={cn(
