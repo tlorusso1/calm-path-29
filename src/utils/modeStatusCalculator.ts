@@ -11,6 +11,8 @@ import {
   ReuniaoAdsStage,
   MARGEM_OPERACIONAL,
   DEFAULT_FINANCEIRO_DATA,
+  MarketingExports,
+  ScoreNegocio,
 } from '@/types/focus-mode';
 
 export { MARGEM_OPERACIONAL };
@@ -40,6 +42,7 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
   const marketingBase = parseCurrency(d.marketingBase || '');
   const caixaAtual = parseCurrency(d.caixaAtual || '');
   const caixaMinimo = parseCurrency(d.caixaMinimo || '');
+  const faturamentoEsperado = parseCurrency(d.faturamentoEsperado30d || '');
   
   // Total defasados
   const defasados = d.custosDefasados;
@@ -54,7 +57,33 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
   // CAIXA LIVRE REAL (o número que manda)
   const caixaLivreReal = caixaAtual - caixaMinimo - totalDefasados;
   
-  // Resultado do mês (referência apenas, não manda)
+  // === NOVO: Queima Operacional e Resultado Esperado ===
+  const queimaOperacional = custoFixo + marketingBase;
+  const margemEsperada = faturamentoEsperado * MARGEM_OPERACIONAL;
+  const resultadoEsperado30d = margemEsperada - queimaOperacional;
+  
+  // === NOVO: Fôlego de Caixa ===
+  let folegoEmDias: number | null;
+  if (caixaLivreReal <= 0) {
+    folegoEmDias = 0; // Sem fôlego
+  } else if (resultadoEsperado30d >= 0) {
+    folegoEmDias = null; // Infinito - operação se sustenta
+  } else {
+    // Resultado negativo: calcular fôlego
+    folegoEmDias = Math.round((caixaLivreReal / Math.abs(resultadoEsperado30d)) * 30);
+  }
+  
+  // === NOVO: Alerta de Risco 30d (simplificado) ===
+  let alertaRisco30d: 'verde' | 'amarelo' | 'vermelho';
+  if (caixaLivreReal <= 0) {
+    alertaRisco30d = 'vermelho';
+  } else if (resultadoEsperado30d < 0) {
+    alertaRisco30d = 'amarelo';
+  } else {
+    alertaRisco30d = 'verde';
+  }
+  
+  // Resultado do mês (referência contábil, não manda)
   const margemGerada = faturamento * MARGEM_OPERACIONAL;
   const resultadoMes = margemGerada - custoFixo - marketingBase;
   
@@ -78,7 +107,7 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
   // Score para termômetro (0-100)
   const scoreFinanceiro = calcScoreFinanceiro(caixaLivreReal);
   
-  // Projeção 30/60/90
+  // Projeção 30/60/90 (legado, mantido para compatibilidade)
   const projecao30 = caixaAtual + resultadoMes - totalDefasados;
   const projecao60 = projecao30 + resultadoMes - totalDefasados;
   const projecao90 = projecao60 + resultadoMes - totalDefasados;
@@ -99,6 +128,12 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
     scoreFinanceiro,
     resultadoMes,
     totalDefasados,
+    // NOVOS
+    queimaOperacional,
+    faturamentoEsperado,
+    resultadoEsperado30d,
+    folegoEmDias,
+    alertaRisco30d,
   };
 }
 
@@ -107,6 +142,103 @@ function calcScoreFinanceiro(caixaLivre: number): number {
   if (caixaLivre < 30000) return Math.round((caixaLivre / 30000) * 50);
   if (caixaLivre < 60000) return 50 + Math.round(((caixaLivre - 30000) / 30000) * 30);
   return Math.min(100, 80 + Math.round(((caixaLivre - 60000) / 40000) * 20));
+}
+
+// ============= Score Semanal do Negócio (0-100) =============
+
+export function calcScoreNegocio(
+  financeiroExports: FinanceiroExports,
+  estoqueData: PreReuniaoGeralStage['estoque'] | undefined,
+  marketingExports: MarketingExports
+): ScoreNegocio {
+  // === PILAR 1: FINANCEIRO (0-40 pontos) ===
+  let scoreFinanceiroPilar: number;
+  const { caixaLivreReal, alertaRisco30d } = financeiroExports;
+  
+  if (caixaLivreReal <= 0) {
+    scoreFinanceiroPilar = 0;
+  } else if (alertaRisco30d === 'vermelho') {
+    scoreFinanceiroPilar = 10;
+  } else if (alertaRisco30d === 'amarelo') {
+    scoreFinanceiroPilar = 25;
+  } else {
+    scoreFinanceiroPilar = 40;
+  }
+  
+  // === PILAR 2: ESTOQUE (0-30 pontos) ===
+  let scoreEstoquePilar: number;
+  let coberturaLabel: string;
+  
+  const cobertura = estoqueData?.coberturaMedia;
+  const comprasOk = estoqueData?.statusCompras === 'ok';
+  
+  if (cobertura === 'menos15') {
+    scoreEstoquePilar = 0;
+    coberturaLabel = '<15 dias';
+  } else if (cobertura === '15a30') {
+    scoreEstoquePilar = 15;
+    coberturaLabel = '15-30 dias';
+  } else if (cobertura === 'mais30' && comprasOk) {
+    scoreEstoquePilar = 30;
+    coberturaLabel = '>30 dias + compras ok';
+  } else if (cobertura === 'mais30') {
+    scoreEstoquePilar = 22; // mais30 sem compras ok
+    coberturaLabel = '>30 dias';
+  } else {
+    scoreEstoquePilar = 15; // sem dados = neutro
+    coberturaLabel = 'sem dados';
+  }
+  
+  // === PILAR 3: DEMANDA (0-30 pontos) ===
+  // Baseado em sessões + orgânico
+  let scoreDemandaPilar: number;
+  let tendenciaLabel: string;
+  
+  const sessoesForte = marketingExports.statusSessoes === 'forte';
+  const sessoesNeutro = marketingExports.statusSessoes === 'neutro';
+  const sessoesFragil = marketingExports.statusSessoes === 'fraco';
+  
+  const demandaForte = marketingExports.statusDemanda === 'forte';
+  const demandaNeutro = marketingExports.statusDemanda === 'neutro';
+  
+  if (sessoesForte && demandaForte) {
+    scoreDemandaPilar = 30;
+    tendenciaLabel = 'Sessões ↑ + Demanda forte';
+  } else if (sessoesForte || demandaForte) {
+    scoreDemandaPilar = 20;
+    tendenciaLabel = sessoesForte ? 'Sessões ↑' : 'Demanda ok';
+  } else if (sessoesNeutro || demandaNeutro) {
+    scoreDemandaPilar = 10;
+    tendenciaLabel = 'Estável';
+  } else {
+    scoreDemandaPilar = 5;
+    tendenciaLabel = 'Demanda fraca';
+  }
+  
+  // === SCORE TOTAL ===
+  const total = scoreFinanceiroPilar + scoreEstoquePilar + scoreDemandaPilar;
+  
+  // === STATUS FINAL ===
+  const status: ScoreNegocio['status'] = 
+    total >= 70 ? 'saudavel' :
+    total >= 40 ? 'atencao' : 'risco';
+  
+  return {
+    total,
+    status,
+    financeiro: { 
+      score: scoreFinanceiroPilar, 
+      alertaRisco: alertaRisco30d 
+    },
+    estoque: { 
+      score: scoreEstoquePilar, 
+      cobertura: coberturaLabel 
+    },
+    demanda: { 
+      score: scoreDemandaPilar, 
+      tendencia: tendenciaLabel 
+    },
+  };
 }
 
 // ============= Termômetro de Risco Combinado =============

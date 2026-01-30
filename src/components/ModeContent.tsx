@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, PreReuniaoAdsStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, PreReuniaoAdsStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, ScoreNegocio } from '@/types/focus-mode';
 import { Button } from '@/components/ui/button';
 import { FinanceiroMode } from '@/components/modes/FinanceiroMode';
 import { MarketingMode } from '@/components/modes/MarketingMode';
@@ -30,6 +30,7 @@ interface ModeContentProps {
   onUpdateSupplyChainData?: (data: Partial<SupplyChainStage>) => void;
   // Pre-Reunião Geral
   financeiroExports?: FinanceiroExports;
+  scoreNegocio?: ScoreNegocio;
   onUpdatePreReuniaoGeralData?: (data: Partial<PreReuniaoGeralStage>) => void;
   // Pre-Reunião Ads
   prioridadeSemana?: string | null;
@@ -65,6 +66,7 @@ export function ModeContent({
   onUpdateMarketingData,
   onUpdateSupplyChainData,
   financeiroExports,
+  scoreNegocio,
   onUpdatePreReuniaoGeralData,
   prioridadeSemana,
   marketingExports,
@@ -108,6 +110,7 @@ export function ModeContent({
             mode={mode}
             financeiroExports={financeiroExports!}
             preReuniaoAdsData={mode.preReuniaoAdsData}
+            scoreNegocio={scoreNegocio!}
             onUpdatePreReuniaoGeralData={onUpdatePreReuniaoGeralData!}
           />
         );
@@ -118,6 +121,7 @@ export function ModeContent({
             financeiroExports={financeiroExports!}
             prioridadeSemana={prioridadeSemana ?? null}
             marketingExports={marketingExports!}
+            scoreNegocio={scoreNegocio}
             onUpdatePreReuniaoAdsData={onUpdatePreReuniaoAdsData!}
           />
         );

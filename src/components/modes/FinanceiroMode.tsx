@@ -1,11 +1,11 @@
-import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL } from '@/types/focus-mode';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { TrendingUp, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { TrendingUp, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock, Flame, Timer, Info } from 'lucide-react';
 import { useState } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/modeStatusCalculator';
@@ -170,6 +170,28 @@ export function FinanceiroMode({
               />
             </div>
           </div>
+          
+          <Separator />
+          
+          {/* NOVO: Faturamento Esperado 30d */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium flex items-center gap-1.5">
+              Faturamento esperado (próx. 30d)
+              <Info className="h-3.5 w-3.5 text-muted-foreground" />
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Cenário mínimo conservador. Não é meta, é piso.
+            </p>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+              <Input
+                placeholder="0,00"
+                value={data.faturamentoEsperado30d}
+                onChange={(e) => onUpdateFinanceiroData({ faturamentoEsperado30d: e.target.value })}
+                className="h-11 text-base pl-10 text-right font-medium"
+              />
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -265,6 +287,119 @@ export function FinanceiroMode({
         </CardContent>
       </Card>
 
+      {/* ========== QUEIMA OPERACIONAL (NOVO) ========== */}
+      <Card className="bg-muted/30 border-l-4 border-l-orange-500">
+        <CardContent className="p-4 space-y-2">
+          <div className="flex items-center gap-2 mb-2">
+            <Flame className="h-4 w-4 text-orange-500" />
+            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+              Queima Operacional Mensal
+            </p>
+          </div>
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Custo fixo</span>
+              <span>{formatCurrency(parseCurrency(data.custoFixoMensal))}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Marketing base</span>
+              <span>{formatCurrency(parseCurrency(data.marketingBase))}</span>
+            </div>
+            <Separator className="my-2" />
+            <div className="flex justify-between font-bold">
+              <span>Total</span>
+              <span className="text-orange-600">{formatCurrency(exports.queimaOperacional)}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ========== RESULTADO ESPERADO + FÔLEGO (NOVO) ========== */}
+      {exports.faturamentoEsperado > 0 && (
+        <Card className={cn(
+          "border-2",
+          exports.alertaRisco30d === 'verde' ? 'border-green-300' :
+          exports.alertaRisco30d === 'amarelo' ? 'border-yellow-300' :
+          'border-destructive/30'
+        )}>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Timer className="h-4 w-4" />
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                Resultado Esperado (30 dias)
+              </p>
+            </div>
+            
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Margem esperada (40%)</span>
+                <span className="text-green-600">+{formatCurrency(exports.faturamentoEsperado * MARGEM_OPERACIONAL)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Queima operacional</span>
+                <span className="text-orange-600">−{formatCurrency(exports.queimaOperacional)}</span>
+              </div>
+              <Separator className="my-2" />
+              <div className="flex justify-between font-bold text-base">
+                <span>Resultado</span>
+                <span className={cn(
+                  exports.resultadoEsperado30d >= 0 ? 'text-green-600' : 'text-destructive'
+                )}>
+                  {exports.resultadoEsperado30d >= 0 ? '+' : ''}{formatCurrency(exports.resultadoEsperado30d)}
+                  <span className="ml-2 text-sm">
+                    {exports.alertaRisco30d === 'verde' ? '🟢' :
+                     exports.alertaRisco30d === 'amarelo' ? '🟡' : '🔴'}
+                  </span>
+                </span>
+              </div>
+            </div>
+            
+            {/* Fôlego de Caixa */}
+            <div className={cn(
+              "mt-3 p-3 rounded-lg text-center",
+              exports.alertaRisco30d === 'verde' ? 'bg-green-50 dark:bg-green-900/20' :
+              exports.alertaRisco30d === 'amarelo' ? 'bg-yellow-50 dark:bg-yellow-900/20' :
+              'bg-destructive/10'
+            )}>
+              <div className="flex items-center justify-center gap-2">
+                <Timer className="h-4 w-4" />
+                <span className="text-sm font-medium">Fôlego de Caixa:</span>
+                <span className={cn(
+                  "text-lg font-bold",
+                  exports.alertaRisco30d === 'verde' ? 'text-green-600' :
+                  exports.alertaRisco30d === 'amarelo' ? 'text-yellow-600' :
+                  'text-destructive'
+                )}>
+                  {exports.folegoEmDias === null ? '∞' : `~${exports.folegoEmDias} dias`}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {exports.folegoEmDias === null 
+                  ? 'Operação se sustenta com o faturamento mínimo' 
+                  : exports.folegoEmDias === 0 
+                  ? 'Caixa negativo - ação urgente necessária'
+                  : 'Tempo até o caixa zerar se nada mudar'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ========== LEGENDA ANTI-CONFUSÃO (NOVO) ========== */}
+      <Card className="bg-muted/20 border-dashed">
+        <CardContent className="p-3">
+          <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+            <Info className="h-3 w-3" />
+            Leitura correta:
+          </p>
+          <ul className="text-xs text-muted-foreground space-y-1">
+            <li>• <strong>Caixa Livre Real</strong> = situação agora</li>
+            <li>• <strong>Resultado Esperado</strong> = futuro próximo</li>
+            <li>• <em>Não devem ser somados ou confundidos</em></li>
+          </ul>
+        </CardContent>
+      </Card>
+
       {/* ========== REGRA DE ADS ========== */}
       <Card className="bg-muted/30">
         <CardContent className="p-4 space-y-2">
@@ -289,7 +424,7 @@ export function FinanceiroMode({
       <Card className="bg-muted/30">
         <CardContent className="p-4 space-y-2">
           <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-3">
-            Projeção de Risco
+            Projeção de Risco (contábil)
           </p>
           <div className="flex items-center gap-4 justify-center">
             {[

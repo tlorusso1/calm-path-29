@@ -365,6 +365,13 @@ export function useFocusModes() {
     return calculateMarketingOrganico(marketing?.organico);
   }, [state.modes.marketing?.marketingData]);
 
+  // ============= Score do Negócio (NOVO) =============
+  const scoreNegocio = useMemo(() => {
+    const { calcScoreNegocio } = require('@/utils/modeStatusCalculator');
+    const estoqueData = state.modes['pre-reuniao-geral']?.preReuniaoGeralData?.estoque;
+    return calcScoreNegocio(financeiroExports, estoqueData, marketingExports);
+  }, [financeiroExports, state.modes['pre-reuniao-geral']?.preReuniaoGeralData?.estoque, marketingExports]);
+
   // ============= Prioridade da Semana (de Pre-Reuniao Geral) =============
   const prioridadeSemana = useMemo(() => 
     state.modes['pre-reuniao-geral']?.preReuniaoGeralData?.decisaoSemana ?? null,
@@ -980,6 +987,7 @@ export function useFocusModes() {
     // Exports para outros modos
     financeiroExports,
     prioridadeSemana,
+    scoreNegocio,
     // Ações básicas
     setActiveMode,
     toggleItemComplete,

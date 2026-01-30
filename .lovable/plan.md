@@ -1,6 +1,12 @@
 
 # Financeiro V2 + Score Semanal do Negocio
 
+## Status: ✅ IMPLEMENTADO
+
+Implementação concluída em 30/01/2026.
+
+---
+
 ## Visao Geral
 
 Duas grandes mudancas conectadas:
