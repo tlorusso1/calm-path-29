@@ -85,17 +85,33 @@ export function SupplyChainMode({
   };
 
   const handleColarLista = () => {
-    const itens = parsearListaEstoque(textoColado);
-    itens.forEach(item => {
-      if (item.nome && item.quantidade) {
+    const itensImportados = parsearListaEstoque(textoColado);
+    
+    itensImportados.forEach(itemImportado => {
+      if (!itemImportado.nome || !itemImportado.quantidade) return;
+      
+      // Procurar item existente pelo nome (case insensitive)
+      const nomeNormalizado = itemImportado.nome.toLowerCase().trim();
+      const itemExistente = data.itens.find(
+        i => i.nome.toLowerCase().trim() === nomeNormalizado
+      );
+      
+      if (itemExistente) {
+        // UPSERT: Atualizar quantidade do item existente
+        onUpdateItem(itemExistente.id, { 
+          quantidade: itemImportado.quantidade 
+        });
+      } else {
+        // Criar novo item
         onAddItem({
-          nome: item.nome,
-          tipo: item.tipo || 'produto_acabado',
-          quantidade: item.quantidade,
-          unidade: item.unidade || 'un',
+          nome: itemImportado.nome,
+          tipo: itemImportado.tipo || 'produto_acabado',
+          quantidade: itemImportado.quantidade,
+          unidade: itemImportado.unidade || 'un',
         });
       }
     });
+    
     setTextoColado('');
   };
 
