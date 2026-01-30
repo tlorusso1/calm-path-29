@@ -205,6 +205,13 @@ export interface MarketingOrganicoResult {
     influencerScore: number;
     socialScore: number;
   };
+  // Sessões do Site
+  scoreSessoes: number;
+  statusSessoes: 'forte' | 'neutro' | 'fraco';
+  // Score de Demanda Combinado
+  scoreDemanda: number;
+  statusDemanda: 'forte' | 'neutro' | 'fraco';
+  leituraDemanda: string;
 }
 
 export function calculateMarketingOrganico(organico?: MarketingStage['organico']): MarketingOrganicoResult {
@@ -214,6 +221,11 @@ export function calculateMarketingOrganico(organico?: MarketingStage['organico']
       statusOrganico: 'fraco',
       recomendacaoAds: 'Ads compensa: mais topo de funil e remarketing',
       detalhes: { emailScore: 0, influencerScore: 0, socialScore: 0 },
+      scoreSessoes: 0,
+      statusSessoes: 'fraco',
+      scoreDemanda: 0,
+      statusDemanda: 'fraco',
+      leituraDemanda: 'Sem dados suficientes para avaliar demanda.',
     };
   }
   
@@ -235,7 +247,33 @@ export function calculateMarketingOrganico(organico?: MarketingStage['organico']
   
   const scoreOrganico = emailScore + influencerScore + socialScore;
   
-  // Status baseado no score
+  // ========== SESSÕES DO SITE (NOVO) ==========
+  const sessoesSemana = parseCurrency(organico.sessoesSemana || '');
+  const sessoesMedia = parseCurrency(organico.sessoesMedia30d || '');
+  
+  let scoreSessoes: number;
+  let statusSessoes: 'forte' | 'neutro' | 'fraco';
+  
+  if (sessoesMedia <= 0 || sessoesSemana <= 0) {
+    // Sem dados
+    scoreSessoes = 50; // Neutro por padrão
+    statusSessoes = 'neutro';
+  } else {
+    const variacao = ((sessoesSemana - sessoesMedia) / sessoesMedia) * 100;
+    
+    if (variacao >= 10) {
+      scoreSessoes = 100;
+      statusSessoes = 'forte';
+    } else if (variacao >= -10) {
+      scoreSessoes = 70;
+      statusSessoes = 'neutro';
+    } else {
+      scoreSessoes = 40;
+      statusSessoes = 'fraco';
+    }
+  }
+  
+  // Status baseado no score orgânico
   let statusOrganico: 'forte' | 'medio' | 'fraco';
   let recomendacaoAds: string;
   
@@ -250,12 +288,68 @@ export function calculateMarketingOrganico(organico?: MarketingStage['organico']
     recomendacaoAds = 'Ads compensa: mais topo de funil e remarketing.';
   }
   
+  // ========== SCORE DE DEMANDA COMBINADO ==========
+  // Orgânico: 60% (já calculado 0-100) + Sessões: 40%
+  const scoreDemanda = Math.round((scoreOrganico * 0.6) + (scoreSessoes * 0.4));
+  
+  let statusDemanda: 'forte' | 'neutro' | 'fraco';
+  if (scoreDemanda >= 70) statusDemanda = 'forte';
+  else if (scoreDemanda >= 40) statusDemanda = 'neutro';
+  else statusDemanda = 'fraco';
+  
+  // Leitura inteligente baseada na combinação
+  const leituraDemanda = getLeituraDemanda(statusOrganico, statusSessoes);
+  
   return {
     scoreOrganico,
     statusOrganico,
     recomendacaoAds,
     detalhes: { emailScore, influencerScore, socialScore },
+    scoreSessoes,
+    statusSessoes,
+    scoreDemanda,
+    statusDemanda,
+    leituraDemanda,
   };
+}
+
+// Leitura inteligente da combinação Orgânico + Sessões
+function getLeituraDemanda(
+  statusOrganico: 'forte' | 'medio' | 'fraco',
+  statusSessoes: 'forte' | 'neutro' | 'fraco'
+): string {
+  // Orgânico forte
+  if (statusOrganico === 'forte' && statusSessoes === 'forte') {
+    return 'Demanda orgânica forte confirmada. Ads pode apoiar, não carregar.';
+  }
+  if (statusOrganico === 'forte' && statusSessoes === 'neutro') {
+    return 'Orgânico bom, sessões estáveis. Manter estrutura.';
+  }
+  if (statusOrganico === 'forte' && statusSessoes === 'fraco') {
+    return 'Orgânico bom mas sessões caindo. Verificar sazonalidade ou oferta.';
+  }
+  
+  // Orgânico médio
+  if (statusOrganico === 'medio' && statusSessoes === 'forte') {
+    return 'Sessões crescendo sem orgânico forte. Pode ser Ads ou marca. Investigar.';
+  }
+  if (statusOrganico === 'medio' && statusSessoes === 'neutro') {
+    return 'Demanda estável. Sem urgência, sem folga.';
+  }
+  if (statusOrganico === 'medio' && statusSessoes === 'fraco') {
+    return 'Perda de interesse. Revisar oferta antes de escalar Ads.';
+  }
+  
+  // Orgânico fraco
+  if (statusOrganico === 'fraco' && statusSessoes === 'forte') {
+    return 'Ads está carregando a demanda sozinho. Cuidado ao cortar.';
+  }
+  if (statusOrganico === 'fraco' && statusSessoes === 'neutro') {
+    return 'Orgânico fraco, sessões estáveis. Ads sustentando.';
+  }
+  
+  // Ambos fracos
+  return 'Demanda geral fraca. Não escalar. Revisar oferta e timing.';
 }
 
 // ============= Calculadores de Status por Modo =============
