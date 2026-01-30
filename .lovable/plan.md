@@ -1,48 +1,67 @@
 
 
-# Correção: Persistência do Backlog
+# Melhoria: Editar Textos de Tarefas e Ideias no Backlog
 
-## Problema Identificado
+## Problema Atual
 
-As tarefas do Backlog estão sumindo. Após análise do código, identifiquei **3 causas potenciais**:
+1. **Tarefas**: O texto da descrição aparece como `<span>` simples (linha 207-211), sem campo para edição. A função `onUpdateTarefa` existe e funciona, mas não está sendo usada para editar o texto.
 
-### 1. Risco de Sobrescrita no updateBacklogData
-
-A função `updateBacklogData` usa spread operator que pode sobrescrever dados:
-
-```typescript
-// Código atual (linha 967-970)
-backlogData: {
-  ...prev.modes.backlog.backlogData!,  // <-- ! pode falhar
-  ...data,  // <-- pode sobrescrever tarefas/ideias
-}
-```
-
-Se `backlogData` for `undefined`, o código quebra silenciosamente.
-
-### 2. Race Condition no Reset Diário
-
-Quando o app detecta um novo dia, ele tenta preservar o backlog:
-
-```typescript
-// Linha 164
-backlogData: state.modes.backlog?.backlogData ?? { tarefas: [], ideias: [] }
-```
-
-Porém, se o estado ainda estiver carregando do banco, `state.modes.backlog` pode não ter os dados atuais.
-
-### 3. Debounce de 1 segundo
-
-Alterações são salvas após 1 segundo de inatividade. Se você adiciona tarefas e fecha o navegador antes disso, os dados não são salvos.
+2. **Ideias**: O texto aparece como `<span>` (linha 313), e **não existe função `onUpdateIdeia`** no sistema. A interface só permite adicionar e remover.
 
 ## Solução Proposta
 
-### Mudança 1: Proteção contra undefined
+### 1. Tarefas Editáveis
 
-Garantir que `backlogData` nunca seja undefined:
+Transformar o texto da tarefa em um campo de input editável inline:
+
+```text
+ANTES:
++------------------------------------------+
+| [x] Revisar planilha financeira     [🗑]  |
++------------------------------------------+
+
+DEPOIS:
++------------------------------------------+
+| [x] [Revisar planilha financeira___] [🗑] |
++------------------------------------------+
+```
+
+Comportamento:
+- Campo de texto editável diretamente
+- Atualiza ao digitar (onChange)
+- Mantém estilo de riscado quando completada
+
+### 2. Ideias Editáveis
+
+Criar função de atualização e transformar em input:
+
+```text
+ANTES:
++------------------------------------------+
+| - Ideia de novo sabor                [🗑] |
++------------------------------------------+
+
+DEPOIS:
++------------------------------------------+
+| - [Ideia de novo sabor___________]   [🗑] |
++------------------------------------------+
+```
+
+## Arquivos a Modificar
+
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/hooks/useFocusModes.ts` | Adicionar funcao `updateBacklogIdeia` |
+| `src/components/modes/BacklogMode.tsx` | Adicionar prop `onUpdateIdeia`, transformar textos em inputs |
+
+## Detalhes Tecnicos
+
+### Mudanca 1: Criar funcao updateBacklogIdeia (useFocusModes.ts)
+
+Adicionar nova funcao seguindo o padrao existente de `updateBacklogTarefa`:
 
 ```typescript
-const updateBacklogData = useCallback((data: Partial<BacklogStage>) => {
+const updateBacklogIdeia = useCallback((id: string, texto: string) => {
   setState(prev => {
     const currentBacklog = prev.modes.backlog.backlogData ?? {
       tempoDisponivelHoje: 480,
@@ -58,10 +77,9 @@ const updateBacklogData = useCallback((data: Partial<BacklogStage>) => {
           ...prev.modes.backlog,
           backlogData: {
             ...currentBacklog,
-            // Só atualiza campos que vieram, preserva tarefas/ideias
-            tempoDisponivelHoje: data.tempoDisponivelHoje ?? currentBacklog.tempoDisponivelHoje,
-            tarefas: data.tarefas ?? currentBacklog.tarefas,
-            ideias: data.ideias ?? currentBacklog.ideias,
+            ideias: currentBacklog.ideias.map(ideia =>
+              ideia.id === id ? { ...ideia, texto } : ideia
+            ),
           },
         },
       },
@@ -70,58 +88,54 @@ const updateBacklogData = useCallback((data: Partial<BacklogStage>) => {
 }, []);
 ```
 
-### Mudança 2: Flush ao Sair da Página
+### Mudanca 2: Atualizar interface do BacklogMode
 
-Adicionar salvamento imediato quando o usuário sai:
-
-```typescript
-// No hook useFocusModes
-useEffect(() => {
-  const handleBeforeUnload = () => {
-    if (user && initialLoadDone.current) {
-      // Cancela debounce e salva imediatamente
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-      // Usa navigator.sendBeacon para garantir envio
-      const payload = {...};
-      navigator.sendBeacon('/api/save-state', JSON.stringify(payload));
-    }
-  };
-  
-  window.addEventListener('beforeunload', handleBeforeUnload);
-  return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-}, [user, state]);
-```
-
-### Mudança 3: Validação na Inicialização
-
-Garantir que o backlog sempre tenha arrays válidos:
+Adicionar nova prop:
 
 ```typescript
-// Em processLoadedState
-if (id === 'backlog') {
-  const existingBacklog = state.modes.backlog?.backlogData;
-  updatedModes[id] = {
-    ...createDefaultMode(id),
-    backlogData: {
-      tempoDisponivelHoje: existingBacklog?.tempoDisponivelHoje ?? 480,
-      tarefas: Array.isArray(existingBacklog?.tarefas) ? existingBacklog.tarefas : [],
-      ideias: Array.isArray(existingBacklog?.ideias) ? existingBacklog.ideias : [],
-    },
-  };
+interface BacklogModeProps {
+  // ... existentes
+  onUpdateIdeia: (id: string, texto: string) => void;
 }
 ```
 
-## Arquivos a Modificar
+### Mudanca 3: Input editavel para Tarefas (linha 207-212)
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/hooks/useFocusModes.ts` | Proteger contra undefined, flush on unload, validar arrays |
+Substituir o `<span>` por `<Input>`:
+
+```tsx
+<Input
+  value={tarefa.descricao}
+  onChange={(e) => onUpdateTarefa(tarefa.id, { descricao: e.target.value })}
+  className={cn(
+    "flex-1 text-sm h-7 border-none shadow-none px-1",
+    tarefa.completed && "line-through text-muted-foreground"
+  )}
+/>
+```
+
+### Mudanca 4: Input editavel para Ideias (linha 313)
+
+Substituir o `<span>` por `<Input>`:
+
+```tsx
+<div className="flex items-center gap-2 p-2 bg-background rounded border">
+  <span className="text-sm text-muted-foreground">-</span>
+  <Input
+    value={ideia.texto}
+    onChange={(e) => onUpdateIdeia(ideia.id, e.target.value)}
+    className="flex-1 text-sm h-7 border-none shadow-none px-1 bg-transparent"
+  />
+  <Button ...>
+    <Trash2 />
+  </Button>
+</div>
+```
 
 ## Resultado Esperado
 
-- Tarefas e ideias do Backlog nunca serão perdidas por erro de código
-- Dados serão salvos mesmo se o navegador for fechado rapidamente
-- Arrays sempre serão válidos, evitando erros silenciosos
+- Usuario pode clicar diretamente no texto de qualquer tarefa ou ideia e editar
+- Edicoes sao salvas automaticamente (como ja funciona para outros campos)
+- Interface permanece limpa e minimalista
+- Dados persistem corretamente no banco
 
