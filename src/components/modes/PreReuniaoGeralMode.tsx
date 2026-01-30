@@ -1,4 +1,4 @@
-import { FocusMode, PreReuniaoGeralStage, FinanceiroExports, PreReuniaoAdsStage, DEFAULT_PREREUNIAO_GERAL_DATA } from '@/types/focus-mode';
+import { FocusMode, PreReuniaoGeralStage, FinanceiroExports, PreReuniaoAdsStage, DEFAULT_PREREUNIAO_GERAL_DATA, ScoreNegocio } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -7,11 +7,13 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { Brain, TrendingUp, Package, Target, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { formatCurrency, calcTermometroRisco, getLeituraCombinada, getRoasStatus } from '@/utils/modeStatusCalculator';
+import { ScoreNegocioCard } from '@/components/ScoreNegocioCard';
 
 interface PreReuniaoGeralModeProps {
   mode: FocusMode;
   financeiroExports: FinanceiroExports;
   preReuniaoAdsData?: PreReuniaoAdsStage;
+  scoreNegocio: ScoreNegocio;
   onUpdatePreReuniaoGeralData: (data: Partial<PreReuniaoGeralStage>) => void;
 }
 
@@ -51,6 +53,7 @@ export function PreReuniaoGeralMode({
   mode,
   financeiroExports,
   preReuniaoAdsData,
+  scoreNegocio,
   onUpdatePreReuniaoGeralData,
 }: PreReuniaoGeralModeProps) {
   // Merge com defaults
@@ -87,20 +90,23 @@ export function PreReuniaoGeralMode({
 
   return (
     <div className="space-y-6">
-      {/* ========== TERMÔMETRO DE RISCO ========== */}
-      <Card className="border-2 border-primary/20">
+      {/* ========== SCORE SEMANAL DO NEGÓCIO (NOVO) ========== */}
+      <ScoreNegocioCard score={scoreNegocio} />
+
+      {/* ========== TERMÔMETRO DE RISCO (LEGADO - mantido para comparação) ========== */}
+      <Card className="border border-muted">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
+          <CardTitle className="flex items-center gap-2 text-sm text-muted-foreground">
             <Brain className="h-4 w-4" />
-            Termômetro do Negócio
+            Termômetro Legado (para referência)
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           {/* Score */}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Score combinado</span>
+            <span className="text-xs text-muted-foreground">Score combinado</span>
             <span className={cn(
-              "text-2xl font-bold",
+              "text-lg font-bold",
               termometro.status === 'saudavel' ? 'text-green-600' :
               termometro.status === 'atencao' ? 'text-yellow-600' : 'text-destructive'
             )}>
@@ -109,41 +115,11 @@ export function PreReuniaoGeralMode({
           </div>
           
           {/* Barra */}
-          <div className="h-4 bg-muted rounded-full overflow-hidden">
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
             <div 
               className={cn("h-full rounded-full transition-all duration-500", getTermometroColor(termometro.score))}
               style={{ width: `${termometro.score}%` }}
             />
-          </div>
-          
-          {/* Status */}
-          <div className={cn(
-            "px-3 py-2 rounded-lg text-center font-medium text-sm",
-            getStatusColor(termometro.status)
-          )}>
-            {termometro.status === 'saudavel' ? '🟢 Saudável — Pode acelerar' :
-             termometro.status === 'atencao' ? '🟡 Atenção — Crescer com cautela' :
-             '🔴 Risco — Foco em caixa'}
-          </div>
-          
-          {/* Detalhes */}
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-            <div className="p-2 bg-muted/50 rounded-lg">
-              <p className="text-muted-foreground">Financeiro</p>
-              <p className="font-medium">{financeiroExports.scoreFinanceiro}</p>
-            </div>
-            <div className="p-2 bg-muted/50 rounded-lg">
-              <p className="text-muted-foreground">Estoque</p>
-              <p className="font-medium">
-                {data.estoque.coberturaMedia === 'mais30' ? 90 :
-                 data.estoque.coberturaMedia === '15a30' ? 65 :
-                 data.estoque.coberturaMedia === 'menos15' ? 25 : 50}
-              </p>
-            </div>
-            <div className="p-2 bg-muted/50 rounded-lg">
-              <p className="text-muted-foreground">Demanda</p>
-              <p className="font-medium">{roasValue > 0 ? Math.round(roasValue >= 3 ? 100 : roasValue >= 2 ? 75 : 25) : '—'}</p>
-            </div>
           </div>
         </CardContent>
       </Card>

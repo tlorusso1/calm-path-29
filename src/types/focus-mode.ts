@@ -33,6 +33,9 @@ export interface FinanceiroStage {
   caixaAtual: string;
   caixaMinimo: string;
   
+  // NOVO: Faturamento Esperado próximos 30 dias (cenário conservador)
+  faturamentoEsperado30d: string;
+  
   // CUSTOS DEFASADOS (novidade crítica)
   custosDefasados: {
     impostosProximoMes: string;
@@ -94,6 +97,21 @@ export interface FinanceiroExports {
   scoreFinanceiro: number;
   resultadoMes: number;
   totalDefasados: number;
+  // NOVOS EXPORTS FINANCEIRO V2
+  queimaOperacional: number;
+  faturamentoEsperado: number;
+  resultadoEsperado30d: number;
+  folegoEmDias: number | null;  // null = infinito (operação se sustenta)
+  alertaRisco30d: 'verde' | 'amarelo' | 'vermelho';
+}
+
+// ============= Score Semanal do Negócio =============
+export interface ScoreNegocio {
+  total: number;
+  status: 'saudavel' | 'atencao' | 'risco';
+  financeiro: { score: number; alertaRisco: 'verde' | 'amarelo' | 'vermelho' };
+  estoque: { score: number; cobertura: string };
+  demanda: { score: number; tendencia: string };
 }
 
 // ============= Pre-Reunião Geral =============
@@ -361,6 +379,7 @@ export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
   marketingBase: '',
   caixaAtual: '',
   caixaMinimo: '',
+  faturamentoEsperado30d: '',
   custosDefasados: {
     impostosProximoMes: '',
     adsCartaoAnterior: '',

@@ -1,4 +1,4 @@
-import { FocusMode, PreReuniaoAdsStage, FinanceiroExports, MarketingExports, DEFAULT_PREREUNIAO_ADS_DATA } from '@/types/focus-mode';
+import { FocusMode, PreReuniaoAdsStage, FinanceiroExports, MarketingExports, DEFAULT_PREREUNIAO_ADS_DATA, ScoreNegocio } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -6,12 +6,14 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { Target, Lock, TrendingUp, Leaf, AlertTriangle } from 'lucide-react';
 import { formatCurrency, parseCurrency, getRoasStatus, getCpaStatus, getLeituraCombinada, MARGEM_OPERACIONAL } from '@/utils/modeStatusCalculator';
+import { ScoreNegocioCard } from '@/components/ScoreNegocioCard';
 
 interface PreReuniaoAdsModeProps {
   mode: FocusMode;
   financeiroExports: FinanceiroExports;
   prioridadeSemana: string | null;
   marketingExports: MarketingExports;
+  scoreNegocio?: ScoreNegocio;
   onUpdatePreReuniaoAdsData: (data: Partial<PreReuniaoAdsStage>) => void;
 }
 
@@ -36,6 +38,7 @@ export function PreReuniaoAdsMode({
   financeiroExports,
   prioridadeSemana,
   marketingExports,
+  scoreNegocio,
   onUpdatePreReuniaoAdsData,
 }: PreReuniaoAdsModeProps) {
   // Merge com defaults
@@ -104,6 +107,9 @@ export function PreReuniaoAdsMode({
 
   return (
     <div className="space-y-6">
+      {/* ========== SCORE SEMANAL DO NEGÓCIO (NOVO) ========== */}
+      {scoreNegocio && <ScoreNegocioCard score={scoreNegocio} compact />}
+
       {/* ========== LIMITES RECEBIDOS ========== */}
       <Card className="bg-muted/30">
         <CardHeader className="pb-2">
