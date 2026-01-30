@@ -91,7 +91,7 @@ export function PreReuniaoGeralMode({
   return (
     <div className="space-y-6">
       {/* ========== SCORE SEMANAL DO NEGÓCIO (NOVO) ========== */}
-      <ScoreNegocioCard score={scoreNegocio} />
+      <ScoreNegocioCard score={scoreNegocio} financeiroExports={financeiroExports} />
 
       {/* ========== TERMÔMETRO DE RISCO (LEGADO - mantido para comparação) ========== */}
       <Card className="border border-muted">

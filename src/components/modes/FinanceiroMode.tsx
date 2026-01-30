@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { TrendingUp, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock, Flame, Timer, Info } from 'lucide-react';
+import { TrendingUp, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock, Flame, Timer, Info, Target } from 'lucide-react';
 import { useState } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/modeStatusCalculator';
@@ -131,13 +131,31 @@ export function FinanceiroMode({
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Marketing base</label>
+              <label className="text-xs text-muted-foreground">Marketing estrutural</label>
+              <p className="text-[10px] text-muted-foreground leading-tight">
+                Agência, influencers, conteúdo, ferramentas
+              </p>
               <div className="relative">
                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
                 <Input
                   placeholder="0,00"
-                  value={data.marketingBase}
-                  onChange={(e) => onUpdateFinanceiroData({ marketingBase: e.target.value })}
+                  value={data.marketingEstrutural || data.marketingBase}
+                  onChange={(e) => onUpdateFinanceiroData({ marketingEstrutural: e.target.value })}
+                  className="h-9 text-sm pl-8 text-right"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Ads base</label>
+              <p className="text-[10px] text-muted-foreground leading-tight">
+                Mínimo para campanhas vivas
+              </p>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.adsBase}
+                  onChange={(e) => onUpdateFinanceiroData({ adsBase: e.target.value })}
                   className="h-9 text-sm pl-8 text-right"
                 />
               </div>
@@ -297,29 +315,71 @@ export function FinanceiroMode({
         </CardContent>
       </Card>
 
-      {/* ========== QUEIMA OPERACIONAL (NOVO) ========== */}
+      {/* ========== QUEIMA OPERACIONAL + LIMITE ADS ========== */}
       <Card className="bg-muted/30 border-l-4 border-l-orange-500">
-        <CardContent className="p-4 space-y-2">
-          <div className="flex items-center gap-2 mb-2">
-            <Flame className="h-4 w-4 text-orange-500" />
-            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-              Queima Operacional Mensal
-            </p>
+        <CardContent className="p-4 space-y-4">
+          {/* Queima Operacional */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Flame className="h-4 w-4 text-orange-500" />
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                Queima Operacional Mensal
+              </p>
+            </div>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Custo fixo</span>
+                <span>{formatCurrency(parseCurrency(data.custoFixoMensal))}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Marketing estrutural</span>
+                <span>{formatCurrency(exports.marketingEstrutural)}</span>
+              </div>
+              <Separator className="my-2" />
+              <div className="flex justify-between font-bold">
+                <span>Total</span>
+                <span className="text-orange-600">{formatCurrency(exports.queimaOperacional)}</span>
+              </div>
+            </div>
           </div>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Custo fixo</span>
-              <span>{formatCurrency(parseCurrency(data.custoFixoMensal))}</span>
+          
+          <Separator />
+          
+          {/* Limites de Ads */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Target className="h-4 w-4 text-primary" />
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                Limites de Ads
+              </p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Marketing base</span>
-              <span>{formatCurrency(parseCurrency(data.marketingBase))}</span>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Ads base</span>
+                <span>{formatCurrency(exports.adsBase)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Incremento permitido</span>
+                <span className={exports.adsIncremental > 0 ? "text-green-600" : "text-muted-foreground"}>
+                  +{formatCurrency(exports.adsIncremental)}
+                </span>
+              </div>
+              <Separator className="my-2" />
+              <div className="flex justify-between font-bold">
+                <span>Ads máximo esta semana</span>
+                <span className="text-primary">{formatCurrency(exports.adsMaximoPermitido)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Teto absoluto (10% fat. esperado)</span>
+                <span>{formatCurrency(exports.tetoAdsAbsoluto)}</span>
+              </div>
             </div>
-            <Separator className="my-2" />
-            <div className="flex justify-between font-bold">
-              <span>Total</span>
-              <span className="text-orange-600">{formatCurrency(exports.queimaOperacional)}</span>
-            </div>
+            {exports.motivoBloqueioAds && (
+              <div className="mt-2 p-2 bg-destructive/10 rounded text-xs text-destructive flex items-center gap-2">
+                <AlertTriangle className="h-3 w-3" />
+                {exports.motivoBloqueioAds}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
