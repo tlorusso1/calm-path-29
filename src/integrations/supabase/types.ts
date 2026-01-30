@@ -83,6 +83,84 @@ export type Database = {
         }
         Relationships: []
       }
+      weekly_snapshots: {
+        Row: {
+          ads_maximo: number | null
+          caixa_livre_real: number | null
+          cpa_medio: number | null
+          created_at: string | null
+          decisao_ads: string | null
+          gasto_ads: number | null
+          id: string
+          prioridade_semana: string | null
+          registro_decisao: string | null
+          resultado_mes: number | null
+          roas_medio: number | null
+          score_demanda: number | null
+          score_financeiro: number | null
+          score_organico: number | null
+          score_sessoes: number | null
+          sessoes_semana: number | null
+          status_demanda: string | null
+          status_financeiro: string | null
+          status_organico: string | null
+          ticket_medio: number | null
+          total_defasados: number | null
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          ads_maximo?: number | null
+          caixa_livre_real?: number | null
+          cpa_medio?: number | null
+          created_at?: string | null
+          decisao_ads?: string | null
+          gasto_ads?: number | null
+          id?: string
+          prioridade_semana?: string | null
+          registro_decisao?: string | null
+          resultado_mes?: number | null
+          roas_medio?: number | null
+          score_demanda?: number | null
+          score_financeiro?: number | null
+          score_organico?: number | null
+          score_sessoes?: number | null
+          sessoes_semana?: number | null
+          status_demanda?: string | null
+          status_financeiro?: string | null
+          status_organico?: string | null
+          ticket_medio?: number | null
+          total_defasados?: number | null
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          ads_maximo?: number | null
+          caixa_livre_real?: number | null
+          cpa_medio?: number | null
+          created_at?: string | null
+          decisao_ads?: string | null
+          gasto_ads?: number | null
+          id?: string
+          prioridade_semana?: string | null
+          registro_decisao?: string | null
+          resultado_mes?: number | null
+          roas_medio?: number | null
+          score_demanda?: number | null
+          score_financeiro?: number | null
+          score_organico?: number | null
+          score_sessoes?: number | null
+          sessoes_semana?: number | null
+          status_demanda?: string | null
+          status_financeiro?: string | null
+          status_organico?: string | null
+          ticket_medio?: number | null
+          total_defasados?: number | null
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
