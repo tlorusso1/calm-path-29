@@ -15,6 +15,7 @@ import {
   ReuniaoAdsStage,
   ReuniaoAdsAcao,
   FinanceiroExports,
+  ItemEstoque,
   MODE_CONFIGS, 
   DEFAULT_CHECKLISTS,
   DEFAULT_FINANCEIRO_DATA,
@@ -37,7 +38,8 @@ import {
   calculateFinanceiroV2,
   calculateMarketingOrganico,
   parseCurrency,
-  calcScoreNegocio,
+  calcScoreNegocioV2,
+  calculateSupplyExports,
 } from '@/utils/modeStatusCalculator';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -366,11 +368,17 @@ export function useFocusModes() {
     return calculateMarketingOrganico(marketing?.organico);
   }, [state.modes.marketing?.marketingData]);
 
-  // ============= Score do Negócio (NOVO) =============
+  // ============= Supply Exports (para Score e Pre-Reunião Geral) =============
+  const supplyExports = useMemo(() => {
+    const supplyData = state.modes.supplychain?.supplyChainData;
+    if (!supplyData || supplyData.itens.length === 0) return null;
+    return calculateSupplyExports(supplyData);
+  }, [state.modes.supplychain?.supplyChainData]);
+
+  // ============= Score do Negócio (V2 com Supply Exports) =============
   const scoreNegocio = useMemo(() => {
-    const estoqueData = state.modes['pre-reuniao-geral']?.preReuniaoGeralData?.estoque;
-    return calcScoreNegocio(financeiroExports, estoqueData, marketingExports);
-  }, [financeiroExports, state.modes, marketingExports]);
+    return calcScoreNegocioV2(financeiroExports, supplyExports, marketingExports);
+  }, [financeiroExports, supplyExports, marketingExports]);
 
   // ============= Prioridade da Semana (de Pre-Reuniao Geral) =============
   const prioridadeSemana = useMemo(() => 
@@ -693,7 +701,7 @@ export function useFocusModes() {
     });
   }, []);
 
-  // ============= Supply Chain =============
+  // ============= Supply Chain V2 =============
   const updateSupplyChainData = useCallback((data: Partial<SupplyChainStage>) => {
     setState(prev => {
       const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
@@ -722,6 +730,84 @@ export function useFocusModes() {
           supplychain: {
             ...prev.modes.supplychain,
             supplyChainData: newSupplyChainData,
+            status: newStatus,
+          },
+        },
+      };
+    });
+  }, []);
+
+  const addSupplyItem = useCallback((item: Omit<ItemEstoque, 'id'>) => {
+    const newItem: ItemEstoque = {
+      ...item,
+      id: generateId(),
+    };
+    
+    setState(prev => {
+      const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
+      const newData = {
+        ...currentData,
+        itens: [...currentData.itens, newItem],
+      };
+      const newStatus = calculateSupplyChainStatus(newData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          supplychain: {
+            ...prev.modes.supplychain,
+            supplyChainData: newData,
+            status: newStatus,
+          },
+        },
+      };
+    });
+    
+    return newItem;
+  }, []);
+
+  const updateSupplyItem = useCallback((id: string, data: Partial<ItemEstoque>) => {
+    setState(prev => {
+      const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
+      const newData = {
+        ...currentData,
+        itens: currentData.itens.map(item =>
+          item.id === id ? { ...item, ...data } : item
+        ),
+      };
+      const newStatus = calculateSupplyChainStatus(newData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          supplychain: {
+            ...prev.modes.supplychain,
+            supplyChainData: newData,
+            status: newStatus,
+          },
+        },
+      };
+    });
+  }, []);
+
+  const removeSupplyItem = useCallback((id: string) => {
+    setState(prev => {
+      const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
+      const newData = {
+        ...currentData,
+        itens: currentData.itens.filter(item => item.id !== id),
+      };
+      const newStatus = calculateSupplyChainStatus(newData);
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          supplychain: {
+            ...prev.modes.supplychain,
+            supplyChainData: newData,
             status: newStatus,
           },
         },
@@ -986,6 +1072,7 @@ export function useFocusModes() {
     isLoading,
     // Exports para outros modos
     financeiroExports,
+    supplyExports,
     prioridadeSemana,
     scoreNegocio,
     // Ações básicas
@@ -1008,6 +1095,9 @@ export function useFocusModes() {
     updateMarketingData,
     // Supply Chain
     updateSupplyChainData,
+    addSupplyItem,
+    updateSupplyItem,
+    removeSupplyItem,
     // Pre-Reunião Geral
     updatePreReuniaoGeralData,
     // Pre-Reunião Ads

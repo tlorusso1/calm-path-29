@@ -43,6 +43,9 @@ const Index = () => {
     updateMarketingData,
     // Supply Chain
     updateSupplyChainData,
+    addSupplyItem,
+    updateSupplyItem,
+    removeSupplyItem,
     // Pre-Reunião Geral
     updatePreReuniaoGeralData,
     // Pre-Reunião Ads
@@ -126,6 +129,9 @@ const Index = () => {
             onUpdateMarketingData={updateMarketingData}
             // Supply Chain
             onUpdateSupplyChainData={updateSupplyChainData}
+            onAddSupplyItem={addSupplyItem}
+            onUpdateSupplyItem={updateSupplyItem}
+            onRemoveSupplyItem={removeSupplyItem}
             // Pre-Reunião Geral
             financeiroExports={financeiroExports}
             scoreNegocio={scoreNegocio}

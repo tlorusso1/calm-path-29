@@ -1,296 +1,400 @@
-import { FocusMode, SupplyChainStage, SupplyChainRitmo } from '@/types/focus-mode';
-import { Checkbox } from '@/components/ui/checkbox';
+import { useState } from 'react';
+import { FocusMode, SupplyChainStage, ItemEstoque, TipoEstoque, DEFAULT_SUPPLYCHAIN_DATA } from '@/types/focus-mode';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { 
+  Package, 
+  Plus, 
+  Trash2, 
+  AlertTriangle, 
+  CheckCircle2, 
+  Clock,
+  FileText,
+  Truck
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { 
+  processarSupply, 
+  TIPO_LABELS, 
+  REGRAS_COBERTURA,
+  calcularDiasAteVencimento,
+  parsearListaEstoque 
+} from '@/utils/supplyCalculator';
 
 interface SupplyChainModeProps {
   mode: FocusMode;
   onUpdateSupplyChainData: (data: Partial<SupplyChainStage>) => void;
+  onAddItem: (item: Omit<ItemEstoque, 'id'>) => void;
+  onUpdateItem: (id: string, data: Partial<ItemEstoque>) => void;
+  onRemoveItem: (id: string) => void;
 }
 
 export function SupplyChainMode({
   mode,
   onUpdateSupplyChainData,
+  onAddItem,
+  onUpdateItem,
+  onRemoveItem,
 }: SupplyChainModeProps) {
-  const defaultData: SupplyChainStage = {
-    ritmoAtual: 'semanal',
-    semanal: {
-      saidaEstoque: false,
-      verificarBling: false,
-      produtoForaPadrao: false,
-    },
-    quinzenal: {
-      planejamentoProducao: false,
-      producaoFazSentido: false,
-      ajustarSeNecessario: false,
-    },
-    mensal: {
-      saidaEstoqueMensal: false,
-      saldoFinalEstoque: false,
-      avaliarComportamento: false,
-    },
-  };
+  const [novoItem, setNovoItem] = useState({
+    nome: '',
+    tipo: 'produto_acabado' as TipoEstoque,
+    quantidade: '',
+    unidade: 'un',
+    demandaSemanal: '',
+    dataValidade: '',
+  });
+  const [textoColado, setTextoColado] = useState('');
+  const [tabAtiva, setTabAtiva] = useState('itens');
 
   const data: SupplyChainStage = {
-    ...defaultData,
+    ...DEFAULT_SUPPLYCHAIN_DATA,
     ...mode.supplyChainData,
-    semanal: {
-      ...defaultData.semanal,
-      ...mode.supplyChainData?.semanal,
-    },
-    quinzenal: {
-      ...defaultData.quinzenal,
-      ...mode.supplyChainData?.quinzenal,
-    },
-    mensal: {
-      ...defaultData.mensal,
-      ...mode.supplyChainData?.mensal,
-    },
   };
 
-  const handleRitmoChange = (ritmo: SupplyChainRitmo) => {
-    onUpdateSupplyChainData({ ritmoAtual: ritmo });
-  };
+  // Processar resumo
+  const resumo = processarSupply(data);
 
-  const handleSemanalChange = (key: keyof SupplyChainStage['semanal'], checked: boolean) => {
-    onUpdateSupplyChainData({
-      semanal: {
-        ...data.semanal,
-        [key]: checked,
-      },
+  const handleAddItem = () => {
+    if (!novoItem.nome.trim() || !novoItem.quantidade) return;
+
+    onAddItem({
+      nome: novoItem.nome.trim(),
+      tipo: novoItem.tipo,
+      quantidade: parseFloat(novoItem.quantidade) || 0,
+      unidade: novoItem.unidade,
+      demandaSemanal: novoItem.demandaSemanal ? parseFloat(novoItem.demandaSemanal) : undefined,
+      dataValidade: novoItem.dataValidade || undefined,
+    });
+
+    setNovoItem({
+      nome: '',
+      tipo: 'produto_acabado',
+      quantidade: '',
+      unidade: 'un',
+      demandaSemanal: '',
+      dataValidade: '',
     });
   };
 
-  const handleQuinzenalChange = (key: keyof SupplyChainStage['quinzenal'], checked: boolean) => {
-    onUpdateSupplyChainData({
-      quinzenal: {
-        ...data.quinzenal,
-        [key]: checked,
-      },
+  const handleColarLista = () => {
+    const itens = parsearListaEstoque(textoColado);
+    itens.forEach(item => {
+      if (item.nome && item.quantidade) {
+        onAddItem({
+          nome: item.nome,
+          tipo: item.tipo || 'produto_acabado',
+          quantidade: item.quantidade,
+          unidade: item.unidade || 'un',
+        });
+      }
     });
+    setTextoColado('');
   };
 
-  const handleMensalChange = (key: keyof SupplyChainStage['mensal'], checked: boolean) => {
-    onUpdateSupplyChainData({
-      mensal: {
-        ...data.mensal,
-        [key]: checked,
-      },
-    });
+  const getStatusIcon = (status: 'verde' | 'amarelo' | 'vermelho' | undefined) => {
+    switch (status) {
+      case 'verde': return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+      case 'amarelo': return <Clock className="h-4 w-4 text-yellow-500" />;
+      case 'vermelho': return <AlertTriangle className="h-4 w-4 text-destructive" />;
+      default: return null;
+    }
   };
 
-  const ritmoConfig = {
-    semanal: {
-      emoji: '🟢',
-      title: 'Semanal — Radar da Operação',
-      ancora: 'Semanal é radar, não decisão grande.',
-    },
-    quinzenal: {
-      emoji: '🟡',
-      title: 'Quinzenal — Ajuste de Produção',
-      ancora: 'Produção responde à demanda, não ao medo.',
-    },
-    mensal: {
-      emoji: '🔵',
-      title: 'Mensal — Base de Dados',
-      ancora: 'Decisão boa vem de dado consistente.',
-    },
+  const getStatusColor = (status: 'verde' | 'amarelo' | 'vermelho' | undefined) => {
+    switch (status) {
+      case 'verde': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+      case 'amarelo': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
+      case 'vermelho': return 'bg-destructive/10 text-destructive';
+      default: return 'bg-muted text-muted-foreground';
+    }
   };
 
-  const currentConfig = ritmoConfig[data.ritmoAtual];
+  // Processar itens com cobertura calculada
+  const itensProcessados = data.itens.map(item => {
+    const demanda = item.demandaSemanal ?? data.demandaSemanalMedia;
+    let coberturaDias: number | undefined;
+    let status: 'verde' | 'amarelo' | 'vermelho' | undefined;
+
+    if (demanda > 0) {
+      coberturaDias = Math.round(item.quantidade / (demanda / 7));
+      const regra = REGRAS_COBERTURA[item.tipo];
+      if (coberturaDias < regra.critico) status = 'vermelho';
+      else if (coberturaDias < regra.atencao) status = 'amarelo';
+      else status = 'verde';
+    }
+
+    return { ...item, coberturaDias, status };
+  });
 
   return (
     <div className="space-y-6">
-      {/* Seletor de Ritmo */}
-      <div className="flex gap-2">
-        {(['semanal', 'quinzenal', 'mensal'] as SupplyChainRitmo[]).map((ritmo) => (
-          <button
-            key={ritmo}
-            onClick={() => handleRitmoChange(ritmo)}
-            className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors capitalize ${
-              data.ritmoAtual === ritmo
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-background border-border hover:bg-muted'
-            }`}
-          >
-            {ritmoConfig[ritmo].emoji} {ritmo}
-          </button>
-        ))}
-      </div>
-
-      {/* Checklist do Ritmo Selecionado */}
-      <div className="p-4 rounded-lg bg-muted/30 border border-border space-y-4">
-        <h3 className="text-sm font-medium text-foreground">
-          {currentConfig.emoji} {currentConfig.title}
-        </h3>
-
-        {/* Semanal */}
-        {data.ritmoAtual === 'semanal' && (
-          <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="saidaEstoque"
-                checked={data.semanal.saidaEstoque}
-                onCheckedChange={(checked) => handleSemanalChange('saidaEstoque', checked as boolean)}
-                className="mt-0.5"
-              />
-              <div>
-                <Label htmlFor="saidaEstoque" className="text-sm cursor-pointer">
-                  Atualizar saída de estoque semanal
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Planilha: Saída de estoque mensal 2025
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Checkbox
-                id="verificarBling"
-                checked={data.semanal.verificarBling}
-                onCheckedChange={(checked) => handleSemanalChange('verificarBling', checked as boolean)}
-              />
-              <Label htmlFor="verificarBling" className="text-sm cursor-pointer">
-                Verificar estoque no Bling
-              </Label>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Checkbox
-                id="produtoForaPadrao"
-                checked={data.semanal.produtoForaPadrao}
-                onCheckedChange={(checked) => handleSemanalChange('produtoForaPadrao', checked as boolean)}
-              />
-              <Label htmlFor="produtoForaPadrao" className="text-sm cursor-pointer">
-                Algum produto com saída fora do padrão?
-              </Label>
-            </div>
+      {/* ========== DEMANDA SEMANAL ========== */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Truck className="h-4 w-4" />
+            Demanda Real (Base do Supply)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">
+              Pedidos/semana (média últimas 4 semanas)
+            </Label>
+            <Input
+              type="number"
+              placeholder="Ex: 200"
+              value={data.demandaSemanalMedia || ''}
+              onChange={(e) => onUpdateSupplyChainData({ 
+                demandaSemanalMedia: parseFloat(e.target.value) || 0 
+              })}
+              className="h-10"
+            />
+            <p className="text-xs text-muted-foreground italic">
+              Este valor é usado para calcular a cobertura de produtos acabados
+            </p>
           </div>
-        )}
+        </CardContent>
+      </Card>
 
-        {/* Quinzenal */}
-        {data.ritmoAtual === 'quinzenal' && (
-          <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="planejamentoProducao"
-                checked={data.quinzenal.planejamentoProducao}
-                onCheckedChange={(checked) => handleQuinzenalChange('planejamentoProducao', checked as boolean)}
-                className="mt-0.5"
-              />
-              <div>
-                <Label htmlFor="planejamentoProducao" className="text-sm cursor-pointer">
-                  Atualizar planejamento de produção
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Planilha: Planejamento de Produção – Nice Foods 2025
-                </p>
+      {/* ========== VISÃO EXECUTIVA ========== */}
+      <Card className={cn(
+        "border-2",
+        resumo.statusGeral === 'verde' ? 'border-green-500/30 bg-green-50/30 dark:bg-green-950/10' :
+        resumo.statusGeral === 'amarelo' ? 'border-yellow-500/30 bg-yellow-50/30 dark:bg-yellow-950/10' :
+        'border-destructive/30 bg-destructive/5'
+      )}>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            📊 Visão Executiva
+            <Badge className={cn("ml-auto", getStatusColor(resumo.statusGeral))}>
+              {resumo.statusGeral === 'verde' ? 'Saudável' :
+               resumo.statusGeral === 'amarelo' ? 'Atenção' : 'Crítico'}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            {/* Produtos */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Produtos Acabados</p>
+              <div className="flex items-center gap-2">
+                {getStatusIcon(resumo.coberturaProdutos !== null ? 
+                  (resumo.coberturaProdutos >= 30 ? 'verde' : resumo.coberturaProdutos >= 15 ? 'amarelo' : 'vermelho') 
+                  : undefined
+                )}
+                <span className="font-medium">
+                  {resumo.coberturaProdutos !== null ? `${resumo.coberturaProdutos}d` : '—'}
+                </span>
               </div>
             </div>
-            
-            <div className="flex items-center gap-3">
-              <Checkbox
-                id="producaoFazSentido"
-                checked={data.quinzenal.producaoFazSentido}
-                onCheckedChange={(checked) => handleQuinzenalChange('producaoFazSentido', checked as boolean)}
-              />
-              <Label htmlFor="producaoFazSentido" className="text-sm cursor-pointer">
-                Produção planejada ainda faz sentido?
-              </Label>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Checkbox
-                id="ajustarSeNecessario"
-                checked={data.quinzenal.ajustarSeNecessario}
-                onCheckedChange={(checked) => handleQuinzenalChange('ajustarSeNecessario', checked as boolean)}
-              />
-              <Label htmlFor="ajustarSeNecessario" className="text-sm cursor-pointer">
-                Ajustar se necessário
-              </Label>
-            </div>
-          </div>
-        )}
 
-        {/* Mensal */}
-        {data.ritmoAtual === 'mensal' && (
-          <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="saidaEstoqueMensal"
-                checked={data.mensal.saidaEstoqueMensal}
-                onCheckedChange={(checked) => handleMensalChange('saidaEstoqueMensal', checked as boolean)}
-                className="mt-0.5"
-              />
-              <div>
-                <Label htmlFor="saidaEstoqueMensal" className="text-sm cursor-pointer">
-                  Atualizar saída de estoque mensal
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Planilha: Saída de estoque mensal 2025
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="saldoFinalEstoque"
-                checked={data.mensal.saldoFinalEstoque}
-                onCheckedChange={(checked) => handleMensalChange('saldoFinalEstoque', checked as boolean)}
-                className="mt-0.5"
-              />
-              <div>
-                <Label htmlFor="saldoFinalEstoque" className="text-sm cursor-pointer">
-                  Conferir saldo final de estoque
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Relatório: Relatório de saldo em estoque 2025
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="avaliarComportamento"
-                checked={data.mensal.avaliarComportamento}
-                onCheckedChange={(checked) => handleMensalChange('avaliarComportamento', checked as boolean)}
-                className="mt-0.5"
-              />
-              <div>
-                <Label htmlFor="avaliarComportamento" className="text-sm cursor-pointer">
-                  Avaliar comportamento de produtos
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  (caiu / manteve / cresceu)
-                </p>
+            {/* Embalagens */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Embalagens</p>
+              <div className="flex items-center gap-2">
+                {getStatusIcon(resumo.coberturaEmbalagens !== null ? 
+                  (resumo.coberturaEmbalagens >= 60 ? 'verde' : resumo.coberturaEmbalagens >= 30 ? 'amarelo' : 'vermelho') 
+                  : undefined
+                )}
+                <span className="font-medium">
+                  {resumo.coberturaEmbalagens !== null ? `${resumo.coberturaEmbalagens}d` : '—'}
+                </span>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Texto âncora do ritmo */}
-        <p className="text-xs text-muted-foreground italic pt-2 border-t border-border">
-          "{currentConfig.ancora}"
+          {/* Alertas */}
+          {(resumo.itensCriticos.length > 0 || resumo.itensVencendo.length > 0) && (
+            <div className="pt-3 border-t border-border space-y-2">
+              {resumo.itensCriticos.length > 0 && (
+                <div className="flex items-start gap-2 text-sm">
+                  <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
+                  <div>
+                    <span className="font-medium text-destructive">Ruptura iminente:</span>
+                    <p className="text-muted-foreground">{resumo.itensCriticos.join(', ')}</p>
+                  </div>
+                </div>
+              )}
+              {resumo.itensVencendo.length > 0 && (
+                <div className="flex items-start gap-2 text-sm">
+                  <Clock className="h-4 w-4 text-yellow-500 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-yellow-600">Vencendo:</span>
+                    <p className="text-muted-foreground">{resumo.itensVencendo.join(', ')}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ========== GESTÃO DE ITENS ========== */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Package className="h-4 w-4" />
+            Itens do Estoque
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={tabAtiva} onValueChange={setTabAtiva}>
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="itens">Adicionar Item</TabsTrigger>
+              <TabsTrigger value="colar">Colar Lista</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="itens" className="space-y-4">
+              {/* Form de novo item */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <Input
+                    placeholder="Nome do item"
+                    value={novoItem.nome}
+                    onChange={(e) => setNovoItem(prev => ({ ...prev, nome: e.target.value }))}
+                  />
+                </div>
+                <Select 
+                  value={novoItem.tipo} 
+                  onValueChange={(v) => setNovoItem(prev => ({ ...prev, tipo: v as TipoEstoque }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="produto_acabado">Produto</SelectItem>
+                    <SelectItem value="embalagem">Embalagem</SelectItem>
+                    <SelectItem value="insumo">Insumo</SelectItem>
+                    <SelectItem value="materia_prima">Matéria-Prima</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Qtd"
+                    value={novoItem.quantidade}
+                    onChange={(e) => setNovoItem(prev => ({ ...prev, quantidade: e.target.value }))}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="un"
+                    value={novoItem.unidade}
+                    onChange={(e) => setNovoItem(prev => ({ ...prev, unidade: e.target.value }))}
+                    className="w-16"
+                  />
+                </div>
+                <Input
+                  type="number"
+                  placeholder="Demanda/sem (opcional)"
+                  value={novoItem.demandaSemanal}
+                  onChange={(e) => setNovoItem(prev => ({ ...prev, demandaSemanal: e.target.value }))}
+                />
+                <Input
+                  type="date"
+                  placeholder="Validade"
+                  value={novoItem.dataValidade}
+                  onChange={(e) => setNovoItem(prev => ({ ...prev, dataValidade: e.target.value }))}
+                />
+              </div>
+              <Button onClick={handleAddItem} className="w-full" size="sm">
+                <Plus className="h-4 w-4 mr-2" /> Adicionar Item
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="colar" className="space-y-3">
+              <Textarea
+                placeholder="Cole sua lista aqui...&#10;Formato: Nome | Tipo | Quantidade | Unidade&#10;Ou: Nome - 450un"
+                value={textoColado}
+                onChange={(e) => setTextoColado(e.target.value)}
+                rows={5}
+              />
+              <Button onClick={handleColarLista} className="w-full" size="sm" disabled={!textoColado.trim()}>
+                <FileText className="h-4 w-4 mr-2" /> Importar Lista
+              </Button>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* ========== LISTA DE ITENS ========== */}
+      {itensProcessados.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>Estoque Atual ({itensProcessados.length} itens)</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="max-h-[300px]">
+              <div className="space-y-2">
+                {itensProcessados.map((item) => {
+                  const diasVenc = calcularDiasAteVencimento(item.dataValidade);
+                  
+                  return (
+                    <div 
+                      key={item.id}
+                      className={cn(
+                        "flex items-center justify-between p-3 rounded-lg border",
+                        item.status === 'vermelho' ? 'border-destructive/50 bg-destructive/5' :
+                        item.status === 'amarelo' ? 'border-yellow-500/50 bg-yellow-50/50 dark:bg-yellow-950/10' :
+                        'border-border'
+                      )}
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {getStatusIcon(item.status)}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm truncate">{item.nome}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Badge variant="outline" className="text-[10px]">
+                              {TIPO_LABELS[item.tipo]}
+                            </Badge>
+                            <span>{item.quantidade} {item.unidade}</span>
+                            {item.coberturaDias !== undefined && (
+                              <span className="font-medium">• {item.coberturaDias}d</span>
+                            )}
+                            {diasVenc !== null && diasVenc < 60 && (
+                              <span className={cn(
+                                "font-medium",
+                                diasVenc < 30 ? "text-destructive" : "text-yellow-600"
+                              )}>
+                                • Vence em {diasVenc}d
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onRemoveItem(item.id)}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ========== TEXTO ÂNCORA ========== */}
+      <div className="p-4 bg-muted/30 rounded-lg border border-border">
+        <p className="text-xs text-muted-foreground italic text-center">
+          "Supply não olha clique. Supply olha saída real."
         </p>
       </div>
-
-      {/* Padrão de preenchimento - apenas no mensal */}
-      {data.ritmoAtual === 'mensal' && (
-        <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
-          <h4 className="text-xs font-medium text-foreground">
-            📋 Padrão de Preenchimento
-          </h4>
-          
-          <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-            <li>Preencher aba Ecommerce (coluna A-B)</li>
-            <li>Preencher aba Atacado (coluna A-B)</li>
-            <li>Atualizar aba TOTAL (puxar fórmulas da C para B)</li>
-          </ol>
-          
-          <p className="text-xs font-medium text-foreground italic pt-2 border-t border-border">
-            "Sempre seguir este padrão. Não improvisar."
-          </p>
-        </div>
-      )}
     </div>
   );
 }
