@@ -1168,6 +1168,32 @@ export function useFocusModes() {
     });
   }, []);
 
+  const updateBacklogIdeia = useCallback((id: string, texto: string) => {
+    setState(prev => {
+      const currentBacklog = prev.modes.backlog.backlogData ?? {
+        tempoDisponivelHoje: 480,
+        tarefas: [],
+        ideias: [],
+      };
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          backlog: {
+            ...prev.modes.backlog,
+            backlogData: {
+              ...currentBacklog,
+              ideias: (currentBacklog.ideias || []).map(ideia =>
+                ideia.id === id ? { ...ideia, texto } : ideia
+              ),
+            },
+          },
+        },
+      };
+    });
+  }, []);
+
 
   return {
     activeMode: state.activeMode,
@@ -1217,6 +1243,7 @@ export function useFocusModes() {
     updateBacklogTarefa,
     removeBacklogTarefa,
     addBacklogIdeia,
+    updateBacklogIdeia,
     removeBacklogIdeia,
   };
 }

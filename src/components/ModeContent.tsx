@@ -49,6 +49,7 @@ interface ModeContentProps {
   onUpdateBacklogTarefa?: (id: string, data: Partial<BacklogTarefa>) => void;
   onRemoveBacklogTarefa?: (id: string) => void;
   onAddBacklogIdeia?: (texto: string) => void;
+  onUpdateBacklogIdeia?: (id: string, texto: string) => void;
   onRemoveBacklogIdeia?: (id: string) => void;
 }
 
@@ -85,6 +86,7 @@ export function ModeContent({
   onUpdateBacklogTarefa,
   onRemoveBacklogTarefa,
   onAddBacklogIdeia,
+  onUpdateBacklogIdeia,
   onRemoveBacklogIdeia,
 }: ModeContentProps) {
   const renderModeContent = () => {
@@ -162,6 +164,7 @@ export function ModeContent({
             onUpdateTarefa={onUpdateBacklogTarefa!}
             onRemoveTarefa={onRemoveBacklogTarefa!}
             onAddIdeia={onAddBacklogIdeia!}
+            onUpdateIdeia={onUpdateBacklogIdeia!}
             onRemoveIdeia={onRemoveBacklogIdeia!}
           />
         );

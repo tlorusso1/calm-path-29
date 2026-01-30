@@ -60,6 +60,7 @@ const Index = () => {
     updateBacklogTarefa,
     removeBacklogTarefa,
     addBacklogIdeia,
+    updateBacklogIdeia,
     removeBacklogIdeia,
   } = useFocusModes();
 
@@ -150,6 +151,7 @@ const Index = () => {
             onUpdateBacklogTarefa={updateBacklogTarefa}
             onRemoveBacklogTarefa={removeBacklogTarefa}
             onAddBacklogIdeia={addBacklogIdeia}
+            onUpdateBacklogIdeia={updateBacklogIdeia}
             onRemoveBacklogIdeia={removeBacklogIdeia}
           />
         ) : (

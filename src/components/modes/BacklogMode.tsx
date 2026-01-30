@@ -15,6 +15,7 @@ interface BacklogModeProps {
   onUpdateTarefa: (id: string, data: Partial<BacklogTarefa>) => void;
   onRemoveTarefa: (id: string) => void;
   onAddIdeia: (texto: string) => void;
+  onUpdateIdeia: (id: string, texto: string) => void;
   onRemoveIdeia: (id: string) => void;
 }
 
@@ -54,6 +55,7 @@ export function BacklogMode({
   onUpdateTarefa,
   onRemoveTarefa,
   onAddIdeia,
+  onUpdateIdeia,
   onRemoveIdeia,
 }: BacklogModeProps) {
   const [novaTarefa, setNovaTarefa] = useState('');
@@ -204,12 +206,14 @@ export function BacklogMode({
                     onCheckedChange={() => onUpdateTarefa(tarefa.id, { completed: !tarefa.completed })}
                     className="mt-0.5"
                   />
-                  <span className={cn(
-                    "flex-1 text-sm",
-                    tarefa.completed && "line-through text-muted-foreground"
-                  )}>
-                    {tarefa.descricao}
-                  </span>
+                  <Input
+                    value={tarefa.descricao}
+                    onChange={(e) => onUpdateTarefa(tarefa.id, { descricao: e.target.value })}
+                    className={cn(
+                      "flex-1 text-sm h-7 border-none shadow-none px-1 bg-transparent focus-visible:ring-1",
+                      tarefa.completed && "line-through text-muted-foreground"
+                    )}
+                  />
                   <Button
                     variant="ghost"
                     size="icon"
@@ -310,7 +314,12 @@ export function BacklogMode({
                 key={ideia.id}
                 className="flex items-center gap-2 p-2 bg-background rounded border"
               >
-                <span className="text-sm flex-1">• {ideia.texto}</span>
+                <span className="text-sm text-muted-foreground">•</span>
+                <Input
+                  value={ideia.texto}
+                  onChange={(e) => onUpdateIdeia(ideia.id, e.target.value)}
+                  className="flex-1 text-sm h-7 border-none shadow-none px-1 bg-transparent focus-visible:ring-1"
+                />
                 <Button
                   variant="ghost"
                   size="icon"
