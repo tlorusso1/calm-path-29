@@ -195,6 +195,69 @@ export function calculateMarketingStatusSimples(verificacoes?: MarketingStage['v
   return { status: 'dependente', checks };
 }
 
+// ============= Termômetro Orgânico =============
+export interface MarketingOrganicoResult {
+  scoreOrganico: number;
+  statusOrganico: 'forte' | 'medio' | 'fraco';
+  recomendacaoAds: string;
+  detalhes: {
+    emailScore: number;
+    influencerScore: number;
+    socialScore: number;
+  };
+}
+
+export function calculateMarketingOrganico(organico?: MarketingStage['organico']): MarketingOrganicoResult {
+  if (!organico) {
+    return {
+      scoreOrganico: 0,
+      statusOrganico: 'fraco',
+      recomendacaoAds: 'Ads compensa: mais topo de funil e remarketing',
+      detalhes: { emailScore: 0, influencerScore: 0, socialScore: 0 },
+    };
+  }
+  
+  // E-mail: enviado + clique/venda = 30 pontos
+  const emailEnviados = parseInt(organico.emailEnviados) || 0;
+  const emailScore = (emailEnviados > 0 && organico.emailGerouClique) ? 30 : 0;
+  
+  // Influencer: conteúdo no ar + link ativo = 30 pontos
+  const influencersAtivos = organico.influencers.filter(
+    inf => inf.conteudoNoAr && inf.linkCupomAtivo
+  ).length;
+  const influencerScore = influencersAtivos > 0 ? 30 : 0;
+  
+  // Social: alcance >= média = 40 pontos
+  const alcanceTotal = parseCurrency(organico.alcanceTotal);
+  const alcanceMedia = parseCurrency(organico.alcanceMediaSemanas);
+  const socialScore = (alcanceTotal > 0 && alcanceTotal >= alcanceMedia) ? 40 : 
+                      (alcanceTotal > 0 && alcanceTotal >= alcanceMedia * 0.7) ? 20 : 0;
+  
+  const scoreOrganico = emailScore + influencerScore + socialScore;
+  
+  // Status baseado no score
+  let statusOrganico: 'forte' | 'medio' | 'fraco';
+  let recomendacaoAds: string;
+  
+  if (scoreOrganico >= 70) {
+    statusOrganico = 'forte';
+    recomendacaoAds = 'Ads pode focar em remarketing. Menos pressão em topo de funil.';
+  } else if (scoreOrganico >= 40) {
+    statusOrganico = 'medio';
+    recomendacaoAds = 'Ads mantém estrutura atual. Testes pontuais.';
+  } else {
+    statusOrganico = 'fraco';
+    recomendacaoAds = 'Ads compensa: mais topo de funil e remarketing.';
+  }
+  
+  return {
+    scoreOrganico,
+    statusOrganico,
+    recomendacaoAds,
+    detalhes: { emailScore, influencerScore, socialScore },
+  };
+}
+
 // ============= Calculadores de Status por Modo =============
 
 /**
