@@ -23,6 +23,7 @@ const Index = () => {
     isLoading,
     financeiroExports,
     prioridadeSemana,
+    marketingExports,
     setActiveMode,
     toggleItemComplete,
     setItemClassification,
@@ -129,6 +130,7 @@ const Index = () => {
             onUpdatePreReuniaoGeralData={updatePreReuniaoGeralData}
             // Pre-Reunião Ads
             prioridadeSemana={prioridadeSemana}
+            marketingExports={marketingExports}
             onUpdatePreReuniaoAdsData={updatePreReuniaoAdsData}
             // Reunião Ads
             onUpdateReuniaoAdsData={updateReuniaoAdsData}

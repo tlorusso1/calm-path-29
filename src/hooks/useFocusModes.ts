@@ -359,6 +359,12 @@ export function useFocusModes() {
 
   const financeiroExports = useMemo(() => getFinanceiroExports(), [getFinanceiroExports]);
 
+  // ============= Marketing Exports (para Pre-Reunião Ads) =============
+  const marketingExports = useMemo(() => {
+    const marketing = state.modes.marketing?.marketingData;
+    return calculateMarketingOrganico(marketing?.organico);
+  }, [state.modes.marketing?.marketingData]);
+
   // ============= Prioridade da Semana (de Pre-Reuniao Geral) =============
   const prioridadeSemana = useMemo(() => 
     state.modes['pre-reuniao-geral']?.preReuniaoGeralData?.decisaoSemana ?? null,
@@ -997,6 +1003,7 @@ export function useFocusModes() {
     // Pre-Reunião Geral
     updatePreReuniaoGeralData,
     // Pre-Reunião Ads
+    marketingExports,
     updatePreReuniaoAdsData,
     // Reunião Ads
     updateReuniaoAdsData,
