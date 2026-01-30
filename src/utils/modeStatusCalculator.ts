@@ -144,15 +144,37 @@ export function calcTermometroRisco(
 }
 
 // ============= Leitura Combinada Automática =============
+// contextType pode ser 'estoque' (para Pre-Reunião Geral) ou 'organico' (para Pre-Reunião Ads)
 export function getLeituraCombinada(
   statusFinanceiro: string,
-  coberturaEstoque: string | null,
-  roasStatus: 'verde' | 'amarelo' | 'vermelho'
+  contextValue: string | null,
+  roasStatus: 'verde' | 'amarelo' | 'vermelho',
+  contextType: 'estoque' | 'organico' = 'estoque'
 ): string {
   if (statusFinanceiro === 'sobrevivencia') 
     return 'Modo sobrevivência. Foco total em caixa.';
   
-  const estoqueOk = coberturaEstoque === 'mais30' || coberturaEstoque === '15a30';
+  if (contextType === 'organico') {
+    // Leitura para Pre-Reunião Ads (baseada em orgânico)
+    const organicoForte = contextValue === 'forte';
+    const organicoMedio = contextValue === 'medio';
+    
+    if (statusFinanceiro === 'estrategia' && organicoForte && roasStatus === 'verde') 
+      return 'Orgânico forte + Ads saudável. Pode focar em remarketing e conversão.';
+    if (statusFinanceiro === 'estrategia' && !organicoForte && roasStatus === 'verde') 
+      return 'Orgânico fraco. Ads deve compensar com mais topo de funil.';
+    if (statusFinanceiro === 'estrategia' && roasStatus !== 'verde') 
+      return 'Caixa permite, mas performance de Ads precisa melhorar.';
+    if (statusFinanceiro === 'atencao' && organicoForte) 
+      return 'Financeiro em atenção, mas orgânico ajuda. Manter cautela.';
+    if (statusFinanceiro === 'atencao' && !organicoForte) 
+      return 'Financeiro em atenção + orgânico fraco. Evitar escalar.';
+    
+    return 'Avaliar contexto antes de decidir Ads.';
+  }
+  
+  // Leitura para Pre-Reunião Geral (baseada em estoque)
+  const estoqueOk = contextValue === 'mais30' || contextValue === '15a30';
   
   if (statusFinanceiro === 'estrategia' && estoqueOk && roasStatus === 'verde') 
     return 'Caixa e estoque saudáveis. Pode acelerar.';

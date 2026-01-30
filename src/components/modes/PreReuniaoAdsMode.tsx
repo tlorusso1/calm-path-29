@@ -1,16 +1,17 @@
-import { FocusMode, PreReuniaoAdsStage, FinanceiroExports, DEFAULT_PREREUNIAO_ADS_DATA } from '@/types/focus-mode';
+import { FocusMode, PreReuniaoAdsStage, FinanceiroExports, MarketingExports, DEFAULT_PREREUNIAO_ADS_DATA } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { Target, Lock, TrendingUp } from 'lucide-react';
+import { Target, Lock, TrendingUp, Leaf, AlertTriangle } from 'lucide-react';
 import { formatCurrency, parseCurrency, getRoasStatus, getCpaStatus, getLeituraCombinada, MARGEM_OPERACIONAL } from '@/utils/modeStatusCalculator';
 
 interface PreReuniaoAdsModeProps {
   mode: FocusMode;
   financeiroExports: FinanceiroExports;
   prioridadeSemana: string | null;
+  marketingExports: MarketingExports;
   onUpdatePreReuniaoAdsData: (data: Partial<PreReuniaoAdsStage>) => void;
 }
 
@@ -34,6 +35,7 @@ export function PreReuniaoAdsMode({
   mode,
   financeiroExports,
   prioridadeSemana,
+  marketingExports,
   onUpdatePreReuniaoAdsData,
 }: PreReuniaoAdsModeProps) {
   // Merge com defaults
@@ -54,15 +56,42 @@ export function PreReuniaoAdsMode({
   const cpaMaximo = ticketValue * MARGEM_OPERACIONAL;
   const cpaPercentual = cpaMaximo > 0 ? (cpaValue / cpaMaximo) * 100 : 0;
 
-  // Leitura combinada
+  // Leitura combinada (agora inclui orgânico)
   const leitura = getLeituraCombinada(
     financeiroExports.statusFinanceiro,
-    null, // estoque não está aqui
-    roasStatus
+    marketingExports.statusOrganico,
+    roasStatus,
+    'organico'
   );
 
   // Verificar se escalar está bloqueado
-  const escalarBloqueado = prioridadeSemana === 'preservar_caixa';
+  // Bloqueado se: prioridade = preservar_caixa OU (orgânico fraco + financeiro atenção)
+  const organicoFraco = marketingExports.statusOrganico === 'fraco';
+  const financeiroAtencao = financeiroExports.statusFinanceiro === 'atencao';
+  const financeiroSobrevivencia = financeiroExports.statusFinanceiro === 'sobrevivencia';
+  
+  const escalarBloqueado = 
+    prioridadeSemana === 'preservar_caixa' ||
+    financeiroSobrevivencia ||
+    (organicoFraco && financeiroAtencao);
+  
+  const motivoBloqueio = financeiroSobrevivencia 
+    ? 'Bloqueado: financeiro em sobrevivência'
+    : prioridadeSemana === 'preservar_caixa'
+    ? 'Bloqueado: prioridade é preservar caixa'
+    : (organicoFraco && financeiroAtencao)
+    ? 'Bloqueado: orgânico fraco + financeiro em atenção'
+    : null;
+
+  // Recomendação baseada no orgânico
+  const getRecomendacaoOrganico = () => {
+    if (marketingExports.statusOrganico === 'fraco') {
+      return 'Ads deve compensar com mais topo de funil';
+    } else if (marketingExports.statusOrganico === 'forte') {
+      return 'Ads pode focar em remarketing e conversão';
+    }
+    return 'Manter distribuição equilibrada';
+  };
 
   // Calcular orçamentos se decisão for escalar ou manter
   const gastoAtual = parseCurrency(data.gastoAdsAtual);
@@ -105,6 +134,89 @@ export function PreReuniaoAdsMode({
           </div>
         </CardContent>
       </Card>
+
+      {/* ========== STATUS DO MARKETING (SEGUNDA) ========== */}
+      <Card className={cn(
+        "border-l-4",
+        marketingExports.statusOrganico === 'forte' ? 'border-l-green-500' :
+        marketingExports.statusOrganico === 'medio' ? 'border-l-yellow-500' :
+        'border-l-destructive'
+      )}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Leaf className="h-4 w-4" />
+            Status do Marketing (segunda)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="space-y-1">
+              <span className={cn(
+                "block text-lg font-bold",
+                marketingExports.statusOrganico === 'forte' ? 'text-green-600' :
+                marketingExports.statusOrganico === 'medio' ? 'text-yellow-600' :
+                'text-destructive'
+              )}>
+                {marketingExports.scoreOrganico}
+              </span>
+              <span className="text-xs text-muted-foreground">Orgânico</span>
+            </div>
+            <div className="space-y-1">
+              <span className={cn(
+                "block text-lg font-bold",
+                marketingExports.statusDemanda === 'forte' ? 'text-green-600' :
+                marketingExports.statusDemanda === 'neutro' ? 'text-yellow-600' :
+                'text-destructive'
+              )}>
+                {marketingExports.scoreDemanda}
+              </span>
+              <span className="text-xs text-muted-foreground">Demanda</span>
+            </div>
+            <div className="space-y-1">
+              <span className={cn(
+                "block text-lg font-bold",
+                marketingExports.statusSessoes === 'forte' ? 'text-green-600' :
+                marketingExports.statusSessoes === 'neutro' ? 'text-yellow-600' :
+                'text-destructive'
+              )}>
+                {marketingExports.scoreSessoes > 0 ? `+${marketingExports.scoreSessoes}%` : 
+                 marketingExports.scoreSessoes < 0 ? `${marketingExports.scoreSessoes}%` : '—'}
+              </span>
+              <span className="text-xs text-muted-foreground">Sessões</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 text-sm">
+            <span className={cn(
+              "px-2 py-0.5 rounded text-xs font-medium",
+              marketingExports.statusOrganico === 'forte' ? 'bg-green-100 text-green-600' :
+              marketingExports.statusOrganico === 'medio' ? 'bg-yellow-100 text-yellow-600' :
+              'bg-destructive/10 text-destructive'
+            )}>
+              {marketingExports.statusOrganico === 'forte' ? '🟢 Orgânico Forte' :
+               marketingExports.statusOrganico === 'medio' ? '🟡 Orgânico Médio' :
+               '🔴 Orgânico Fraco'}
+            </span>
+          </div>
+          
+          <p className="text-xs text-muted-foreground italic border-t pt-2">
+            💡 {getRecomendacaoOrganico()}
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* ========== ALERTA DE BLOQUEIO ========== */}
+      {escalarBloqueado && (
+        <Card className="bg-destructive/5 border-destructive/30">
+          <CardContent className="p-3 flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-destructive">{motivoBloqueio}</p>
+              <p className="text-xs text-muted-foreground">Escalar Ads está bloqueado esta semana</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ========== INPUTS DE PERFORMANCE ========== */}
       <Card>
@@ -296,7 +408,7 @@ export function PreReuniaoAdsMode({
                   {escalarBloqueado && <Lock className="h-3 w-3 text-muted-foreground" />}
                 </span>
                 <p className="text-xs text-muted-foreground">
-                  {escalarBloqueado ? 'Bloqueado: prioridade é preservar caixa' : 'Aumentar investimento'}
+                  {escalarBloqueado ? motivoBloqueio : 'Aumentar investimento'}
                 </p>
               </Label>
             </div>
