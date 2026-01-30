@@ -1,352 +1,234 @@
 
-# Painel Visual de Fluxo de Caixa - 30 dias
 
-## Visão Geral
+# Histórico de Métricas — Série Temporal Comparável
 
-Transformar o modo Financeiro em um painel visual de fluxo de caixa simplificado, focado em projeção de 30 dias com feedback visual claro.
+## Objetivo
+
+Guardar as métricas-chave de cada semana para permitir análise de tendência ao longo de meses: "Estou melhor ou pior do que há 4 semanas?"
+
+---
+
+## O Que Será Salvo (Snapshot Semanal)
+
+Toda segunda-feira, antes de resetar os dados semanais, o sistema salva automaticamente:
+
+| Categoria | Métricas Salvas |
+|-----------|-----------------|
+| **Financeiro** | caixaLivreReal, statusFinanceiro, scoreFinanceiro, resultadoMes, totalDefasados, adsMaximo |
+| **Ads** | roasMedio7d, cpaMedio, ticketMedio, gastoAds, decisaoSemana |
+| **Demanda** | scoreDemanda, statusDemanda, scoreSessoes, sessoesSemana |
+| **Organico** | scoreOrganico, statusOrganico |
+| **Decisao** | prioridadeSemana, registroDecisao |
+
+---
+
+## Arquitetura
 
 ```text
-┌─────────────────────────────────────────────────────┐
-│  📊 PREVISÃO DE CAIXA — 30 DIAS                     │
-├─────────────────────────────────────────────────────┤
-│  1. CAIXA ATUAL                                     │
-│     NICE FOODS          R$ ________                 │
-│     NICE FOODS ECOM     R$ ________                 │
-│     ─────────────────────────────                   │
-│     TOTAL CAIXA         R$ XX.XXX                   │
-├─────────────────────────────────────────────────────┤
-│  2. ENTRADAS PREVISTAS                              │
-│     Entrada média conservadora    R$ ________       │
-│     Entradas já garantidas        R$ ________       │
-│     ─────────────────────────────                   │
-│     TOTAL ENTRADAS                R$ XX.XXX        │
-├─────────────────────────────────────────────────────┤
-│  3. SAÍDAS INEVITÁVEIS                              │
-│     Custos fixos mensais          R$ ________       │
-│     Operação mínima               R$ ________       │
-│     Impostos estimados            R$ ________       │
-│     ─────────────────────────────                   │
-│     TOTAL SAÍDAS                  R$ XX.XXX        │
-├─────────────────────────────────────────────────────┤
-│  4. RESULTADO                                       │
-│     Saldo projetado = Caixa + Entradas - Saídas    │
-│                                                     │
-│     ████████████████████░░░░ R$ 42.000 (Verde)     │
-│                                                     │
-│  5. COMPARATIVO VISUAL                              │
-│     Caixa Hoje    ██████████████ R$ 57.000         │
-│     Projetado     ██████████░░░░ R$ 42.000         │
-└─────────────────────────────────────────────────────┘
+focus_mode_states (atual)
+       |
+       | Snapshot automático toda segunda
+       v
+weekly_snapshots (NOVA TABELA)
+       |
+       | 1 registro por semana por usuário
+       v
+Visualização de tendência
 ```
 
 ---
 
-## Mudanças no Modelo de Dados
+## Mudanças no Banco
 
-### Interface `FinanceiroStage` atualizada
+### Nova Tabela: `weekly_snapshots`
 
-Novos campos a adicionar:
+```sql
+CREATE TABLE weekly_snapshots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  week_start DATE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  
+  -- Financeiro
+  caixa_livre_real NUMERIC,
+  status_financeiro TEXT,
+  score_financeiro INTEGER,
+  resultado_mes NUMERIC,
+  total_defasados NUMERIC,
+  ads_maximo NUMERIC,
+  
+  -- Ads
+  roas_medio NUMERIC,
+  cpa_medio NUMERIC,
+  ticket_medio NUMERIC,
+  gasto_ads NUMERIC,
+  decisao_ads TEXT,
+  
+  -- Demanda
+  score_demanda INTEGER,
+  status_demanda TEXT,
+  score_sessoes INTEGER,
+  sessoes_semana NUMERIC,
+  
+  -- Organico
+  score_organico INTEGER,
+  status_organico TEXT,
+  
+  -- Decisao
+  prioridade_semana TEXT,
+  registro_decisao TEXT,
+  
+  UNIQUE(user_id, week_start)
+);
+```
 
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `entradaMediaConservadora` | string | Entrada média conservadora do mês |
-| `entradasGarantidas` | string | Entradas já garantidas |
-| `custosFixosMensais` | string | Custos fixos mensais |
-| `operacaoMinima` | string | Custo de operação mínima |
-| `impostosEstimados` | string | Impostos estimados |
+### RLS Policies
 
-O campo `saidasInevitaveis` será **removido** (substituído pelos 3 campos detalhados acima).
+```sql
+ALTER TABLE weekly_snapshots ENABLE ROW LEVEL SECURITY;
 
----
+CREATE POLICY "Users can view their own snapshots"
+  ON weekly_snapshots FOR SELECT
+  USING (auth.uid() = user_id);
 
-## Cálculos Automáticos
-
-```text
-TOTAL CAIXA = caixaNiceFoods + caixaEcommerce
-
-TOTAL ENTRADAS = entradaMediaConservadora + entradasGarantidas
-
-TOTAL SAÍDAS = custosFixosMensais + operacaoMinima + impostosEstimados
-
-SALDO PROJETADO = TOTAL CAIXA + TOTAL ENTRADAS - TOTAL SAÍDAS
+CREATE POLICY "Users can insert their own snapshots"
+  ON weekly_snapshots FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
 ```
 
 ---
 
-## Status Visual do Saldo
+## Mudanças no Codigo
 
-| Condição | Cor | Status |
-|----------|-----|--------|
-| Saldo >= R$ 50.000 | Verde | Confortável |
-| Saldo >= R$ 20.000 e < R$ 50.000 | Amarelo | Atenção |
-| Saldo > R$ 0 e < R$ 20.000 | Laranja | Risco |
-| Saldo <= R$ 0 | Vermelho | Crítico |
+### 1. Hook `useFocusModes.ts`
 
----
+Adicionar funcao `saveWeeklySnapshot`:
 
-## Gráfico Comparativo
-
-Mostrar duas barras horizontais lado a lado:
-
-```text
-Caixa Hoje     ████████████████████████░░░░░░  R$ 57.000
-Saldo Projetado ████████████████░░░░░░░░░░░░░░  R$ 42.000
+```typescript
+const saveWeeklySnapshot = useCallback(async (prevWeekStart: string) => {
+  if (!user) return;
+  
+  const finExports = calculateFinanceiroV2(state.modes.financeiro.financeiroData);
+  const preAds = state.modes['pre-reuniao-ads'].preReuniaoAdsData;
+  const preGeral = state.modes['pre-reuniao-geral'].preReuniaoGeralData;
+  const marketing = state.modes.marketing.marketingData;
+  const organico = calculateMarketingOrganico(marketing?.organico);
+  
+  const snapshot = {
+    user_id: user.id,
+    week_start: prevWeekStart,
+    caixa_livre_real: finExports.caixaLivreReal,
+    status_financeiro: finExports.statusFinanceiro,
+    score_financeiro: finExports.scoreFinanceiro,
+    resultado_mes: finExports.resultadoMes,
+    total_defasados: finExports.totalDefasados,
+    ads_maximo: finExports.adsMaximoPermitido,
+    roas_medio: parseFloat(preAds?.roasMedio7d || '0'),
+    cpa_medio: parseCurrency(preAds?.cpaMedio || ''),
+    ticket_medio: parseCurrency(preAds?.ticketMedio || ''),
+    gasto_ads: parseCurrency(preAds?.gastoAdsAtual || ''),
+    decisao_ads: preAds?.decisaoSemana,
+    score_demanda: organico.scoreDemanda,
+    status_demanda: organico.statusDemanda,
+    score_sessoes: organico.scoreSessoes,
+    sessoes_semana: parseCurrency(marketing?.organico?.sessoesSemana || ''),
+    score_organico: organico.scoreOrganico,
+    status_organico: organico.statusOrganico,
+    prioridade_semana: preGeral?.decisaoSemana,
+    registro_decisao: preGeral?.registroDecisao,
+  };
+  
+  await supabase.from('weekly_snapshots').upsert([snapshot], {
+    onConflict: 'user_id,week_start'
+  });
+}, [user, state]);
 ```
 
-- Barra proporcional ao valor máximo entre os dois
-- Cores diferentes para cada barra (azul para atual, cor do status para projetado)
+### 2. Modificar `processLoadedState`
+
+Antes de resetar os modos semanais, disparar o snapshot:
+
+```typescript
+// Reset weekly modes if new week
+if (state.weekStart !== currentWeekStart) {
+  // SALVAR SNAPSHOT ANTES DE RESETAR
+  await saveWeeklySnapshot(state.weekStart);
+  
+  // Resetar modos semanais
+  (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
+    if (MODE_CONFIGS[id].frequency === 'weekly') {
+      updatedModes[id] = createDefaultMode(id);
+    }
+  });
+}
+```
+
+### 3. Novo Hook: `useWeeklyHistory.ts`
+
+```typescript
+export function useWeeklyHistory(weeks: number = 12) {
+  const { user } = useAuth();
+  const [history, setHistory] = useState<WeeklySnapshot[]>([]);
+  
+  useEffect(() => {
+    if (!user) return;
+    
+    supabase
+      .from('weekly_snapshots')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('week_start', { ascending: false })
+      .limit(weeks)
+      .then(({ data }) => setHistory(data || []));
+  }, [user, weeks]);
+  
+  return history;
+}
+```
+
+### 4. Componente de Visualizacao (Futuro)
+
+Componente simples com graficos de tendencia usando Recharts (ja instalado):
+
+- Linha temporal de Caixa Livre Real
+- Linha temporal de Score de Demanda
+- Linha temporal de ROAS
+- Indicadores de decisao por semana
 
 ---
+
+## Arquivos a Criar
+
+| Arquivo | Descricao |
+|---------|-----------|
+| `src/hooks/useWeeklyHistory.ts` | Hook para buscar historico |
+| `src/components/HistoryDashboard.tsx` | Visualizacao de tendencias (fase 2) |
 
 ## Arquivos a Modificar
 
-### 1. `src/types/focus-mode.ts`
-
-```typescript
-export interface FinanceiroStage {
-  // Caixa separado por empresa
-  caixaNiceFoods: string;
-  caixaEcommerce: string;
-  
-  // NOVOS: Entradas previstas
-  entradaMediaConservadora: string;
-  entradasGarantidas: string;
-  
-  // NOVOS: Saídas detalhadas (substitui saidasInevitaveis)
-  custosFixosMensais: string;
-  operacaoMinima: string;
-  impostosEstimados: string;
-  
-  // Verificações simplificadas (mantido)
-  vencimentos: {
-    dda: boolean;
-    email: boolean;
-    whatsapp: boolean;
-    planilha: boolean;
-  };
-  
-  // Itens de vencimento (mantido)
-  itensVencimento: ChecklistItem[];
-  
-  // Agendamento (mantido)
-  agendamentoConfirmado: boolean;
-  
-  // Decisões como texto livre (mantido)
-  decisaoPagar: string;
-  decisaoSegurar: string;
-  decisaoRenegociar: string;
-}
-```
-
-Atualizar `DEFAULT_FINANCEIRO_DATA`:
-
-```typescript
-export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
-  caixaNiceFoods: '',
-  caixaEcommerce: '',
-  entradaMediaConservadora: '',
-  entradasGarantidas: '',
-  custosFixosMensais: '',
-  operacaoMinima: '',
-  impostosEstimados: '',
-  vencimentos: { ... },
-  itensVencimento: [],
-  agendamentoConfirmado: false,
-  decisaoPagar: '',
-  decisaoSegurar: '',
-  decisaoRenegociar: '',
-};
-```
-
-### 2. `src/components/modes/FinanceiroMode.tsx`
-
-Reestruturar completamente para o novo layout:
-
-```text
-SEÇÃO: Previsão de Caixa — 30 dias
-├── Card principal com borda destacada
-│
-├── Bloco 1: CAIXA ATUAL
-│   ├── Input: NICE FOODS
-│   ├── Input: NICE FOODS ECOM
-│   └── TOTAL CAIXA (calculado)
-│
-├── Bloco 2: ENTRADAS PREVISTAS
-│   ├── Input: Entrada média conservadora
-│   ├── Input: Entradas já garantidas
-│   └── TOTAL ENTRADAS (calculado)
-│
-├── Bloco 3: SAÍDAS INEVITÁVEIS
-│   ├── Input: Custos fixos mensais
-│   ├── Input: Operação mínima
-│   ├── Input: Impostos estimados
-│   └── TOTAL SAÍDAS (calculado)
-│
-├── Bloco 4: RESULTADO
-│   ├── Saldo projetado (calculado)
-│   ├── Barra de progresso colorida
-│   └── Status textual
-│
-└── Bloco 5: COMPARATIVO VISUAL
-    ├── Barra: Caixa Hoje
-    └── Barra: Saldo Projetado
-
-SEÇÃO: Checklist de Execução (mantido)
-SEÇÃO: Decisão da Semana (mantido)
-```
-
-### 3. `src/utils/modeStatusCalculator.ts`
-
-Atualizar campos verificados:
-
-```typescript
-export function calculateFinanceiroStatus(data?: FinanceiroStage): ModeStatus {
-  if (!data) return 'neutral';
-  
-  const fields = [
-    (data.caixaNiceFoods ?? '').trim() !== '',
-    (data.caixaEcommerce ?? '').trim() !== '',
-    // Novos campos de entradas
-    (data.entradaMediaConservadora ?? '').trim() !== '' ||
-      (data.entradasGarantidas ?? '').trim() !== '',
-    // Novos campos de saídas
-    (data.custosFixosMensais ?? '').trim() !== '' ||
-      (data.operacaoMinima ?? '').trim() !== '' ||
-      (data.impostosEstimados ?? '').trim() !== '',
-    // Checklist continua igual
-    (data.vencimentos?.dda || data.vencimentos?.email || 
-      data.vencimentos?.whatsapp || data.vencimentos?.planilha) ?? false,
-  ];
-  
-  const filled = fields.filter(Boolean).length;
-  if (filled === 0) return 'neutral';
-  if (filled === fields.length) return 'completed';
-  return 'in-progress';
-}
-```
+| Arquivo | Mudancas |
+|---------|----------|
+| `src/hooks/useFocusModes.ts` | Adicionar `saveWeeklySnapshot` e chamar antes do reset |
+| `src/types/focus-mode.ts` | Adicionar interface `WeeklySnapshot` |
 
 ---
 
-## Detalhes Técnicos
+## Ordem de Implementacao
 
-### Função de Status Visual
-
-```typescript
-const getSaldoStatus = (saldo: number) => {
-  if (saldo >= 50000) return { 
-    color: 'bg-green-500', 
-    textColor: 'text-green-600',
-    label: 'Confortável'
-  };
-  if (saldo >= 20000) return { 
-    color: 'bg-yellow-500', 
-    textColor: 'text-yellow-600',
-    label: 'Atenção'
-  };
-  if (saldo > 0) return { 
-    color: 'bg-orange-500', 
-    textColor: 'text-orange-600',
-    label: 'Risco'
-  };
-  return { 
-    color: 'bg-red-500', 
-    textColor: 'text-red-600',
-    label: 'Crítico'
-  };
-};
-```
-
-### Componente de Barra Comparativa
-
-```typescript
-const BarraComparativa = ({ 
-  label, 
-  valor, 
-  maxValor, 
-  corClasse 
-}: { 
-  label: string; 
-  valor: number; 
-  maxValor: number; 
-  corClasse: string;
-}) => {
-  const percentage = maxValor > 0 ? (valor / maxValor) * 100 : 0;
-  
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-sm">
-        <span>{label}</span>
-        <span className="font-medium">{formatCurrency(valor)}</span>
-      </div>
-      <div className="h-3 bg-muted rounded-full overflow-hidden">
-        <div 
-          className={cn("h-full rounded-full transition-all", corClasse)}
-          style={{ width: `${Math.min(percentage, 100)}%` }}
-        />
-      </div>
-    </div>
-  );
-};
-```
+1. **Migracao SQL** — Criar tabela `weekly_snapshots` com RLS
+2. **`src/types/focus-mode.ts`** — Adicionar interface `WeeklySnapshot`
+3. **`src/hooks/useFocusModes.ts`** — Funcao de snapshot e integracao no reset
+4. **`src/hooks/useWeeklyHistory.ts`** — Hook para buscar historico
+5. **(Futuro)** Dashboard visual com graficos
 
 ---
 
-## Compatibilidade com Dados Existentes
+## Resumo
 
-- O campo `saidasInevitaveis` será mantido temporariamente para compatibilidade
-- Novos campos terão valor default vazio
-- Dados existentes continuarão funcionando
+| Pergunta | Resposta |
+|----------|----------|
+| **Quando reseta?** | Diario: todo dia. Semanal: toda segunda. |
+| **O que salva?** | Snapshot com metricas-chave antes de cada reset semanal |
+| **Onde fica?** | Nova tabela `weekly_snapshots` |
+| **Pra que serve?** | Comparar tendencia ao longo de meses |
 
----
-
-## Resultado Visual Esperado
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│  📊 PREVISÃO DE CAIXA — 30 DIAS                         │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  ┌─ CAIXA ATUAL ───────────────────────────────────────┐│
-│  │  NICE FOODS              R$ 45.000,00               ││
-│  │  NICE FOODS ECOM         R$ 12.000,00               ││
-│  │  ───────────────────────────────────────            ││
-│  │  TOTAL                   R$ 57.000,00               ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│  ┌─ ENTRADAS PREVISTAS ────────────────────────────────┐│
-│  │  Entrada média conservadora    R$ 80.000,00         ││
-│  │  Entradas já garantidas        R$ 25.000,00         ││
-│  │  ───────────────────────────────────────            ││
-│  │  TOTAL                         R$ 105.000,00        ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│  ┌─ SAÍDAS INEVITÁVEIS ────────────────────────────────┐│
-│  │  Custos fixos mensais          R$ 45.000,00         ││
-│  │  Operação mínima               R$ 30.000,00         ││
-│  │  Impostos estimados            R$ 15.000,00         ││
-│  │  ───────────────────────────────────────            ││
-│  │  TOTAL                         R$ 90.000,00         ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│  ┌─ RESULTADO ─────────────────────────────────────────┐│
-│  │                                                     ││
-│  │  SALDO PROJETADO              R$ 72.000,00          ││
-│  │  ████████████████████████░░░░ (verde)               ││
-│  │  ✓ Confortável                                      ││
-│  │                                                     ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│  ┌─ COMPARATIVO ───────────────────────────────────────┐│
-│  │  Caixa Hoje     ████████░░░░░░░ R$ 57.000           ││
-│  │  Projetado      ██████████████░ R$ 72.000 ↑        ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│  "Este painel governa as decisões da semana."           │
-└─────────────────────────────────────────────────────────┘
-```
-
----
-
-## Seções Mantidas (Abaixo do Painel)
-
-O **Checklist de Execução** e **Decisão da Semana** continuam como estão, abaixo do novo painel de previsão de caixa.
