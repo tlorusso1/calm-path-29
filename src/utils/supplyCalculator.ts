@@ -238,15 +238,24 @@ function normalizeHeader(header: string): string {
 }
 
 /**
- * Detecta o delimitador usado (tab, pipe, comma)
+ * Detecta o delimitador usado (tab, múltiplos espaços, pipe)
  */
-function detectDelimiter(lines: string[]): string {
-  // Check first few non-empty lines
-  for (const line of lines.slice(0, 5)) {
-    if (line.includes('\t')) return '\t';
-    if (line.includes('|')) return '|';
+function splitByDelimiter(line: string): string[] {
+  // Try tab first
+  if (line.includes('\t')) {
+    return line.split('\t').map(c => c.trim());
   }
-  return '\t'; // default to tab
+  // Try pipe
+  if (line.includes('|')) {
+    return line.split('|').map(c => c.trim());
+  }
+  // Try multiple spaces (2+ spaces = delimiter)
+  const multiSpaceMatch = line.split(/\s{2,}/);
+  if (multiSpaceMatch.length >= 2) {
+    return multiSpaceMatch.map(c => c.trim());
+  }
+  // Last resort: single line
+  return [line.trim()];
 }
 
 /**
@@ -255,61 +264,83 @@ function detectDelimiter(lines: string[]): string {
 interface ColumnMap {
   nome: number;
   quantidade: number;
-  tipo?: number;
-  codigo?: number;
-  unidade?: number;
 }
 
 function buildColumnMap(headers: string[]): ColumnMap | null {
-  const map: Partial<ColumnMap> = {};
+  let nomeIdx = -1;
+  let qtdIdx = -1;
   
   headers.forEach((header, index) => {
     const normalized = normalizeHeader(header);
     
-    // Nome/Descrição
-    if (normalized.includes('descricao') || normalized.includes('produto') || normalized.includes('item') && !normalized.includes('cod')) {
-      if (map.nome === undefined) map.nome = index;
+    // Quantidade - check first as it's more specific
+    if (qtdIdx === -1 && (
+      normalized.includes('disponivel') || 
+      normalized.includes('quantidade') || 
+      normalized.includes('estoque') || 
+      normalized.includes('saldo') ||
+      normalized === 'qtd'
+    )) {
+      qtdIdx = index;
     }
-    // Quantidade
-    else if (normalized.includes('disponivel') || normalized.includes('qtd') || normalized.includes('quantidade') || normalized.includes('estoque') || normalized === 'saldo') {
-      if (map.quantidade === undefined) map.quantidade = index;
-    }
-    // Tipo
-    else if (normalized.includes('tipo') || normalized.includes('categoria')) {
-      map.tipo = index;
-    }
-    // Código (pode ser usado como fallback para nome)
-    else if (normalized.includes('cod') || normalized.includes('sku') || normalized.includes('gtin')) {
-      if (map.codigo === undefined) map.codigo = index;
-    }
-    // Unidade
-    else if (normalized.includes('unidade') || normalized.includes('un')) {
-      map.unidade = index;
+    // Nome/Descrição - check for specific description column
+    else if (nomeIdx === -1 && (
+      normalized.includes('descricao') || 
+      (normalized.includes('produto') && !normalized.includes('cod'))
+    )) {
+      nomeIdx = index;
     }
   });
   
-  // Validar que temos pelo menos nome/descrição e quantidade
-  if (map.nome !== undefined && map.quantidade !== undefined) {
-    return map as ColumnMap;
+  // Must have both
+  if (nomeIdx >= 0 && qtdIdx >= 0) {
+    return { nome: nomeIdx, quantidade: qtdIdx };
   }
   
   return null;
 }
 
 /**
- * Limpa texto de aspas e caracteres especiais
+ * Limpa texto de aspas, prefixos [B] e caracteres especiais
  */
-function cleanText(text: string): string {
+function cleanProductName(text: string): string {
   return text
-    .replace(/^["']|["']$/g, '') // Remove quotes
-    .replace(/^[\[B\]\s]+/i, '') // Remove prefixes like [B]
+    .replace(/^["']+|["']+$/g, '') // Remove quotes
+    .replace(/^\[B\]\s*/i, '') // Remove [B] prefix
     .trim();
+}
+
+/**
+ * Extrai número de uma string de quantidade
+ */
+function parseQuantity(text: string): number {
+  // Remove tudo exceto dígitos, vírgula e ponto
+  const cleaned = text.replace(/[^\d.,]/g, '').replace(',', '.');
+  return parseFloat(cleaned) || 0;
+}
+
+/**
+ * Verifica se uma linha parece ser um cabeçalho
+ */
+function isHeaderRow(cells: string[]): boolean {
+  const normalized = cells.map(normalizeHeader);
+  const headerKeywords = ['descricao', 'produto', 'disponivel', 'quantidade', 'codigo', 'cod', 'item', 'gtin', 'sku', 'estoque'];
+  
+  // Se mais de 1 célula contém keywords de header, é header
+  let headerMatches = 0;
+  for (const cell of normalized) {
+    if (headerKeywords.some(kw => cell.includes(kw))) {
+      headerMatches++;
+    }
+  }
+  return headerMatches >= 2;
 }
 
 /**
  * Tenta parsear uma lista colada em itens de estoque
  * Suporta múltiplos formatos:
  * - Tab-separated (planilhas)
+ * - Multiple-spaces separated
  * - Pipe-separated: "Nome | Tipo | Quantidade | Unidade"
  * - Simple: "Nome - 450un"
  */
@@ -318,26 +349,19 @@ export function parsearListaEstoque(texto: string): Partial<ItemEstoque>[] {
   if (linhas.length === 0) return [];
   
   const itens: Partial<ItemEstoque>[] = [];
-  const delimiter = detectDelimiter(linhas);
   
-  // Split all lines
-  const parsedLines = linhas.map(linha => 
-    linha.split(delimiter).map(cell => cell.trim())
-  );
+  // Split all lines by delimiter
+  const parsedLines = linhas.map(splitByDelimiter);
   
-  // Try to find header row (look for known column names)
+  // Find header row and build column map
   let headerRowIndex = -1;
   let columnMap: ColumnMap | null = null;
   
   for (let i = 0; i < Math.min(5, parsedLines.length); i++) {
     const row = parsedLines[i];
-    const normalized = row.map(normalizeHeader);
+    if (row.length < 2) continue;
     
-    // Check if this row looks like a header
-    const hasDescricao = normalized.some(h => h.includes('descricao') || h.includes('produto'));
-    const hasQuantidade = normalized.some(h => h.includes('disponivel') || h.includes('quantidade') || h.includes('estoque'));
-    
-    if (hasDescricao || hasQuantidade) {
+    if (isHeaderRow(row)) {
       columnMap = buildColumnMap(row);
       if (columnMap) {
         headerRowIndex = i;
@@ -350,24 +374,25 @@ export function parsearListaEstoque(texto: string): Partial<ItemEstoque>[] {
   if (columnMap && headerRowIndex >= 0) {
     for (let i = headerRowIndex + 1; i < parsedLines.length; i++) {
       const row = parsedLines[i];
-      if (row.length <= 1 && !row[0]) continue; // Skip empty rows
+      
+      // Skip if row doesn't have enough columns
+      if (row.length <= Math.max(columnMap.nome, columnMap.quantidade)) continue;
+      
+      // Skip header-like rows
+      if (isHeaderRow(row)) continue;
       
       const nomeRaw = row[columnMap.nome] || '';
       const quantidadeRaw = row[columnMap.quantidade] || '0';
       
-      const nome = cleanText(nomeRaw);
-      const quantidade = parseFloat(quantidadeRaw.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+      const nome = cleanProductName(nomeRaw);
+      const quantidade = parseQuantity(quantidadeRaw);
       
-      if (!nome || quantidade === 0) continue;
+      // Skip invalid rows
+      if (!nome || nome.length < 2) continue;
       
-      const tipo = columnMap.tipo !== undefined ? 
-        detectarTipo(row[columnMap.tipo] || '') : 
-        detectarTipoPorNome(nome);
+      const tipo = detectarTipoPorNome(nome);
       
-      const unidade = columnMap.unidade !== undefined ? 
-        (row[columnMap.unidade] || 'un') : 'un';
-      
-      itens.push({ nome, tipo, quantidade, unidade });
+      itens.push({ nome, tipo, quantidade, unidade: 'un' });
     }
     
     return itens;
@@ -385,9 +410,9 @@ export function parsearListaEstoque(texto: string): Partial<ItemEstoque>[] {
     if (linha.includes('|')) {
       const partes = linha.split('|').map(p => p.trim());
       if (partes.length >= 3) {
-        const nome = cleanText(partes[0]);
+        const nome = cleanProductName(partes[0]);
         const tipo = detectarTipo(partes[1]);
-        const quantidade = parseFloat(partes[2].replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+        const quantidade = parseQuantity(partes[2]);
         const unidade = partes[3] || 'un';
         
         if (nome && quantidade > 0) {
@@ -398,9 +423,9 @@ export function parsearListaEstoque(texto: string): Partial<ItemEstoque>[] {
     }
     
     // Try simple format: "Nome - 450un" or "Nome: 450"
-    const matchSimples = linha.match(/^(.+?)[\s:\-]+(\d+[\d.,]*)\s*(un|kg|g|l|ml|pç|cx|pt)?/i);
+    const matchSimples = linha.match(/^(.+?)[\s:\-]+(\d+[\d.,]*)\s*(un|kg|g|l|ml|pç|cx|pt)?$/i);
     if (matchSimples) {
-      const nome = cleanText(matchSimples[1]);
+      const nome = cleanProductName(matchSimples[1]);
       const quantidade = parseFloat(matchSimples[2].replace(',', '.')) || 0;
       const unidade = matchSimples[3] || 'un';
       const tipo = detectarTipoPorNome(nome);
@@ -420,7 +445,7 @@ function detectarTipo(texto: string): TipoEstoque {
   if (t.includes('embal') || t.includes('pote') || t.includes('tampa') || t.includes('caixa')) return 'embalagem';
   if (t.includes('insum')) return 'insumo';
   if (t.includes('mater') || t.includes('prima')) return 'materia_prima';
-  return 'produto_acabado'; // default
+  return 'produto_acabado';
 }
 
 function detectarTipoPorNome(nome: string): TipoEstoque {
