@@ -106,7 +106,7 @@ const DatePasteInput = React.forwardRef<HTMLInputElement, DatePasteInputProps>(
       const newText = e.target.value;
       setTextValue(newText);
       
-      // Tentar parsear enquanto digita
+      // Tentar parsear enquanto digita - só emite se conseguir
       const isoDate = parseDate(newText);
       if (isoDate) {
         emitChange(isoDate);
@@ -114,17 +114,20 @@ const DatePasteInput = React.forwardRef<HTMLInputElement, DatePasteInputProps>(
     };
 
     const handleBlur = () => {
-      // Ao sair do campo, tentar converter
+      // Ao sair do campo, tentar converter e formatar
       const isoDate = parseDate(textValue);
       if (isoDate) {
+        // Converter para ISO e emitir
         emitChange(isoDate);
+        // Formatar para exibição brasileira
         setTextValue(formatToBrazilian(isoDate));
+        lastEmittedValue.current = isoDate;
       } else if (textValue === '') {
         emitChange('');
-      } else {
-        // Se não conseguiu parsear, restaurar o valor original
-        setTextValue(formatToBrazilian(value));
+        lastEmittedValue.current = undefined;
       }
+      // Se não conseguiu parsear, manter o texto como está (não reverter)
+      // Isso permite que o usuário corrija manualmente
     };
 
     const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
