@@ -53,8 +53,6 @@ const Index = () => {
     removeSupplyItem,
     // Pre-Reunião Geral
     updatePreReuniaoGeralData,
-    // Pre-Reunião Ads
-    updatePreReuniaoAdsData,
     // Reunião Ads
     updateReuniaoAdsData,
     addReuniaoAdsAcao,
@@ -173,11 +171,9 @@ const Index = () => {
             financeiroExports={financeiroExports}
             scoreNegocio={scoreNegocio}
             onUpdatePreReuniaoGeralData={updatePreReuniaoGeralData}
-            // Pre-Reunião Ads
+            // Reunião Ads
             prioridadeSemana={prioridadeSemana}
             marketingExports={marketingExports}
-            onUpdatePreReuniaoAdsData={updatePreReuniaoAdsData}
-            // Reunião Ads
             onUpdateReuniaoAdsData={updateReuniaoAdsData}
             onAddReuniaoAdsAcao={addReuniaoAdsAcao}
             onRemoveReuniaoAdsAcao={removeReuniaoAdsAcao}

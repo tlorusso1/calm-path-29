@@ -7,7 +7,6 @@ export type FocusModeId =
   | 'marketing'
   | 'supplychain'
   | 'pre-reuniao-geral'
-  | 'pre-reuniao-ads'
   | 'reuniao-ads'
   | 'pre-reuniao-verter'
   | 'tasks';
@@ -156,18 +155,7 @@ export interface PreReuniaoGeralStage {
   registroDecisao: string;
 }
 
-// ============= Pre-Reunião Ads =============
-export interface PreReuniaoAdsStage {
-  roasMedio7d: string;
-  roasMedio14d: string;
-  roasMedio30d: string;
-  cpaMedio: string;
-  ticketMedio: string;
-  gastoAdsAtual: string;
-  decisaoSemana: 'escalar' | 'manter' | 'reduzir' | null;
-}
-
-// ============= Reunião Ads (NOVO) =============
+// ============= Reunião Ads (CONSOLIDADO - Performance + Execução) =============
 export interface ReuniaoAdsAcao {
   id: string;
   tipo: 'escalar' | 'pausar' | 'testar' | 'otimizar';
@@ -175,6 +163,16 @@ export interface ReuniaoAdsAcao {
 }
 
 export interface ReuniaoAdsStage {
+  // Performance (antiga Pré-Reunião Ads)
+  roasMedio7d: string;
+  roasMedio14d: string;
+  roasMedio30d: string;
+  cpaMedio: string;
+  ticketMedio: string;
+  gastoAdsAtual: string;
+  decisaoSemana: 'escalar' | 'manter' | 'reduzir' | null;
+  
+  // Execução (antiga Reunião Ads)
   orcamentoDiario: string;
   orcamentoSemanal: string;
   distribuicaoMeta: string;
@@ -396,7 +394,6 @@ export interface FocusMode {
   supplyChainData?: SupplyChainStage;
   backlogData?: BacklogStage;
   preReuniaoGeralData?: PreReuniaoGeralStage;
-  preReuniaoAdsData?: PreReuniaoAdsStage;
   reuniaoAdsData?: ReuniaoAdsStage;
   completedAt?: string;
 }
@@ -439,18 +436,11 @@ export const MODE_CONFIGS: Record<FocusModeId, Omit<FocusMode, 'items' | 'comple
     fixedText: 'Alinhamento semanal do negócio.',
     frequency: 'weekly',
   },
-  'pre-reuniao-ads': {
-    id: 'pre-reuniao-ads',
-    icon: '🎯',
-    title: 'Pré-Reunião Ads',
-    fixedText: 'Ads respondem ao caixa, não ao medo.',
-    frequency: 'weekly',
-  },
   'reuniao-ads': {
     id: 'reuniao-ads',
-    icon: '📊',
+    icon: '🎯',
     title: 'Reunião Ads',
-    fixedText: 'Executa o que foi decidido. Sem improvisos.',
+    fixedText: 'Ads respondem ao caixa, não ao medo.',
     frequency: 'weekly',
   },
   'pre-reuniao-verter': {
@@ -475,7 +465,6 @@ export const DEFAULT_CHECKLISTS: Record<FocusModeId, Omit<ChecklistItem, 'id' | 
   marketing: [],
   supplychain: [],
   'pre-reuniao-geral': [],
-  'pre-reuniao-ads': [],
   'reuniao-ads': [],
   'pre-reuniao-verter': [
     { text: 'Indicadores atualizados' },
@@ -622,16 +611,6 @@ export const DEFAULT_PREREUNIAO_GERAL_DATA: PreReuniaoGeralStage = {
   registroDecisao: '',
 };
 
-export const DEFAULT_PREREUNIAO_ADS_DATA: PreReuniaoAdsStage = {
-  roasMedio7d: '',
-  roasMedio14d: '',
-  roasMedio30d: '',
-  cpaMedio: '',
-  ticketMedio: '',
-  gastoAdsAtual: '',
-  decisaoSemana: null,
-};
-
 // ============= Weekly Snapshot (Histórico) =============
 export interface WeeklySnapshot {
   id: string;
@@ -669,7 +648,17 @@ export interface WeeklySnapshot {
   registro_decisao: string | null;
 }
 
+// ============= Reunião Ads Default (CONSOLIDADO) =============
 export const DEFAULT_REUNIAO_ADS_DATA: ReuniaoAdsStage = {
+  // Performance
+  roasMedio7d: '',
+  roasMedio14d: '',
+  roasMedio30d: '',
+  cpaMedio: '',
+  ticketMedio: '',
+  gastoAdsAtual: '',
+  decisaoSemana: null,
+  // Execução
   orcamentoDiario: '',
   orcamentoSemanal: '',
   distribuicaoMeta: '70',

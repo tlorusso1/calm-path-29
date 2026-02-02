@@ -7,7 +7,6 @@ import {
   ChecklistItem,
   FinanceiroExports,
   PreReuniaoGeralStage,
-  PreReuniaoAdsStage,
   ReuniaoAdsStage,
   MARGEM_OPERACIONAL,
   DEFAULT_FINANCEIRO_DATA,
@@ -844,18 +843,7 @@ export function calculatePreReuniaoGeralStatus(data?: PreReuniaoGeralStage): Mod
 }
 
 /**
- * Status da Pre-Reunião Ads
- */
-export function calculatePreReuniaoAdsStatus(data?: PreReuniaoAdsStage): ModeStatus {
-  if (!data) return 'neutral';
-  if (data.decisaoSemana) return 'completed';
-  const hasInputs = data.roasMedio7d || data.cpaMedio || data.ticketMedio;
-  if (hasInputs) return 'in-progress';
-  return 'neutral';
-}
-
-/**
- * Status da Reunião Ads
+ * Status da Reunião Ads (consolidada)
  */
 export function calculateReuniaoAdsStatus(data?: ReuniaoAdsStage): ModeStatus {
   if (!data) return 'neutral';
@@ -877,8 +865,6 @@ export function calculateModeStatus(mode: FocusMode): ModeStatus {
       return calculateSupplyChainStatus(mode.supplyChainData);
     case 'pre-reuniao-geral':
       return calculatePreReuniaoGeralStatus(mode.preReuniaoGeralData);
-    case 'pre-reuniao-ads':
-      return calculatePreReuniaoAdsStatus(mode.preReuniaoAdsData);
     case 'reuniao-ads':
       return calculateReuniaoAdsStatus(mode.reuniaoAdsData);
     case 'tasks':

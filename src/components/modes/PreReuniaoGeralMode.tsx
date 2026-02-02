@@ -1,4 +1,4 @@
-import { FocusMode, PreReuniaoGeralStage, FinanceiroExports, PreReuniaoAdsStage, DEFAULT_PREREUNIAO_GERAL_DATA, ScoreNegocio } from '@/types/focus-mode';
+import { FocusMode, PreReuniaoGeralStage, FinanceiroExports, ReuniaoAdsStage, DEFAULT_PREREUNIAO_GERAL_DATA, ScoreNegocio } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,7 +12,7 @@ import { ScoreNegocioCard } from '@/components/ScoreNegocioCard';
 interface PreReuniaoGeralModeProps {
   mode: FocusMode;
   financeiroExports: FinanceiroExports;
-  preReuniaoAdsData?: PreReuniaoAdsStage;
+  reuniaoAdsData?: ReuniaoAdsStage;
   scoreNegocio: ScoreNegocio;
   onUpdatePreReuniaoGeralData: (data: Partial<PreReuniaoGeralStage>) => void;
 }
@@ -52,7 +52,7 @@ const getTermometroColor = (score: number) => {
 export function PreReuniaoGeralMode({
   mode,
   financeiroExports,
-  preReuniaoAdsData,
+  reuniaoAdsData,
   scoreNegocio,
   onUpdatePreReuniaoGeralData,
 }: PreReuniaoGeralModeProps) {
@@ -70,13 +70,13 @@ export function PreReuniaoGeralMode({
   const termometro = calcTermometroRisco(
     financeiroExports,
     data.estoque.coberturaMedia,
-    preReuniaoAdsData?.roasMedio7d || '',
-    preReuniaoAdsData?.cpaMedio || '',
-    preReuniaoAdsData?.ticketMedio || ''
+    reuniaoAdsData?.roasMedio7d || '',
+    reuniaoAdsData?.cpaMedio || '',
+    reuniaoAdsData?.ticketMedio || ''
   );
 
   // Calcular ROAS status
-  const roasValue = parseFloat(preReuniaoAdsData?.roasMedio7d || '0') || 0;
+  const roasValue = parseFloat(reuniaoAdsData?.roasMedio7d || '0') || 0;
   const roasStatus = getRoasStatus(roasValue);
 
   // Leitura combinada
@@ -244,24 +244,24 @@ export function PreReuniaoGeralMode({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {preReuniaoAdsData?.roasMedio7d ? (
+          {reuniaoAdsData?.roasMedio7d ? (
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">ROAS 7d</span>
-                <span className="font-medium">{preReuniaoAdsData.roasMedio7d}</span>
+                <span className="font-medium">{reuniaoAdsData.roasMedio7d}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">CPA médio</span>
-                <span className="font-medium">{preReuniaoAdsData.cpaMedio || '—'}</span>
+                <span className="font-medium">{reuniaoAdsData.cpaMedio || '—'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Decisão sugerida</span>
-                <span className="font-medium capitalize">{preReuniaoAdsData.decisaoSemana || '—'}</span>
+                <span className="font-medium capitalize">{reuniaoAdsData.decisaoSemana || '—'}</span>
               </div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground italic">
-              Preencha a Pré-Reunião Ads primeiro
+              Preencha a Reunião Ads primeiro
             </p>
           )}
         </CardContent>
