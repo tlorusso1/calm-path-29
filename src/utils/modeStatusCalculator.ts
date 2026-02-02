@@ -881,8 +881,8 @@ export function calculateModeStatus(mode: FocusMode): ModeStatus {
       return calculatePreReuniaoAdsStatus(mode.preReuniaoAdsData);
     case 'reuniao-ads':
       return calculateReuniaoAdsStatus(mode.reuniaoAdsData);
-    case 'backlog':
-      return 'neutral'; // Backlog não usa status automático
+    case 'tasks':
+      return 'neutral'; // Tasks não usa status automático
     default:
       return calculateChecklistStatus(mode.items);
   }

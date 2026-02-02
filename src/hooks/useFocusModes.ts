@@ -89,7 +89,7 @@ function createDefaultMode(id: FocusModeId): FocusMode {
     mode.supplyChainData = { ...DEFAULT_SUPPLYCHAIN_DATA };
   }
 
-  if (id === 'backlog') {
+  if (id === 'tasks') {
     mode.backlogData = { ...DEFAULT_BACKLOG_DATA, tarefas: [], ideias: [] };
   }
 
@@ -154,19 +154,19 @@ function processLoadedState(state: FocusModeState | null): ProcessResult {
     }
   });
 
-  // Reset daily modes if new day (EXCEPT backlog which persists)
+  // Reset daily modes if new day (EXCEPT tasks which persists)
   if (state.date !== today) {
     (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
       if (MODE_CONFIGS[id].frequency === 'daily') {
-        if (id === 'backlog') {
-          // PROTEÇÃO: Garantir que backlog sempre tenha arrays válidos
-          const existingBacklog = state.modes.backlog?.backlogData;
+        if (id === 'tasks') {
+          // PROTEÇÃO: Garantir que tasks sempre tenha arrays válidos
+          const existingTasks = state.modes.tasks?.backlogData;
           updatedModes[id] = {
             ...createDefaultMode(id),
             backlogData: {
-              tempoDisponivelHoje: existingBacklog?.tempoDisponivelHoje ?? 480,
-              tarefas: Array.isArray(existingBacklog?.tarefas) ? existingBacklog.tarefas : [],
-              ideias: Array.isArray(existingBacklog?.ideias) ? existingBacklog.ideias : [],
+              tempoDisponivelHoje: existingTasks?.tempoDisponivelHoje ?? 480,
+              tarefas: Array.isArray(existingTasks?.tarefas) ? existingTasks.tarefas : [],
+              ideias: Array.isArray(existingTasks?.ideias) ? existingTasks.ideias : [],
             },
           };
         } else if (id === 'financeiro') {
@@ -1018,11 +1018,11 @@ export function useFocusModes() {
     });
   }, []);
 
-  // ============= Backlog =============
+  // ============= Tasks =============
   const updateBacklogData = useCallback((data: Partial<BacklogStage>) => {
     setState(prev => {
       // PROTEÇÃO: Garantir que backlogData nunca seja undefined
-      const currentBacklog = prev.modes.backlog.backlogData ?? {
+      const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
         ideias: [],
@@ -1032,8 +1032,8 @@ export function useFocusModes() {
         ...prev,
         modes: {
           ...prev.modes,
-          backlog: {
-            ...prev.modes.backlog,
+          tasks: {
+            ...prev.modes.tasks,
             backlogData: {
               // Preserva valores existentes, só atualiza o que veio
               tempoDisponivelHoje: data.tempoDisponivelHoje ?? currentBacklog.tempoDisponivelHoje,
@@ -1053,7 +1053,7 @@ export function useFocusModes() {
     };
     
     setState(prev => {
-      const currentBacklog = prev.modes.backlog.backlogData ?? {
+      const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
         ideias: [],
@@ -1063,8 +1063,8 @@ export function useFocusModes() {
         ...prev,
         modes: {
           ...prev.modes,
-          backlog: {
-            ...prev.modes.backlog,
+          tasks: {
+            ...prev.modes.tasks,
             backlogData: {
               ...currentBacklog,
               tarefas: [...(currentBacklog.tarefas || []), newTarefa],
@@ -1079,7 +1079,7 @@ export function useFocusModes() {
 
   const updateBacklogTarefa = useCallback((id: string, data: Partial<BacklogTarefa>) => {
     setState(prev => {
-      const currentBacklog = prev.modes.backlog.backlogData ?? {
+      const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
         ideias: [],
@@ -1089,8 +1089,8 @@ export function useFocusModes() {
         ...prev,
         modes: {
           ...prev.modes,
-          backlog: {
-            ...prev.modes.backlog,
+          tasks: {
+            ...prev.modes.tasks,
             backlogData: {
               ...currentBacklog,
               tarefas: (currentBacklog.tarefas || []).map(t =>
@@ -1112,7 +1112,7 @@ export function useFocusModes() {
 
   const setTarefaEmFoco = useCallback((id: string | null) => {
     setState(prev => {
-      const currentBacklog = prev.modes.backlog.backlogData ?? {
+      const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
         ideias: [],
@@ -1122,8 +1122,8 @@ export function useFocusModes() {
         ...prev,
         modes: {
           ...prev.modes,
-          backlog: {
-            ...prev.modes.backlog,
+          tasks: {
+            ...prev.modes.tasks,
             backlogData: {
               ...currentBacklog,
               tarefas: (currentBacklog.tarefas || []).map(t => ({
@@ -1139,7 +1139,7 @@ export function useFocusModes() {
 
   const removeBacklogTarefa = useCallback((id: string) => {
     setState(prev => {
-      const currentBacklog = prev.modes.backlog.backlogData ?? {
+      const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
         ideias: [],
@@ -1149,8 +1149,8 @@ export function useFocusModes() {
         ...prev,
         modes: {
           ...prev.modes,
-          backlog: {
-            ...prev.modes.backlog,
+          tasks: {
+            ...prev.modes.tasks,
             backlogData: {
               ...currentBacklog,
               tarefas: (currentBacklog.tarefas || []).filter(t => t.id !== id),
@@ -1168,7 +1168,7 @@ export function useFocusModes() {
     };
     
     setState(prev => {
-      const currentBacklog = prev.modes.backlog.backlogData ?? {
+      const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
         ideias: [],
@@ -1178,8 +1178,8 @@ export function useFocusModes() {
         ...prev,
         modes: {
           ...prev.modes,
-          backlog: {
-            ...prev.modes.backlog,
+          tasks: {
+            ...prev.modes.tasks,
             backlogData: {
               ...currentBacklog,
               ideias: [...(currentBacklog.ideias || []), newIdeia],
@@ -1194,7 +1194,7 @@ export function useFocusModes() {
 
   const removeBacklogIdeia = useCallback((id: string) => {
     setState(prev => {
-      const currentBacklog = prev.modes.backlog.backlogData ?? {
+      const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
         ideias: [],
@@ -1204,8 +1204,8 @@ export function useFocusModes() {
         ...prev,
         modes: {
           ...prev.modes,
-          backlog: {
-            ...prev.modes.backlog,
+          tasks: {
+            ...prev.modes.tasks,
             backlogData: {
               ...currentBacklog,
               ideias: (currentBacklog.ideias || []).filter(i => i.id !== id),
@@ -1218,7 +1218,7 @@ export function useFocusModes() {
 
   const updateBacklogIdeia = useCallback((id: string, texto: string) => {
     setState(prev => {
-      const currentBacklog = prev.modes.backlog.backlogData ?? {
+      const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
         ideias: [],
@@ -1228,8 +1228,8 @@ export function useFocusModes() {
         ...prev,
         modes: {
           ...prev.modes,
-          backlog: {
-            ...prev.modes.backlog,
+          tasks: {
+            ...prev.modes.tasks,
             backlogData: {
               ...currentBacklog,
               ideias: (currentBacklog.ideias || []).map(ideia =>

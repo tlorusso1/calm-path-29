@@ -1,18 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useFocusModes } from '@/hooks/useFocusModes';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserRole } from '@/hooks/useUserRole';
 import { ModeSelector } from '@/components/ModeSelector';
 import { ModeContent } from '@/components/ModeContent';
 import { NoModeSelected } from '@/components/NoModeSelected';
 import { LocalStorageMigration } from '@/components/LocalStorageMigration';
 import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
+import { LogOut, Moon, Sun } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import niceFoodsLogo from '@/assets/nice-foods-logo.png';
 
 const FOCUS_MODES_KEY = 'focoagora_focus_modes';
 const PROJECTS_KEY = 'focoagora_projects';
 
 const Index = () => {
   const { signOut } = useAuth();
+  const { canAccess } = useUserRole();
+  const { theme, setTheme } = useTheme();
   const [showMigration, setShowMigration] = useState(false);
   const [migrationChecked, setMigrationChecked] = useState(false);
 
@@ -54,7 +59,7 @@ const Index = () => {
     updateReuniaoAdsData,
     addReuniaoAdsAcao,
     removeReuniaoAdsAcao,
-    // Backlog
+    // Tasks
     updateBacklogData,
     addBacklogTarefa,
     updateBacklogTarefa,
@@ -91,23 +96,53 @@ const Index = () => {
     return <LocalStorageMigration onComplete={() => setShowMigration(false)} />;
   }
 
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <div className="absolute top-3 right-4 z-20">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={signOut}
-          title="Sair"
-        >
-          <LogOut className="h-4 w-4" />
-        </Button>
+      {/* Header */}
+      <div className="border-b border-border bg-card">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img 
+              src={niceFoodsLogo} 
+              alt="NICE FOODS" 
+              className="h-8 object-contain dark:invert"
+            />
+            <div className="hidden sm:block">
+              <h1 className="text-sm font-semibold text-foreground">NICE TASKS</h1>
+              <p className="text-[10px] text-muted-foreground">Thiago Edition v1.0 Beta</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={signOut}
+              title="Sair"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </div>
 
       <ModeSelector
         activeMode={activeMode}
         modes={modes}
         onSelectMode={setActiveMode}
+        canAccess={canAccess}
       />
 
       <main className="flex-1 flex flex-col max-w-lg mx-auto w-full">
@@ -146,7 +181,7 @@ const Index = () => {
             onUpdateReuniaoAdsData={updateReuniaoAdsData}
             onAddReuniaoAdsAcao={addReuniaoAdsAcao}
             onRemoveReuniaoAdsAcao={removeReuniaoAdsAcao}
-            // Backlog
+            // Tasks
             onUpdateBacklogData={updateBacklogData}
             onAddBacklogTarefa={addBacklogTarefa}
             onUpdateBacklogTarefa={updateBacklogTarefa}
