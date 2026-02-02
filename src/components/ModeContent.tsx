@@ -51,6 +51,7 @@ interface ModeContentProps {
   onAddBacklogIdeia?: (texto: string) => void;
   onUpdateBacklogIdeia?: (id: string, texto: string) => void;
   onRemoveBacklogIdeia?: (id: string) => void;
+  onSetBacklogTarefaEmFoco?: (id: string | null) => void;
 }
 
 export function ModeContent({
@@ -88,6 +89,7 @@ export function ModeContent({
   onAddBacklogIdeia,
   onUpdateBacklogIdeia,
   onRemoveBacklogIdeia,
+  onSetBacklogTarefaEmFoco,
 }: ModeContentProps) {
   const renderModeContent = () => {
     switch (mode.id) {
@@ -166,6 +168,7 @@ export function ModeContent({
             onAddIdeia={onAddBacklogIdeia!}
             onUpdateIdeia={onUpdateBacklogIdeia!}
             onRemoveIdeia={onRemoveBacklogIdeia!}
+            onSetTarefaEmFoco={onSetBacklogTarefaEmFoco!}
           />
         );
       default:
