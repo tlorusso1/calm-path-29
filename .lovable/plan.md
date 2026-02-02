@@ -1,120 +1,195 @@
 
-# Plano: Alertas de Aceleração de Vendas e Melhorias na Visão Executiva
+# Plano: Persistência do Financeiro + Contas Bancárias + Médias 90D no Marketing
 
-## Resumo das Alterações
+## Resumo Executivo
 
-O usuário solicitou três melhorias no módulo Supply Chain:
+Este plano aborda três grandes melhorias solicitadas:
 
-1. **Novo alerta "Acelerar Vendas"**: Identificar itens cuja validade é inferior ao tempo de cobertura (produto vai vencer antes de acabar o estoque)
-2. **Itens Amarelos na Visão Executiva**: Mostrar itens com cobertura baixa (status amarelo) além dos críticos
-3. **Lista de Estoque Maior e Ordenada**: Aumentar o tamanho do bloco de estoque atual e ordenar por quantidade (menor → maior)
-
----
-
-## Alterações Detalhadas
-
-### 1. Novo Alerta: "Acelerar Vendas"
-
-**Problema identificado**: Quando um item tem validade de 45 dias mas cobertura de 60 dias, significa que o produto vai vencer antes de ser totalmente vendido. Isso requer ação comercial (promoção, combo, etc.) para evitar perdas.
-
-**Lógica**:
-```
-Se diasAteVencimento < coberturaDias → precisa acelerar venda
-```
-
-**Visual na Visão Executiva**:
-```
-🔥 Acelerar Vendas
-• Granola Tradicional (vence: 45d, estoque: 60d)
-• Mix de Castanhas (vence: 30d, estoque: 50d)
-```
-
-O sistema vai calcular para cada item:
-- Dias até vencimento
-- Cobertura em dias (tempo para acabar o estoque)
-- Se validade < cobertura → alerta
+1. **Corrigir persistência do Financeiro**: Os dados estruturais (faturamento, custos, caixa) estão sendo apagados diariamente - apenas os checklists diários devem resetar
+2. **Adicionar contas bancárias detalhadas**: Separar o "Caixa Atual" em contas individuais para melhor controle
+3. **Adicionar campos de Média 90D no Marketing**: Email, Social e Influencers com médias de 90 dias para comparação
 
 ---
 
-### 2. Itens Amarelos na Visão Executiva
+## 1. Corrigir Persistência do Financeiro
 
-**Situação atual**: A visão executiva só mostra itens com status vermelho (ruptura iminente).
+### O Problema
 
-**Nova estrutura dos alertas**:
-1. Ruptura Iminente (vermelho) - já existe
-2. **Cobertura Baixa (amarelo) - NOVO**
-3. **Acelerar Vendas (laranja) - NOVO**
-4. Vencimento Crítico (<30d) - já existe
-5. Vencendo em Breve (30-60d) - já existe
-6. Atenção Vencimento (60-90d) - já existe
-
-**Visual**:
-```
-⚠️ Cobertura Baixa (Atenção)
-• Pote 500ml (22d)
-• Açúcar Demerara (35d)
-```
-
----
-
-### 3. Lista de Estoque Maior e Ordenada
-
-**Alterações**:
-
-1. **Aumentar altura do bloco**: De `h-[350px]` para `h-[500px]` quando houver mais de 5 itens
-
-2. **Ordenação por quantidade**: Do que tem menos para o que tem mais
+Atualmente no arquivo `src/hooks/useFocusModes.ts`, o Financeiro reseta completamente quando muda o dia:
 
 ```typescript
-// Ordenar por quantidade (menor primeiro)
-const itensOrdenados = [...itensProcessados].sort(
-  (a, b) => a.quantidade - b.quantidade
-);
+// Linha 172-174 - PROBLEMA
+} else {
+  updatedModes[id] = createDefaultMode(id); // Apaga TUDO
+}
+```
+
+### A Solução
+
+Preservar os dados estruturais do Financeiro e resetar apenas os checklists diários:
+
+**Alteração em `src/hooks/useFocusModes.ts`:**
+
+```typescript
+if (id === 'financeiro') {
+  const existingData = state.modes.financeiro?.financeiroData;
+  updatedModes[id] = {
+    ...createDefaultMode(id),
+    financeiroData: {
+      ...existingData,  // Mantém faturamento, custos, caixa, contas
+      checklistDiario: {  // Reseta apenas o checklist diário
+        atualizouCaixa: false,
+        olhouResultado: false,
+        decidiu: false,
+      },
+    },
+  };
+}
 ```
 
 ---
 
-## Arquivo Modificado
+## 2. Adicionar Contas Bancárias Detalhadas
 
-**`src/components/modes/SupplyChainMode.tsx`**
+### Novas Contas Solicitadas
 
-### Mudança 1: Adicionar lógica de itens amarelos e acelerar vendas (na Visão Executiva, após "Ruptura Iminente")
+O usuário pediu para detalhar o caixa por conta:
 
-Será inserido após a seção "Ruptura Iminente" (linha ~296):
+| Conta | Campos |
+|-------|--------|
+| ITAU NICE FOODS | Saldo + CDB |
+| ITAU NICE ECOM | Saldo + CDB |
+| ASAAS | Saldo + A receber |
+| NUVEM | Saldo + A receber |
+| PAGAR.ME | Saldo + A receber |
+| MERCADO PAGO ECOM | Disponível + Saldo total |
 
-- Seção "Cobertura Baixa (Atenção)" com itens amarelos
-- Seção "Acelerar Vendas" com itens que vencem antes de acabar
+### Alterações Necessárias
 
-### Mudança 2: Aumentar altura do ScrollArea (linha 476)
+**Em `src/types/focus-mode.ts`:**
 
-De:
-```tsx
-<ScrollArea className={cn(itensProcessados.length > 5 ? "h-[350px]" : "h-auto")}>
+Nova interface para contas:
+
+```typescript
+export interface ContaBancaria {
+  saldo: string;
+  cdb?: string;      // Para Itaú
+  aReceber?: string; // Para gateways
+}
+
+export interface FinanceiroContas {
+  itauNiceFoods: ContaBancaria;
+  itauNiceEcom: ContaBancaria;
+  asaas: ContaBancaria;
+  nuvem: ContaBancaria;
+  pagarMe: ContaBancaria;
+  mercadoPagoEcom: ContaBancaria;
+}
 ```
 
-Para:
-```tsx
-<ScrollArea className={cn(itensProcessados.length > 5 ? "h-[500px]" : "h-auto")}>
+Adicionar ao `FinanceiroStage`:
+```typescript
+contas?: FinanceiroContas;
 ```
 
-### Mudança 3: Ordenar itens por quantidade (linha 478)
+**Em `src/components/modes/FinanceiroMode.tsx`:**
 
-De:
-```tsx
-{itensProcessados.map((item) => {
-```
-
-Para:
-```tsx
-{[...itensProcessados].sort((a, b) => a.quantidade - b.quantidade).map((item) => {
-```
+- Nova seção colapsável "Contas Bancárias"
+- Grid com inputs para cada conta
+- Cálculo automático de:
+  - **Caixa Atual** = Soma de todos os saldos + CDBs + Disponíveis
+  - **A Receber** = Soma de todos os "a receber"
 
 ---
 
-## Resultado Esperado
+## 3. Adicionar Médias 90D no Marketing
 
-Após a implementação:
+### Novos Campos Solicitados
 
-1. Gestor verá quais itens precisam de ação comercial para evitar perdas por vencimento
-2. Itens em atenção (amarelo) aparecerão na visão executiva, permitindo antecipar reposições
-3. A lista de estoque será maior e mostrará primeiro os itens com menos quantidade, facilitando identificar o que precisa de reposição
+**E-mail (semanal e média 90D):**
+- Enviados
+- % Abertura
+- % Conversões (novo campo)
+
+**Social (semanal e média 90D):**
+- Posts publicados
+- Taxa engajamento (%)
+- Alcance total semana
+- Média últimas semanas
+
+**Influencers:**
+- Código cupom (novo campo no cadastro)
+
+**Pedidos:**
+- Pedidos da semana anterior (já existe)
+- Média pedidos/sem 90D (novo campo)
+
+### Comportamento das Médias 90D
+
+1. **No início**: Usuário preenche manualmente (não tem histórico)
+2. **Depois de ~12 semanas**: Sistema calcula automaticamente baseado no histórico de snapshots semanais
+
+### Alterações Necessárias
+
+**Em `src/types/focus-mode.ts`:**
+
+Adicionar ao `MarketingOrganico`:
+```typescript
+// E-mail - novos campos
+emailConversoes: string;
+// Médias 90D (preenchidas manualmente no início)
+media90d: {
+  emailEnviados: string;
+  emailAbertura: string;
+  emailConversoes: string;
+  postsPublicados: string;
+  taxaEngajamento: string;
+  alcanceTotal: string;
+  pedidosSemana: string;
+};
+```
+
+Adicionar ao `MarketingInfluencer`:
+```typescript
+codigoCupom: string;
+```
+
+**Em `src/components/modes/MarketingMode.tsx`:**
+
+Reorganizar seções:
+- Cada pilar (Email, Social, Influencers) terá:
+  - "SEMANA" - dados da semana atual
+  - "MÉDIA 90D" - dados de referência (manual ou calculado)
+
+---
+
+## 4. Pre-Reunião Geral - Resumo
+
+Já traz resumo dos 3 pilares (Financeiro, Estoque, Demanda). Apenas confirmar que está funcionando corretamente.
+
+---
+
+## Arquivos a Modificar
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/hooks/useFocusModes.ts` | Lógica de persistência do Financeiro |
+| `src/types/focus-mode.ts` | Novos tipos para contas e médias 90D |
+| `src/components/modes/FinanceiroMode.tsx` | Nova seção de contas bancárias |
+| `src/components/modes/MarketingMode.tsx` | Campos de média 90D e código cupom |
+| `src/utils/modeStatusCalculator.ts` | Cálculos de caixa total e a receber |
+
+---
+
+## Comportamento do Ads
+
+Confirmando: quando você muda o valor de Ads Base ou o caixa, o sistema recalcula os limites automaticamente (Ads Máximo, Incremento Permitido, etc.). Se os valores não estão mudando quando você edita, pode haver um bug no cálculo que preciso investigar.
+
+---
+
+## Ordem de Implementação
+
+1. Corrigir persistência do Financeiro (crítico)
+2. Adicionar contas bancárias detalhadas
+3. Adicionar campos de média 90D no Marketing
+4. Verificar comportamento do Ads
