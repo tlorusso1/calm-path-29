@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FocusMode, SupplyChainStage, ItemEstoque, TipoEstoque, DEFAULT_SUPPLYCHAIN_DATA } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { DatePasteInput } from '@/components/ui/date-paste-input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -437,8 +438,7 @@ export function SupplyChainMode({
                   value={novoItem.demandaSemanal}
                   onChange={(e) => setNovoItem(prev => ({ ...prev, demandaSemanal: e.target.value }))}
                 />
-                <Input
-                  type="date"
+                <DatePasteInput
                   placeholder="Validade"
                   value={novoItem.dataValidade}
                   onChange={(e) => setNovoItem(prev => ({ ...prev, dataValidade: e.target.value }))}
@@ -555,8 +555,7 @@ export function SupplyChainMode({
                           <Label className="text-xs text-muted-foreground whitespace-nowrap">
                             Validade:
                           </Label>
-                          <Input
-                            type="date"
+                          <DatePasteInput
                             value={item.dataValidade ?? ''}
                             onChange={(e) => onUpdateItem(item.id, { 
                               dataValidade: e.target.value || undefined 
@@ -634,8 +633,7 @@ export function SupplyChainMode({
                       </p>
                     </div>
                     <div className="flex items-center gap-2 ml-2">
-                      <Input
-                        type="date"
+                      <DatePasteInput
                         value={item.dataValidade ?? ''}
                         onChange={(e) => {
                           onUpdateItem(item.id, { 
