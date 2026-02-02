@@ -7,7 +7,7 @@ import { PreReuniaoGeralMode } from '@/components/modes/PreReuniaoGeralMode';
 import { PreReuniaoAdsMode } from '@/components/modes/PreReuniaoAdsMode';
 import { PreReuniaoVerterMode } from '@/components/modes/PreReuniaoVerterMode';
 import { ReuniaoAdsMode } from '@/components/modes/ReuniaoAdsMode';
-import { BacklogMode } from '@/components/modes/BacklogMode';
+import { TasksMode } from '@/components/modes/TasksMode';
 
 interface ModeContentProps {
   mode: FocusMode;
@@ -157,9 +157,9 @@ export function ModeContent({
             onSetNotes={onSetNotes}
           />
         );
-      case 'backlog':
+      case 'tasks':
         return (
-          <BacklogMode 
+          <TasksMode 
             mode={mode}
             onUpdateBacklogData={onUpdateBacklogData!}
             onAddTarefa={onAddBacklogTarefa!}

@@ -9,7 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Plus, Star, Trash2, Lightbulb, ClipboardList, Target, CheckCircle, Pause } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface BacklogModeProps {
+interface TasksModeProps {
   mode: FocusMode;
   onUpdateBacklogData: (data: Partial<BacklogStage>) => void;
   onAddTarefa: (tarefa: Omit<BacklogTarefa, 'id'>) => void;
@@ -63,16 +63,16 @@ function FazendoAgoraSection({ tarefa, onConcluir, onPausar }: FazendoAgoraSecti
                       tarefa.quandoFazer === 'proximo' ? 'Próximo' : 'Depois';
 
   return (
-    <Card className="p-4 border-2 border-primary bg-primary/5 space-y-4">
-      <div className="flex items-center gap-2 text-primary">
+    <Card className="p-4 fazendo-agora animate-pulse-slow space-y-4">
+      <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400">
         <Target className="h-5 w-5" />
         <h3 className="font-semibold uppercase tracking-wide text-sm">
-          Fazendo Agora
+          🎯 Fazendo Agora
         </h3>
       </div>
       
       <div className="space-y-3">
-        <p className="text-foreground font-medium">{tarefa.descricao}</p>
+        <p className="text-foreground font-medium text-lg">{tarefa.descricao}</p>
         
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>⏱️ {tempoLabel}</span>
@@ -81,8 +81,8 @@ function FazendoAgoraSection({ tarefa, onConcluir, onPausar }: FazendoAgoraSecti
           {tarefa.urgente && <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />}
         </div>
         
-        <div className="flex gap-2">
-          <Button onClick={onConcluir} className="flex-1 gap-2">
+        <div className="flex gap-2 pt-2">
+          <Button onClick={onConcluir} className="flex-1 gap-2 bg-green-600 hover:bg-green-700">
             <CheckCircle className="h-4 w-4" />
             Concluir
           </Button>
@@ -256,7 +256,7 @@ function TarefaSection({
   );
 }
 
-export function BacklogMode({
+export function TasksMode({
   mode,
   onUpdateBacklogData,
   onAddTarefa,
@@ -266,7 +266,7 @@ export function BacklogMode({
   onUpdateIdeia,
   onRemoveIdeia,
   onSetTarefaEmFoco,
-}: BacklogModeProps) {
+}: TasksModeProps) {
   const [novaTarefa, setNovaTarefa] = useState('');
   const [novaIdeia, setNovaIdeia] = useState('');
 
@@ -296,11 +296,15 @@ export function BacklogMode({
 
   const handleAddTarefa = () => {
     if (novaTarefa.trim()) {
+      // Lógica inteligente: se couber no dia vai para HOJE, senão para PRÓXIMO
+      const novoTempoTotal = tempoHoje + TEMPO_EM_MINUTOS['30min'];
+      const quandoFazer = novoTempoTotal <= tempoDisponivelHoje ? 'hoje' : 'proximo';
+      
       onAddTarefa({
         descricao: novaTarefa.trim(),
         tempoEstimado: '30min',
         urgente: false,
-        quandoFazer: 'depois',
+        quandoFazer,
         completed: false,
       });
       setNovaTarefa('');
@@ -332,6 +336,9 @@ export function BacklogMode({
           onPausar={() => onSetTarefaEmFoco(null)}
         />
       )}
+
+      {/* Conteúdo com overlay quando em foco */}
+      <div className={cn(tarefaEmFoco && "foco-overlay")}>
 
       {/* CAPACIDADE DO DIA */}
       <Card className="p-4 space-y-4 border-2">
@@ -383,11 +390,11 @@ export function BacklogMode({
         </p>
       </Card>
 
-      {/* BACKLOG DE TAREFAS */}
+      {/* TAREFAS */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <ClipboardList className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Backlog de Tarefas</h3>
+          <h3 className="font-semibold">Tarefas</h3>
         </div>
 
         <div className="flex gap-2">
@@ -499,6 +506,7 @@ export function BacklogMode({
             ))
           )}
         </div>
+      </div>
       </div>
     </div>
   );

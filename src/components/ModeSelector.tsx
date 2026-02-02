@@ -5,6 +5,7 @@ interface ModeSelectorProps {
   activeMode: FocusModeId | null;
   modes: Record<FocusModeId, FocusMode>;
   onSelectMode: (modeId: FocusModeId) => void;
+  canAccess?: (modeId: FocusModeId) => boolean;
 }
 
 const MODE_ORDER: FocusModeId[] = [
@@ -14,15 +15,18 @@ const MODE_ORDER: FocusModeId[] = [
   'pre-reuniao-geral',
   'pre-reuniao-ads',
   'pre-reuniao-verter',
-  'backlog',
+  'tasks',
 ];
 
-export function ModeSelector({ activeMode, modes, onSelectMode }: ModeSelectorProps) {
+export function ModeSelector({ activeMode, modes, onSelectMode, canAccess }: ModeSelectorProps) {
+  // Filtra módulos por permissão
+  const visibleModes = MODE_ORDER.filter(modeId => !canAccess || canAccess(modeId));
+
   return (
     <header className="sticky top-0 z-10 bg-background border-b border-border">
       <div className="max-w-4xl mx-auto px-4 py-3">
         <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-          {MODE_ORDER.map((modeId) => {
+          {visibleModes.map((modeId) => {
             const config = MODE_CONFIGS[modeId];
             const mode = modes[modeId];
             const isActive = activeMode === modeId;

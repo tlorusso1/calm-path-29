@@ -10,7 +10,7 @@ export type FocusModeId =
   | 'pre-reuniao-ads'
   | 'reuniao-ads'
   | 'pre-reuniao-verter'
-  | 'backlog';
+  | 'tasks';
 
 export type ModeFrequency = 'daily' | 'weekly';
 export type ModeStatus = 'neutral' | 'in-progress' | 'completed';
@@ -460,11 +460,11 @@ export const MODE_CONFIGS: Record<FocusModeId, Omit<FocusMode, 'items' | 'comple
     fixedText: 'Venda da empresa é estratégia, não urgência.',
     frequency: 'weekly',
   },
-  backlog: {
-    id: 'backlog',
-    icon: '📥',
-    title: 'Backlog',
-    fixedText: 'Backlog é onde o cérebro descansa.',
+  tasks: {
+    id: 'tasks',
+    icon: '📋',
+    title: 'Tasks',
+    fixedText: 'Se não couber hoje, fica para outro dia. Isso é decisão, não atraso.',
     frequency: 'daily',
   },
 };
@@ -483,7 +483,7 @@ export const DEFAULT_CHECKLISTS: Record<FocusModeId, Omit<ChecklistItem, 'id' | 
     { text: 'Pipeline de interessados' },
     { text: 'Pontos de atenção da semana' },
   ],
-  backlog: [],
+  tasks: [],
 };
 
 // ============= Defaults por Modo =============
