@@ -308,6 +308,24 @@ export function useFocusModes() {
             modes: data.modes as unknown as FocusModeState['modes'],
             lastCompletedMode: data.last_completed_mode as FocusModeState['lastCompletedMode'],
           };
+          
+          // MIGRAÇÃO: backlog -> tasks
+          // Se existe backlog com dados e tasks está vazio/inexistente, migrar
+          const modesAny = loadedState.modes as any;
+          if (modesAny.backlog?.backlogData && 
+              (!loadedState.modes.tasks?.backlogData?.tarefas?.length)) {
+            console.log('Migrando dados de backlog para tasks...', modesAny.backlog.backlogData);
+            
+            loadedState.modes.tasks = {
+              ...loadedState.modes.tasks,
+              ...createDefaultMode('tasks'),
+              backlogData: modesAny.backlog.backlogData,
+            };
+            
+            // Limpar backlog antigo para evitar confusão
+            delete modesAny.backlog;
+          }
+          
           const result = processLoadedState(loadedState);
           
           // Save snapshot before resetting weekly data
