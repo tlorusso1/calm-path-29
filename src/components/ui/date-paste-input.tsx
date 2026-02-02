@@ -31,6 +31,27 @@ function parseDate(value: string | number): string | null {
       if (isValid(parsed)) return trimmed;
     }
 
+    // Formato sem separadores: DDMMYYYY ou DDMMYY
+    const noSepMatch = trimmed.match(/^(\d{2})(\d{2})(\d{4})$/);
+    if (noSepMatch) {
+      const [, day, month, year] = noSepMatch;
+      const testDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      if (testDate.getDate() === parseInt(day) && testDate.getMonth() === parseInt(month) - 1) {
+        return `${year}-${month}-${day}`;
+      }
+    }
+    
+    // Formato curto sem separadores: DDMMYY
+    const shortNoSepMatch = trimmed.match(/^(\d{2})(\d{2})(\d{2})$/);
+    if (shortNoSepMatch) {
+      const [, day, month, shortYear] = shortNoSepMatch;
+      const year = parseInt(shortYear) > 50 ? `19${shortYear}` : `20${shortYear}`;
+      const testDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      if (testDate.getDate() === parseInt(day) && testDate.getMonth() === parseInt(month) - 1) {
+        return `${year}-${month}-${day}`;
+      }
+    }
+
     // Tentar múltiplos formatos em ordem de prioridade (brasileiro primeiro)
     const formats = [
       "dd/MM/yyyy",  // Brasileiro (prioridade)
