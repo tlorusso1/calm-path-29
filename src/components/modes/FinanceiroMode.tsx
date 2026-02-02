@@ -1,12 +1,12 @@
-import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria } from '@/types/focus-mode';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { TrendingUp, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock, Flame, Timer, Info, Target } from 'lucide-react';
-import { useState } from 'react';
+import { TrendingUp, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock, Flame, Timer, Info, Target, Building2 } from 'lucide-react';
+import { useState, useMemo } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/modeStatusCalculator';
 
@@ -57,7 +57,8 @@ export function FinanceiroMode({
   onUpdateFinanceiroData,
 }: FinanceiroModeProps) {
   const [openSections, setOpenSections] = useState({
-    defasados: true,
+    contas: true,
+    defasados: false,
     diario: true,
     semanal: false,
     mensal: false,
@@ -67,6 +68,10 @@ export function FinanceiroMode({
   const data: FinanceiroStage = {
     ...DEFAULT_FINANCEIRO_DATA,
     ...mode.financeiroData,
+    contas: {
+      ...DEFAULT_FINANCEIRO_CONTAS,
+      ...mode.financeiroData?.contas,
+    },
     custosDefasados: {
       ...DEFAULT_FINANCEIRO_DATA.custosDefasados,
       ...mode.financeiroData?.custosDefasados,
@@ -84,6 +89,29 @@ export function FinanceiroMode({
       ...mode.financeiroData?.checklistMensal,
     },
   };
+  
+  // Calcular totais das contas bancárias
+  const totaisContas = useMemo(() => {
+    const contas = data.contas || DEFAULT_FINANCEIRO_CONTAS;
+    
+    const caixaTotal = 
+      parseCurrency(contas.itauNiceFoods.saldo || '') +
+      parseCurrency(contas.itauNiceFoods.cdb || '') +
+      parseCurrency(contas.itauNiceEcom.saldo || '') +
+      parseCurrency(contas.itauNiceEcom.cdb || '') +
+      parseCurrency(contas.asaas.saldo || '') +
+      parseCurrency(contas.nuvem.saldo || '') +
+      parseCurrency(contas.pagarMe.saldo || '') +
+      parseCurrency(contas.mercadoPagoEcom.disponivel || '');
+    
+    const aReceber = 
+      parseCurrency(contas.asaas.aReceber || '') +
+      parseCurrency(contas.nuvem.aReceber || '') +
+      parseCurrency(contas.pagarMe.aReceber || '') +
+      parseCurrency(contas.mercadoPagoEcom.saldo || ''); // Saldo total MP = a receber
+    
+    return { caixaTotal, aReceber };
+  }, [data.contas]);
   
   // Calcular exports
   const exports: FinanceiroExports = calculateFinanceiroV2(data);
@@ -212,6 +240,226 @@ export function FinanceiroMode({
           </div>
         </CardContent>
       </Card>
+
+      {/* ========== CONTAS BANCÁRIAS ========== */}
+      <Collapsible open={openSections.contas} onOpenChange={() => toggleSection('contas')}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 rounded-t-lg transition-colors">
+              <CardTitle className="flex items-center justify-between text-base">
+                <span className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-primary" />
+                  Contas Bancárias
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {formatCurrency(totaisContas.caixaTotal)}
+                  </span>
+                  {openSections.contas ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </div>
+              </CardTitle>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-4 pt-0">
+              {/* ITAÚ NICE FOODS */}
+              <div className="p-3 rounded-lg border bg-muted/30">
+                <p className="text-xs font-medium text-muted-foreground mb-2">ITAÚ NICE FOODS</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Saldo</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                      <Input
+                        placeholder="0,00"
+                        value={data.contas?.itauNiceFoods.saldo || ''}
+                        onChange={(e) => onUpdateFinanceiroData({ 
+                          contas: { 
+                            ...data.contas!, 
+                            itauNiceFoods: { ...data.contas!.itauNiceFoods, saldo: e.target.value } 
+                          } 
+                        })}
+                        className="h-8 text-sm pl-7 text-right"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">CDB</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                      <Input
+                        placeholder="0,00"
+                        value={data.contas?.itauNiceFoods.cdb || ''}
+                        onChange={(e) => onUpdateFinanceiroData({ 
+                          contas: { 
+                            ...data.contas!, 
+                            itauNiceFoods: { ...data.contas!.itauNiceFoods, cdb: e.target.value } 
+                          } 
+                        })}
+                        className="h-8 text-sm pl-7 text-right"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* ITAÚ NICE ECOM */}
+              <div className="p-3 rounded-lg border bg-muted/30">
+                <p className="text-xs font-medium text-muted-foreground mb-2">ITAÚ NICE ECOM</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Saldo</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                      <Input
+                        placeholder="0,00"
+                        value={data.contas?.itauNiceEcom.saldo || ''}
+                        onChange={(e) => onUpdateFinanceiroData({ 
+                          contas: { 
+                            ...data.contas!, 
+                            itauNiceEcom: { ...data.contas!.itauNiceEcom, saldo: e.target.value } 
+                          } 
+                        })}
+                        className="h-8 text-sm pl-7 text-right"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">CDB</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                      <Input
+                        placeholder="0,00"
+                        value={data.contas?.itauNiceEcom.cdb || ''}
+                        onChange={(e) => onUpdateFinanceiroData({ 
+                          contas: { 
+                            ...data.contas!, 
+                            itauNiceEcom: { ...data.contas!.itauNiceEcom, cdb: e.target.value } 
+                          } 
+                        })}
+                        className="h-8 text-sm pl-7 text-right"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* GATEWAYS - ASAAS, NUVEM, PAGAR.ME */}
+              {[
+                { key: 'asaas', label: 'ASAAS' },
+                { key: 'nuvem', label: 'NUVEM' },
+                { key: 'pagarMe', label: 'PAGAR.ME' },
+              ].map(({ key, label }) => (
+                <div key={key} className="p-3 rounded-lg border bg-muted/30">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">{label}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Saldo</label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                        <Input
+                          placeholder="0,00"
+                          value={(data.contas as any)?.[key]?.saldo || ''}
+                          onChange={(e) => onUpdateFinanceiroData({ 
+                            contas: { 
+                              ...data.contas!, 
+                              [key]: { ...(data.contas as any)![key], saldo: e.target.value } 
+                            } 
+                          })}
+                          className="h-8 text-sm pl-7 text-right"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">A receber</label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                        <Input
+                          placeholder="0,00"
+                          value={(data.contas as any)?.[key]?.aReceber || ''}
+                          onChange={(e) => onUpdateFinanceiroData({ 
+                            contas: { 
+                              ...data.contas!, 
+                              [key]: { ...(data.contas as any)![key], aReceber: e.target.value } 
+                            } 
+                          })}
+                          className="h-8 text-sm pl-7 text-right"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {/* MERCADO PAGO ECOM */}
+              <div className="p-3 rounded-lg border bg-muted/30">
+                <p className="text-xs font-medium text-muted-foreground mb-2">MERCADO PAGO ECOM</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Disponível</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                      <Input
+                        placeholder="0,00"
+                        value={data.contas?.mercadoPagoEcom.disponivel || ''}
+                        onChange={(e) => onUpdateFinanceiroData({ 
+                          contas: { 
+                            ...data.contas!, 
+                            mercadoPagoEcom: { ...data.contas!.mercadoPagoEcom, disponivel: e.target.value } 
+                          } 
+                        })}
+                        className="h-8 text-sm pl-7 text-right"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Saldo total</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                      <Input
+                        placeholder="0,00"
+                        value={data.contas?.mercadoPagoEcom.saldo || ''}
+                        onChange={(e) => onUpdateFinanceiroData({ 
+                          contas: { 
+                            ...data.contas!, 
+                            mercadoPagoEcom: { ...data.contas!.mercadoPagoEcom, saldo: e.target.value } 
+                          } 
+                        })}
+                        className="h-8 text-sm pl-7 text-right"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* TOTAIS */}
+              <Separator />
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="font-medium">Caixa Total (saldos + CDBs + disponível)</span>
+                  <span className="font-bold text-primary">{formatCurrency(totaisContas.caixaTotal)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="font-medium">Total A Receber</span>
+                  <span className="font-bold text-green-600">{formatCurrency(totaisContas.aReceber)}</span>
+                </div>
+              </div>
+              
+              {/* Botão para aplicar ao caixa atual */}
+              {totaisContas.caixaTotal > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => onUpdateFinanceiroData({ caixaAtual: formatCurrency(totaisContas.caixaTotal).replace('R$', '').trim() })}
+                >
+                  Usar como Caixa Atual
+                </Button>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {/* ========== CUSTOS DEFASADOS ========== */}
       <Collapsible open={openSections.defasados} onOpenChange={() => toggleSection('defasados')}>

@@ -169,6 +169,20 @@ function processLoadedState(state: FocusModeState | null): ProcessResult {
               ideias: Array.isArray(existingBacklog?.ideias) ? existingBacklog.ideias : [],
             },
           };
+        } else if (id === 'financeiro') {
+          // FINANCEIRO: Preservar dados estruturais, resetar apenas checklist diário
+          const existingFinanceiro = state.modes.financeiro?.financeiroData;
+          updatedModes[id] = {
+            ...createDefaultMode(id),
+            financeiroData: {
+              ...existingFinanceiro,
+              checklistDiario: {
+                atualizouCaixa: false,
+                olhouResultado: false,
+                decidiu: false,
+              },
+            },
+          };
         } else {
           updatedModes[id] = createDefaultMode(id);
         }
