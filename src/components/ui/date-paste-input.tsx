@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { parse, format, isValid } from "date-fns";
 
 interface DatePasteInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'onChange'> {
   value?: string;
@@ -7,25 +8,53 @@ interface DatePasteInputProps extends Omit<React.InputHTMLAttributes<HTMLInputEl
 }
 
 /**
- * Converte data no formato brasileiro (DD/MM/YYYY) para ISO (YYYY-MM-DD)
+ * Converte data de múltiplos formatos para ISO (YYYY-MM-DD)
+ * Suporta: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, MM/DD/YYYY, YYYY-MM-DD, DD/MM/YY
+ * Também suporta datas do Excel (números seriais)
  */
-function parseBrazilianDate(text: string): string | null {
-  const cleaned = text.trim();
-  
-  // Tenta formato DD/MM/YYYY ou DD-MM-YYYY ou DD.MM.YYYY
-  const match = cleaned.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
-  if (match) {
-    const day = match[1].padStart(2, '0');
-    const month = match[2].padStart(2, '0');
-    const year = match[3];
+function parseDate(value: string | number): string | null {
+  if (!value) return null;
+
+  // Handle Excel serial dates (numbers between 1 and 100000 are likely dates)
+  if (typeof value === "number" && value > 1 && value < 100000) {
+    const excelEpoch = new Date(1899, 11, 30);
+    const date = new Date(excelEpoch.getTime() + value * 86400000);
+    return format(date, "yyyy-MM-dd");
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
     
-    // Validar data
-    const date = new Date(`${year}-${month}-${day}`);
-    if (!isNaN(date.getTime()) && date.getDate() === parseInt(day)) {
-      return `${year}-${month}-${day}`;
+    // Se já está no formato ISO, retornar
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const parsed = parse(trimmed, "yyyy-MM-dd", new Date());
+      if (isValid(parsed)) return trimmed;
+    }
+
+    // Tentar múltiplos formatos em ordem de prioridade (brasileiro primeiro)
+    const formats = [
+      "dd/MM/yyyy",  // Brasileiro (prioridade)
+      "dd-MM-yyyy",
+      "dd.MM.yyyy",
+      "dd/MM/yy",    // Ano curto brasileiro
+      "MM/dd/yyyy",  // Americano
+      "yyyy-MM-dd",  // ISO
+    ];
+
+    for (const fmt of formats) {
+      const parsed = parse(trimmed, fmt, new Date());
+      if (isValid(parsed)) {
+        // Validação extra: verificar se o dia é válido para o mês
+        const formatted = format(parsed, "yyyy-MM-dd");
+        const [year, month, day] = formatted.split('-').map(Number);
+        const checkDate = new Date(year, month - 1, day);
+        if (checkDate.getDate() === day) {
+          return formatted;
+        }
+      }
     }
   }
-  
+
   return null;
 }
 
@@ -46,6 +75,7 @@ const DatePasteInput = React.forwardRef<HTMLInputElement, DatePasteInputProps>(
     const [textValue, setTextValue] = React.useState(() => formatToBrazilian(value));
     const lastEmittedValue = React.useRef<string | undefined>(value);
     const inputRef = React.useRef<HTMLInputElement>(null);
+    const isPasting = React.useRef(false);
 
     // Sync textValue when value prop changes externally (not from our own emit)
     React.useEffect(() => {
@@ -68,11 +98,16 @@ const DatePasteInput = React.forwardRef<HTMLInputElement, DatePasteInputProps>(
     }, [onChange]);
 
     const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      // Se estamos no meio de um paste, ignorar o onChange
+      if (isPasting.current) {
+        return;
+      }
+      
       const newText = e.target.value;
       setTextValue(newText);
       
       // Tentar parsear enquanto digita
-      const isoDate = parseBrazilianDate(newText);
+      const isoDate = parseDate(newText);
       if (isoDate) {
         emitChange(isoDate);
       }
@@ -80,7 +115,7 @@ const DatePasteInput = React.forwardRef<HTMLInputElement, DatePasteInputProps>(
 
     const handleBlur = () => {
       // Ao sair do campo, tentar converter
-      const isoDate = parseBrazilianDate(textValue);
+      const isoDate = parseDate(textValue);
       if (isoDate) {
         emitChange(isoDate);
         setTextValue(formatToBrazilian(isoDate));
@@ -94,20 +129,27 @@ const DatePasteInput = React.forwardRef<HTMLInputElement, DatePasteInputProps>(
 
     const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
       const pastedText = e.clipboardData.getData('text');
-      const isoDate = parseBrazilianDate(pastedText);
+      const isoDate = parseDate(pastedText);
       
       if (isoDate) {
         e.preventDefault();
+        isPasting.current = true;
+        
         const formatted = formatToBrazilian(isoDate);
         setTextValue(formatted);
         emitChange(isoDate);
+        
+        // Reset flag após o React processar
+        requestAnimationFrame(() => {
+          isPasting.current = false;
+        });
       }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       // Enter confirma a data
       if (e.key === 'Enter') {
-        const isoDate = parseBrazilianDate(textValue);
+        const isoDate = parseDate(textValue);
         if (isoDate) {
           emitChange(isoDate);
           setTextValue(formatToBrazilian(isoDate));
