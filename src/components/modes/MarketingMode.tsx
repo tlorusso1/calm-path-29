@@ -1,11 +1,12 @@
-import { FocusMode, MarketingStage, MarketingInfluencer, DEFAULT_MARKETING_DATA, DEFAULT_MARKETING_ORGANICO, Tendencia } from '@/types/focus-mode';
+import { FocusMode, MarketingStage, MarketingInfluencer, DEFAULT_MARKETING_DATA, DEFAULT_MARKETING_ORGANICO, Tendencia, Marketing90DMedias, DEFAULT_MARKETING_90D } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { CheckCircle2, AlertTriangle, Clock, Plus, Trash2, Mail, Users, Megaphone, TrendingUp, TrendingDown, Minus, Globe, Activity, ShoppingCart, ArrowUp, ArrowDown } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Clock, Plus, Trash2, Mail, Users, Megaphone, TrendingUp, TrendingDown, Minus, Globe, Activity, ShoppingCart, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 import { calculateMarketingStatusSimples, calculateMarketingOrganico } from '@/utils/modeStatusCalculator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useState } from 'react';
@@ -147,7 +148,24 @@ export function MarketingMode({
       ...DEFAULT_MARKETING_ORGANICO,
       ...mode.marketingData?.organico,
       influencers: mode.marketingData?.organico?.influencers || [],
+      media90d: {
+        ...DEFAULT_MARKETING_90D,
+        ...mode.marketingData?.organico?.media90d,
+      },
     },
+  };
+  
+  // Handler para atualizar médias 90D
+  const handleMedia90dChange = (field: keyof Marketing90DMedias, value: string) => {
+    onUpdateMarketingData({
+      organico: {
+        ...data.organico!,
+        media90d: {
+          ...data.organico!.media90d!,
+          [field]: value,
+        },
+      },
+    });
   };
 
   // Calcular status do checklist
@@ -322,19 +340,34 @@ export function MarketingMode({
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <ShoppingCart className="h-4 w-4 text-emerald-500" />
-            Pedidos da Semana
+            Pedidos
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Quantidade de pedidos</Label>
-            <Input
-              type="text"
-              placeholder="Ex: 250"
-              value={data.organico?.pedidosSemana || ''}
-              onChange={(e) => handleOrganicoChange('pedidosSemana', e.target.value)}
-              className="h-9"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Pedidos semana anterior</Label>
+              <Input
+                type="text"
+                placeholder="Ex: 250"
+                value={data.organico?.pedidosSemana || ''}
+                onChange={(e) => handleOrganicoChange('pedidosSemana', e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                Média 90D
+              </Label>
+              <Input
+                type="text"
+                placeholder="Ex: 200"
+                value={data.organico?.media90d?.pedidosSemana || ''}
+                onChange={(e) => handleMedia90dChange('pedidosSemana', e.target.value)}
+                className="h-9 border-dashed"
+              />
+            </div>
           </div>
           
           {/* Indicador de tendência */}
@@ -348,7 +381,7 @@ export function MarketingMode({
             </p>
             {temHistorico && historicoMedias.pedidosSemana > 0 && (
               <p className="text-xs text-muted-foreground mt-1">
-                Média: {Math.round(historicoMedias.pedidosSemana)} pedidos/semana
+                Média calculada: {Math.round(historicoMedias.pedidosSemana)} pedidos/semana
               </p>
             )}
           </div>
@@ -483,28 +516,87 @@ export function MarketingMode({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">E-mails enviados</Label>
-              <Input
-                type="number"
-                placeholder="0"
-                value={data.organico?.emailEnviados || ''}
-                onChange={(e) => handleOrganicoChange('emailEnviados', e.target.value)}
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Abertura média (%)</Label>
-              <Input
-                type="text"
-                placeholder="Ex: 25%"
-                value={data.organico?.emailAbertura || ''}
-                onChange={(e) => handleOrganicoChange('emailAbertura', e.target.value)}
-                className="h-9"
-              />
+          {/* SEMANA */}
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">📆 Semana</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Enviados</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={data.organico?.emailEnviados || ''}
+                  onChange={(e) => handleOrganicoChange('emailEnviados', e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">% Abertura</Label>
+                <Input
+                  type="text"
+                  placeholder="Ex: 25%"
+                  value={data.organico?.emailAbertura || ''}
+                  onChange={(e) => handleOrganicoChange('emailAbertura', e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">% Conversões</Label>
+                <Input
+                  type="text"
+                  placeholder="Ex: 2%"
+                  value={data.organico?.emailConversoes || ''}
+                  onChange={(e) => handleOrganicoChange('emailConversoes', e.target.value)}
+                  className="h-9"
+                />
+              </div>
             </div>
           </div>
+          
+          <Separator />
+          
+          {/* MÉDIA 90D */}
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              Média 90D <span className="text-muted-foreground/60 font-normal">(atualizar 1x ao mês)</span>
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Enviados</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={data.organico?.media90d?.emailEnviados || ''}
+                  onChange={(e) => handleMedia90dChange('emailEnviados', e.target.value)}
+                  className="h-9 border-dashed"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">% Abertura</Label>
+                <Input
+                  type="text"
+                  placeholder="Ex: 22%"
+                  value={data.organico?.media90d?.emailAbertura || ''}
+                  onChange={(e) => handleMedia90dChange('emailAbertura', e.target.value)}
+                  className="h-9 border-dashed"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">% Conversões</Label>
+                <Input
+                  type="text"
+                  placeholder="Ex: 1.5%"
+                  value={data.organico?.media90d?.emailConversoes || ''}
+                  onChange={(e) => handleMedia90dChange('emailConversoes', e.target.value)}
+                  className="h-9 border-dashed"
+                />
+              </div>
+            </div>
+          </div>
+          
+          <Separator />
+          
           <label className={cn(
             "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
             data.organico?.emailGerouClique 
@@ -580,15 +672,27 @@ export function MarketingMode({
                     <span>Link/cupom ativo</span>
                   </label>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Alcance estimado</Label>
-                  <Input
-                    type="text"
-                    placeholder="Ex: 50.000"
-                    value={inf.alcanceEstimado}
-                    onChange={(e) => handleUpdateInfluencer(inf.id, 'alcanceEstimado', e.target.value)}
-                    className="h-8"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Código cupom</Label>
+                    <Input
+                      type="text"
+                      placeholder="Ex: INFLUENCER10"
+                      value={inf.codigoCupom || ''}
+                      onChange={(e) => handleUpdateInfluencer(inf.id, 'codigoCupom', e.target.value)}
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Alcance estimado</Label>
+                    <Input
+                      type="text"
+                      placeholder="Ex: 50.000"
+                      value={inf.alcanceEstimado}
+                      onChange={(e) => handleUpdateInfluencer(inf.id, 'alcanceEstimado', e.target.value)}
+                      className="h-8"
+                    />
+                  </div>
                 </div>
               </div>
             ))
@@ -605,50 +709,97 @@ export function MarketingMode({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Posts publicados</Label>
-              <Input
-                type="number"
-                placeholder="0"
-                value={data.organico?.postsPublicados || ''}
-                onChange={(e) => handleOrganicoChange('postsPublicados', e.target.value)}
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Taxa engajamento (%)</Label>
-              <Input
-                type="text"
-                placeholder="Ex: 3.5%"
-                value={data.organico?.taxaEngajamento || ''}
-                onChange={(e) => handleOrganicoChange('taxaEngajamento', e.target.value)}
-                className="h-9"
-              />
+          {/* SEMANA */}
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">📆 Semana</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Posts publicados</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={data.organico?.postsPublicados || ''}
+                  onChange={(e) => handleOrganicoChange('postsPublicados', e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Taxa engajamento (%)</Label>
+                <Input
+                  type="text"
+                  placeholder="Ex: 3.5%"
+                  value={data.organico?.taxaEngajamento || ''}
+                  onChange={(e) => handleOrganicoChange('taxaEngajamento', e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Alcance total semana</Label>
+                <Input
+                  type="text"
+                  placeholder="Ex: 150.000"
+                  value={data.organico?.alcanceTotal || ''}
+                  onChange={(e) => handleOrganicoChange('alcanceTotal', e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Média últimas semanas</Label>
+                <Input
+                  type="text"
+                  placeholder="Ex: 120.000"
+                  value={data.organico?.alcanceMediaSemanas || ''}
+                  onChange={(e) => handleOrganicoChange('alcanceMediaSemanas', e.target.value)}
+                  className="h-9"
+                />
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Alcance total semana</Label>
-              <Input
-                type="text"
-                placeholder="Ex: 150.000"
-                value={data.organico?.alcanceTotal || ''}
-                onChange={(e) => handleOrganicoChange('alcanceTotal', e.target.value)}
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Média últimas semanas</Label>
-              <Input
-                type="text"
-                placeholder="Ex: 120.000"
-                value={data.organico?.alcanceMediaSemanas || ''}
-                onChange={(e) => handleOrganicoChange('alcanceMediaSemanas', e.target.value)}
-                className="h-9"
-              />
+          
+          <Separator />
+          
+          {/* MÉDIA 90D */}
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              Média 90D <span className="text-muted-foreground/60 font-normal">(atualizar 1x ao mês)</span>
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Posts publicados</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={data.organico?.media90d?.postsPublicados || ''}
+                  onChange={(e) => handleMedia90dChange('postsPublicados', e.target.value)}
+                  className="h-9 border-dashed"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Taxa engajamento (%)</Label>
+                <Input
+                  type="text"
+                  placeholder="Ex: 3%"
+                  value={data.organico?.media90d?.taxaEngajamento || ''}
+                  onChange={(e) => handleMedia90dChange('taxaEngajamento', e.target.value)}
+                  className="h-9 border-dashed"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Alcance total</Label>
+                <Input
+                  type="text"
+                  placeholder="Ex: 130.000"
+                  value={data.organico?.media90d?.alcanceTotal || ''}
+                  onChange={(e) => handleMedia90dChange('alcanceTotal', e.target.value)}
+                  className="h-9 border-dashed"
+                />
+              </div>
             </div>
           </div>
+          
+          <Separator />
+          
           <label className={cn(
             "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
             data.organico?.postAcimaDaMedia 
@@ -661,6 +812,19 @@ export function MarketingMode({
             />
             <span className="text-sm">Houve post que performou acima da média?</span>
           </label>
+          
+          {data.organico?.postAcimaDaMedia && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Link do post destaque</Label>
+              <Input
+                type="text"
+                placeholder="https://..."
+                value={data.organico?.postLinkDestaque || ''}
+                onChange={(e) => handleOrganicoChange('postLinkDestaque', e.target.value)}
+                className="h-9"
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 

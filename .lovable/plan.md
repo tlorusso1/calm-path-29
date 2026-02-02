@@ -1,13 +1,15 @@
 
 # Plano: Persistência do Financeiro + Contas Bancárias + Médias 90D no Marketing
 
+## ✅ CONCLUÍDO
+
 ## Resumo Executivo
 
-Este plano aborda três grandes melhorias solicitadas:
+Este plano abordou três grandes melhorias:
 
-1. **Corrigir persistência do Financeiro**: Os dados estruturais (faturamento, custos, caixa) estão sendo apagados diariamente - apenas os checklists diários devem resetar
-2. **Adicionar contas bancárias detalhadas**: Separar o "Caixa Atual" em contas individuais para melhor controle
-3. **Adicionar campos de Média 90D no Marketing**: Email, Social e Influencers com médias de 90 dias para comparação
+1. ✅ **Corrigir persistência do Financeiro**: Dados estruturais (faturamento, custos, caixa, contas) agora persistem entre dias - apenas checklists diários resetam
+2. ✅ **Adicionar contas bancárias detalhadas**: Itaú (Nice Foods/Ecom), Asaas, Nuvem, Pagar.me, Mercado Pago - com cálculo automático de Caixa Total e A Receber
+3. ✅ **Adicionar campos de Média 90D no Marketing**: Email, Social, Pedidos com seções SEMANA e MÉDIA 90D + código cupom em influencers
 
 ---
 

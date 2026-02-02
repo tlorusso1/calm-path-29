@@ -24,6 +24,23 @@ export interface ChecklistItem {
   notes?: string;
 }
 
+// ============= Contas Bancárias Detalhadas =============
+export interface ContaBancaria {
+  saldo: string;
+  cdb?: string;        // Para Itaú
+  aReceber?: string;   // Para gateways
+  disponivel?: string; // Para Mercado Pago
+}
+
+export interface FinanceiroContas {
+  itauNiceFoods: ContaBancaria;
+  itauNiceEcom: ContaBancaria;
+  asaas: ContaBancaria;
+  nuvem: ContaBancaria;
+  pagarMe: ContaBancaria;
+  mercadoPagoEcom: ContaBancaria;
+}
+
 // ============= Financeiro V2 =============
 export interface FinanceiroStage {
   // INPUTS BÁSICOS
@@ -38,6 +55,9 @@ export interface FinanceiroStage {
   
   // NOVO: Faturamento Esperado próximos 30 dias (cenário conservador)
   faturamentoEsperado30d: string;
+  
+  // NOVO: Contas Bancárias Detalhadas
+  contas?: FinanceiroContas;
   
   // CUSTOS DEFASADOS (novidade crítica)
   custosDefasados: {
@@ -174,30 +194,51 @@ export interface MarketingInfluencer {
   conteudoNoAr: boolean;
   alcanceEstimado: string;
   linkCupomAtivo: boolean;
+  codigoCupom?: string;  // NOVO: Código do cupom
+}
+
+// Interface para Médias 90D do Marketing
+export interface Marketing90DMedias {
+  // Email
+  emailEnviados: string;
+  emailAbertura: string;
+  emailConversoes: string;
+  // Social
+  postsPublicados: string;
+  taxaEngajamento: string;
+  alcanceTotal: string;
+  // Pedidos
+  pedidosSemana: string;
 }
 
 export interface MarketingOrganico {
-  // E-mail
+  // E-mail - SEMANA
   emailEnviados: string;
   emailAbertura: string;
+  emailConversoes?: string;  // NOVO: % Conversões
   emailGerouClique: boolean;
   
   // Influencers
   influencers: MarketingInfluencer[];
   
-  // Conteúdo / Social
+  // Conteúdo / Social - SEMANA
   postsPublicados: string;
   alcanceTotal: string;
   alcanceMediaSemanas: string;
   postAcimaDaMedia: boolean;
+  postLinkDestaque?: string;  // NOVO: Link do post destaque
   taxaEngajamento: string;
   
   // Sessões do Site (validação da demanda)
   sessoesSemana: string;
   sessoesMedia30d: string;
   
-  // NOVO: Pedidos da Semana (validação de conversão)
+  // Pedidos da Semana
   pedidosSemana: string;
+  pedidosMedia90d?: string;  // NOVO: Média 90D de pedidos
+  
+  // NOVO: Médias 90D (preenchimento manual no início, depois calculado)
+  media90d?: Marketing90DMedias;
 }
 
 export type Tendencia = 'acima' | 'media' | 'abaixo';
@@ -483,19 +524,42 @@ export const DEFAULT_FINANCEIRO_DATA: FinanceiroStage = {
   marketingBase: '',
 };
 
+export const DEFAULT_FINANCEIRO_CONTAS: FinanceiroContas = {
+  itauNiceFoods: { saldo: '', cdb: '' },
+  itauNiceEcom: { saldo: '', cdb: '' },
+  asaas: { saldo: '', aReceber: '' },
+  nuvem: { saldo: '', aReceber: '' },
+  pagarMe: { saldo: '', aReceber: '' },
+  mercadoPagoEcom: { saldo: '', disponivel: '' },
+};
+
+export const DEFAULT_MARKETING_90D: Marketing90DMedias = {
+  emailEnviados: '',
+  emailAbertura: '',
+  emailConversoes: '',
+  postsPublicados: '',
+  taxaEngajamento: '',
+  alcanceTotal: '',
+  pedidosSemana: '',
+};
+
 export const DEFAULT_MARKETING_ORGANICO: MarketingOrganico = {
   emailEnviados: '',
   emailAbertura: '',
+  emailConversoes: '',
   emailGerouClique: false,
   influencers: [],
   postsPublicados: '',
   alcanceTotal: '',
   alcanceMediaSemanas: '',
   postAcimaDaMedia: false,
+  postLinkDestaque: '',
   taxaEngajamento: '',
   sessoesSemana: '',
   sessoesMedia30d: '',
   pedidosSemana: '',
+  pedidosMedia90d: '',
+  media90d: DEFAULT_MARKETING_90D,
 };
 
 // ============= Interface de Médias Históricas =============
