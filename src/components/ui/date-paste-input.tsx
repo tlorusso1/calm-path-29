@@ -1,19 +1,18 @@
 import * as React from "react";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-interface DatePasteInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
-  onDateChange?: (isoDate: string | undefined) => void;
+interface DatePasteInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'onChange'> {
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 /**
  * Converte data no formato brasileiro (DD/MM/YYYY) para ISO (YYYY-MM-DD)
  */
 function parseBrazilianDate(text: string): string | null {
-  // Remove espaços extras
   const cleaned = text.trim();
   
-  // Tenta formato DD/MM/YYYY ou DD-MM-YYYY
+  // Tenta formato DD/MM/YYYY ou DD-MM-YYYY ou DD.MM.YYYY
   const match = cleaned.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
   if (match) {
     const day = match[1].padStart(2, '0');
@@ -30,60 +29,115 @@ function parseBrazilianDate(text: string): string | null {
   return null;
 }
 
+/**
+ * Formata data ISO (YYYY-MM-DD) para exibição brasileira (DD/MM/YYYY)
+ */
+function formatToBrazilian(isoDate: string | undefined): string {
+  if (!isoDate) return '';
+  const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    return `${match[3]}/${match[2]}/${match[1]}`;
+  }
+  return isoDate;
+}
+
 const DatePasteInput = React.forwardRef<HTMLInputElement, DatePasteInputProps>(
-  ({ className, onChange, onDateChange, value, ...props }, ref) => {
-    
+  ({ className, onChange, value, placeholder, ...props }, ref) => {
+    const [textValue, setTextValue] = React.useState(() => formatToBrazilian(value));
+    const [isFocused, setIsFocused] = React.useState(false);
+    const inputRef = React.useRef<HTMLInputElement>(null);
+
+    // Sync textValue when value prop changes externally
+    React.useEffect(() => {
+      if (!isFocused) {
+        setTextValue(formatToBrazilian(value));
+      }
+    }, [value, isFocused]);
+
+    const emitChange = (isoDate: string) => {
+      if (onChange) {
+        const syntheticEvent = {
+          target: { value: isoDate },
+          currentTarget: { value: isoDate },
+        } as React.ChangeEvent<HTMLInputElement>;
+        onChange(syntheticEvent);
+      }
+    };
+
+    const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newText = e.target.value;
+      setTextValue(newText);
+      
+      // Tentar parsear enquanto digita
+      const isoDate = parseBrazilianDate(newText);
+      if (isoDate) {
+        emitChange(isoDate);
+      }
+    };
+
+    const handleBlur = () => {
+      setIsFocused(false);
+      
+      // Ao sair do campo, tentar converter
+      const isoDate = parseBrazilianDate(textValue);
+      if (isoDate) {
+        emitChange(isoDate);
+        setTextValue(formatToBrazilian(isoDate));
+      } else if (textValue === '') {
+        emitChange('');
+      } else {
+        // Se não conseguiu parsear, restaurar o valor original
+        setTextValue(formatToBrazilian(value));
+      }
+    };
+
+    const handleFocus = () => {
+      setIsFocused(true);
+    };
+
     const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
       const pastedText = e.clipboardData.getData('text');
       const isoDate = parseBrazilianDate(pastedText);
       
       if (isoDate) {
         e.preventDefault();
-        
-        // Criar um evento sintético para o onChange nativo
-        const nativeEvent = new Event('input', { bubbles: true });
-        const target = e.currentTarget;
-        
-        // Setar o valor no input
-        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
-          ?.set?.call(target, isoDate);
-        
-        target.dispatchEvent(nativeEvent);
-        
-        // Também chamar o callback se fornecido
-        if (onDateChange) {
-          onDateChange(isoDate);
-        }
-        
-        // Chamar onChange com evento sintético
-        if (onChange) {
-          const syntheticEvent = {
-            ...e,
-            target: { ...e.currentTarget, value: isoDate },
-            currentTarget: { ...e.currentTarget, value: isoDate },
-          } as React.ChangeEvent<HTMLInputElement>;
-          onChange(syntheticEvent);
-        }
+        setTextValue(formatToBrazilian(isoDate));
+        emitChange(isoDate);
       }
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (onChange) {
-        onChange(e);
-      }
-      if (onDateChange) {
-        onDateChange(e.target.value || undefined);
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      // Enter confirma a data
+      if (e.key === 'Enter') {
+        const isoDate = parseBrazilianDate(textValue);
+        if (isoDate) {
+          emitChange(isoDate);
+          setTextValue(formatToBrazilian(isoDate));
+        }
       }
     };
 
     return (
-      <Input
-        ref={ref}
-        type="date"
-        className={cn(className)}
-        value={value}
-        onChange={handleChange}
+      <input
+        ref={ref || inputRef}
+        type="text"
+        inputMode="numeric"
+        placeholder={placeholder || "DD/MM/AAAA"}
+        className={cn(
+          "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors",
+          "file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
+          "placeholder:text-muted-foreground",
+          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          "disabled:cursor-not-allowed disabled:opacity-50",
+          "md:text-sm",
+          className
+        )}
+        value={textValue}
+        onChange={handleTextChange}
+        onBlur={handleBlur}
+        onFocus={handleFocus}
         onPaste={handlePaste}
+        onKeyDown={handleKeyDown}
         {...props}
       />
     );
