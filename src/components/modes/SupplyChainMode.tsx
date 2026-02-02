@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toast } from '@/hooks/use-toast';
 import { 
   Package, 
   Plus, 
@@ -17,7 +19,8 @@ import {
   CheckCircle2, 
   Clock,
   FileText,
-  Truck
+  Truck,
+  Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -53,6 +56,8 @@ export function SupplyChainMode({
   });
   const [textoColado, setTextoColado] = useState('');
   const [tabAtiva, setTabAtiva] = useState('itens');
+  const [mostrarRevisaoValidade, setMostrarRevisaoValidade] = useState(false);
+  const [itensParaRevisar, setItensParaRevisar] = useState<ItemEstoque[]>([]);
 
   const data: SupplyChainStage = {
     ...DEFAULT_SUPPLYCHAIN_DATA,
@@ -86,6 +91,8 @@ export function SupplyChainMode({
 
   const handleColarLista = () => {
     const itensImportados = parsearListaEstoque(textoColado);
+    const itensAtualizados: string[] = [];
+    let novosItens = 0;
     
     itensImportados.forEach(itemImportado => {
       if (!itemImportado.nome || !itemImportado.quantidade) return;
@@ -97,10 +104,11 @@ export function SupplyChainMode({
       );
       
       if (itemExistente) {
-        // UPSERT: Atualizar quantidade do item existente
+        // UPSERT: Atualizar APENAS quantidade - preserva demandaSemanal e dataValidade
         onUpdateItem(itemExistente.id, { 
           quantidade: itemImportado.quantidade 
         });
+        itensAtualizados.push(itemExistente.nome);
       } else {
         // Criar novo item
         onAddItem({
@@ -109,10 +117,33 @@ export function SupplyChainMode({
           quantidade: itemImportado.quantidade,
           unidade: itemImportado.unidade || 'un',
         });
+        novosItens++;
       }
     });
     
+    // Mostrar modal de revisão se houver itens atualizados com validade
+    const itensComValidade = data.itens.filter(i => 
+      itensAtualizados.includes(i.nome) && i.dataValidade
+    );
+    
+    if (itensComValidade.length > 0) {
+      setItensParaRevisar(itensComValidade);
+      setMostrarRevisaoValidade(true);
+    }
+    
+    // Toast com resumo da importação
+    toast({
+      title: "Estoque Atualizado",
+      description: `${itensAtualizados.length} itens atualizados${novosItens > 0 ? `, ${novosItens} novos` : ''}`,
+    });
+    
     setTextoColado('');
+  };
+
+  const formatarDataValidade = (data: string | undefined) => {
+    if (!data) return '—';
+    const d = new Date(data + 'T00:00:00');
+    return d.toLocaleDateString('pt-BR');
   };
 
   const getStatusIcon = (status: 'verde' | 'amarelo' | 'vermelho' | undefined) => {
@@ -563,6 +594,81 @@ export function SupplyChainMode({
           "Supply não olha clique. Supply olha saída real."
         </p>
       </div>
+
+      {/* ========== MODAL DE REVISÃO DE VALIDADES ========== */}
+      <Dialog open={mostrarRevisaoValidade} onOpenChange={setMostrarRevisaoValidade}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+              Revisar Validades
+            </DialogTitle>
+            <DialogDescription>
+              Estes itens foram atualizados e têm validade cadastrada. 
+              Alguma validade mudou?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="max-h-[300px] pr-4">
+            <div className="space-y-3">
+              {itensParaRevisar.map(item => {
+                const diasVenc = calcularDiasAteVencimento(item.dataValidade);
+                return (
+                  <div 
+                    key={item.id} 
+                    className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{item.nome}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Vence: {formatarDataValidade(item.dataValidade)}
+                        {diasVenc !== null && (
+                          <span className={cn(
+                            "ml-1",
+                            diasVenc < 30 ? "text-destructive" :
+                            diasVenc < 60 ? "text-yellow-600" : ""
+                          )}>
+                            ({diasVenc}d)
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-2">
+                      <Input
+                        type="date"
+                        value={item.dataValidade ?? ''}
+                        onChange={(e) => {
+                          onUpdateItem(item.id, { 
+                            dataValidade: e.target.value || undefined 
+                          });
+                          // Atualizar a lista local para refletir a mudança
+                          setItensParaRevisar(prev => 
+                            prev.map(i => i.id === item.id 
+                              ? { ...i, dataValidade: e.target.value || undefined }
+                              : i
+                            )
+                          );
+                        }}
+                        className="h-8 w-32 text-xs"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+          
+          <DialogFooter>
+            <Button 
+              onClick={() => setMostrarRevisaoValidade(false)}
+              className="w-full"
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Confirmar Todos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
