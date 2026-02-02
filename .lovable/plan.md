@@ -1,192 +1,120 @@
 
-# Persistência de Validades no Estoque
+# Plano: Alertas de Aceleração de Vendas e Melhorias na Visão Executiva
 
-## O Problema
+## Resumo das Alterações
 
-Toda vez que você atualiza o estoque (colando lista do Bling), as informações de **validade** e **saída semanal** que você já preencheu são perdidas ou precisam ser reinseridas.
+O usuário solicitou três melhorias no módulo Supply Chain:
 
-## A Solução
-
-Duas melhorias:
-
-### 1. Preservar Dados ao Importar Lista
-
-Quando você cola uma lista para atualizar quantidades, o sistema vai **manter** as datas de validade e saída semanal que já estavam salvas para aquele item.
-
-**Antes:**
-```
-Colar lista → Atualiza quantidade → Perde validade
-```
-
-**Depois:**
-```
-Colar lista → Atualiza quantidade → Mantém validade + saída semanal
-```
-
-### 2. Alerta de Revisão de Validades
-
-Após importar uma lista, o sistema vai mostrar um alerta perguntando: **"Algum item teve mudança de validade?"** com a lista de itens que têm validade cadastrada para você revisar rapidamente.
-
-```text
-+------------------------------------------+
-| ✅ 15 itens atualizados                  |
-|                                          |
-| 📦 Itens com validade cadastrada:        |
-|                                          |
-| • Manteiga 500g        Vence: 15/03/2026 |
-|   [Manter] [Alterar]                     |
-|                                          |
-| • Creme de Avelã       Vence: 20/04/2026 |
-|   [Manter] [Alterar]                     |
-|                                          |
-| [Confirmar Todos]                        |
-+------------------------------------------+
-```
-
-## O Que Muda Para Você
-
-1. **Importação preserva seus dados**: Validades e saída semanal não são mais apagadas
-2. **Revisão rápida após importar**: Sistema pergunta se algo mudou
-3. **Menos trabalho repetitivo**: Só precisa preencher validade uma vez por item
+1. **Novo alerta "Acelerar Vendas"**: Identificar itens cuja validade é inferior ao tempo de cobertura (produto vai vencer antes de acabar o estoque)
+2. **Itens Amarelos na Visão Executiva**: Mostrar itens com cobertura baixa (status amarelo) além dos críticos
+3. **Lista de Estoque Maior e Ordenada**: Aumentar o tamanho do bloco de estoque atual e ordenar por quantidade (menor → maior)
 
 ---
 
-## Detalhes Técnicos
+## Alterações Detalhadas
 
-### Mudança 1: Preservar Dados no Upsert
+### 1. Novo Alerta: "Acelerar Vendas"
 
-Arquivo: `src/components/modes/SupplyChainMode.tsx`
+**Problema identificado**: Quando um item tem validade de 45 dias mas cobertura de 60 dias, significa que o produto vai vencer antes de ser totalmente vendido. Isso requer ação comercial (promoção, combo, etc.) para evitar perdas.
 
-Atualizar a função `handleColarLista`:
-
-```typescript
-const handleColarLista = () => {
-  const itensImportados = parsearListaEstoque(textoColado);
-  const itensAtualizados: string[] = [];
-  
-  itensImportados.forEach(itemImportado => {
-    if (!itemImportado.nome || !itemImportado.quantidade) return;
-    
-    const nomeNormalizado = itemImportado.nome.toLowerCase().trim();
-    const itemExistente = data.itens.find(
-      i => i.nome.toLowerCase().trim() === nomeNormalizado
-    );
-    
-    if (itemExistente) {
-      // UPSERT: Atualizar quantidade MAS MANTER validade e demanda
-      onUpdateItem(itemExistente.id, { 
-        quantidade: itemImportado.quantidade 
-        // NÃO sobrescreve: demandaSemanal, dataValidade
-      });
-      itensAtualizados.push(itemExistente.nome);
-    } else {
-      // Criar novo item
-      onAddItem({
-        nome: itemImportado.nome,
-        tipo: itemImportado.tipo || 'produto_acabado',
-        quantidade: itemImportado.quantidade,
-        unidade: itemImportado.unidade || 'un',
-      });
-    }
-  });
-  
-  // Mostrar modal de revisão se houver itens com validade
-  const itensComValidade = data.itens.filter(i => 
-    itensAtualizados.includes(i.nome) && i.dataValidade
-  );
-  
-  if (itensComValidade.length > 0) {
-    setItensParaRevisar(itensComValidade);
-    setMostrarRevisaoValidade(true);
-  }
-  
-  setTextoColado('');
-};
+**Lógica**:
+```
+Se diasAteVencimento < coberturaDias → precisa acelerar venda
 ```
 
-### Mudança 2: Modal de Revisão de Validades
-
-Adicionar estado e modal:
-
-```typescript
-const [mostrarRevisaoValidade, setMostrarRevisaoValidade] = useState(false);
-const [itensParaRevisar, setItensParaRevisar] = useState<ItemEstoque[]>([]);
+**Visual na Visão Executiva**:
+```
+🔥 Acelerar Vendas
+• Granola Tradicional (vence: 45d, estoque: 60d)
+• Mix de Castanhas (vence: 30d, estoque: 50d)
 ```
 
-Modal de revisão:
+O sistema vai calcular para cada item:
+- Dias até vencimento
+- Cobertura em dias (tempo para acabar o estoque)
+- Se validade < cobertura → alerta
 
+---
+
+### 2. Itens Amarelos na Visão Executiva
+
+**Situação atual**: A visão executiva só mostra itens com status vermelho (ruptura iminente).
+
+**Nova estrutura dos alertas**:
+1. Ruptura Iminente (vermelho) - já existe
+2. **Cobertura Baixa (amarelo) - NOVO**
+3. **Acelerar Vendas (laranja) - NOVO**
+4. Vencimento Crítico (<30d) - já existe
+5. Vencendo em Breve (30-60d) - já existe
+6. Atenção Vencimento (60-90d) - já existe
+
+**Visual**:
+```
+⚠️ Cobertura Baixa (Atenção)
+• Pote 500ml (22d)
+• Açúcar Demerara (35d)
+```
+
+---
+
+### 3. Lista de Estoque Maior e Ordenada
+
+**Alterações**:
+
+1. **Aumentar altura do bloco**: De `h-[350px]` para `h-[500px]` quando houver mais de 5 itens
+
+2. **Ordenação por quantidade**: Do que tem menos para o que tem mais
+
+```typescript
+// Ordenar por quantidade (menor primeiro)
+const itensOrdenados = [...itensProcessados].sort(
+  (a, b) => a.quantidade - b.quantidade
+);
+```
+
+---
+
+## Arquivo Modificado
+
+**`src/components/modes/SupplyChainMode.tsx`**
+
+### Mudança 1: Adicionar lógica de itens amarelos e acelerar vendas (na Visão Executiva, após "Ruptura Iminente")
+
+Será inserido após a seção "Ruptura Iminente" (linha ~296):
+
+- Seção "Cobertura Baixa (Atenção)" com itens amarelos
+- Seção "Acelerar Vendas" com itens que vencem antes de acabar
+
+### Mudança 2: Aumentar altura do ScrollArea (linha 476)
+
+De:
 ```tsx
-<Dialog open={mostrarRevisaoValidade} onOpenChange={setMostrarRevisaoValidade}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Revisar Validades</DialogTitle>
-      <DialogDescription>
-        Estes itens foram atualizados e têm validade cadastrada. 
-        Alguma validade mudou?
-      </DialogDescription>
-    </DialogHeader>
-    
-    <ScrollArea className="max-h-[300px]">
-      {itensParaRevisar.map(item => (
-        <div key={item.id} className="flex items-center justify-between py-2">
-          <div>
-            <p className="font-medium text-sm">{item.nome}</p>
-            <p className="text-xs text-muted-foreground">
-              Validade: {formatarData(item.dataValidade)}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <Check className="h-3 w-3 mr-1" /> OK
-            </Button>
-            <Input
-              type="date"
-              value={item.dataValidade}
-              onChange={(e) => onUpdateItem(item.id, { 
-                dataValidade: e.target.value 
-              })}
-              className="h-8 w-32"
-            />
-          </div>
-        </div>
-      ))}
-    </ScrollArea>
-    
-    <DialogFooter>
-      <Button onClick={() => setMostrarRevisaoValidade(false)}>
-        Confirmar Todos
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+<ScrollArea className={cn(itensProcessados.length > 5 ? "h-[350px]" : "h-auto")}>
 ```
 
-### Mudança 3: Feedback Visual Após Importação
-
-Mostrar toast com resumo:
-
-```typescript
-toast({
-  title: "Estoque Atualizado",
-  description: `${itensAtualizados.length} itens atualizados, ${novosItens.length} novos`,
-});
+Para:
+```tsx
+<ScrollArea className={cn(itensProcessados.length > 5 ? "h-[500px]" : "h-auto")}>
 ```
 
-## Arquivos a Modificar
+### Mudança 3: Ordenar itens por quantidade (linha 478)
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/components/modes/SupplyChainMode.tsx` | Preservar dados no upsert + modal de revisão |
+De:
+```tsx
+{itensProcessados.map((item) => {
+```
 
-## Comportamento Esperado
+Para:
+```tsx
+{[...itensProcessados].sort((a, b) => a.quantidade - b.quantidade).map((item) => {
+```
 
-1. **Colar lista do Bling**: Atualiza quantidade, mantém validade e saída semanal
-2. **Se itens têm validade**: Modal pergunta se alguma mudou
-3. **Revisão rápida**: Confirmar ou alterar individualmente
-4. **Toast de feedback**: Mostra quantos itens foram atualizados
+---
 
-## Resultado
+## Resultado Esperado
 
-- Preenche validade **uma vez** por item
-- Importação semanal preserva tudo
-- Revisão rápida só se precisar alterar algo
+Após a implementação:
+
+1. Gestor verá quais itens precisam de ação comercial para evitar perdas por vencimento
+2. Itens em atenção (amarelo) aparecerão na visão executiva, permitindo antecipar reposições
+3. A lista de estoque será maior e mostrará primeiro os itens com menos quantidade, facilitando identificar o que precisa de reposição
