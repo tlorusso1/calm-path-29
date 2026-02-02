@@ -6,7 +6,7 @@ import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Plus, Star, Trash2, Lightbulb, ClipboardList } from 'lucide-react';
+import { Plus, Star, Trash2, Lightbulb, ClipboardList, Target, CheckCircle, Pause } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface BacklogModeProps {
@@ -18,6 +18,7 @@ interface BacklogModeProps {
   onAddIdeia: (texto: string) => void;
   onUpdateIdeia: (id: string, texto: string) => void;
   onRemoveIdeia: (id: string) => void;
+  onSetTarefaEmFoco: (id: string | null) => void;
 }
 
 const TEMPO_EM_MINUTOS: Record<BacklogTempoEstimado, number> = {
@@ -49,15 +50,62 @@ function formatarTempo(minutos: number): string {
   return `${horas}h ${mins}min`;
 }
 
+// Componente para seção "Fazendo Agora"
+interface FazendoAgoraSectionProps {
+  tarefa: BacklogTarefa;
+  onConcluir: () => void;
+  onPausar: () => void;
+}
+
+function FazendoAgoraSection({ tarefa, onConcluir, onPausar }: FazendoAgoraSectionProps) {
+  const tempoLabel = tarefa.tempoEstimado;
+  const quandoLabel = tarefa.quandoFazer === 'hoje' ? 'Hoje' : 
+                      tarefa.quandoFazer === 'proximo' ? 'Próximo' : 'Depois';
+
+  return (
+    <Card className="p-4 border-2 border-primary bg-primary/5 space-y-4">
+      <div className="flex items-center gap-2 text-primary">
+        <Target className="h-5 w-5" />
+        <h3 className="font-semibold uppercase tracking-wide text-sm">
+          Fazendo Agora
+        </h3>
+      </div>
+      
+      <div className="space-y-3">
+        <p className="text-foreground font-medium">{tarefa.descricao}</p>
+        
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>⏱️ {tempoLabel}</span>
+          <span>•</span>
+          <span className="capitalize">{quandoLabel}</span>
+          {tarefa.urgente && <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />}
+        </div>
+        
+        <div className="flex gap-2">
+          <Button onClick={onConcluir} className="flex-1 gap-2">
+            <CheckCircle className="h-4 w-4" />
+            Concluir
+          </Button>
+          <Button variant="outline" onClick={onPausar} className="gap-2">
+            <Pause className="h-4 w-4" />
+            Pausar
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 // Componente para renderizar uma tarefa individual
 interface TarefaCardProps {
   tarefa: BacklogTarefa;
   borderColor: string;
   onUpdateTarefa: (id: string, data: Partial<BacklogTarefa>) => void;
   onRemoveTarefa: (id: string) => void;
+  onSetFoco: (id: string) => void;
 }
 
-function TarefaCard({ tarefa, borderColor, onUpdateTarefa, onRemoveTarefa }: TarefaCardProps) {
+function TarefaCard({ tarefa, borderColor, onUpdateTarefa, onRemoveTarefa, onSetFoco }: TarefaCardProps) {
   return (
     <Card 
       className={cn(
@@ -138,6 +186,19 @@ function TarefaCard({ tarefa, borderColor, onUpdateTarefa, onRemoveTarefa }: Tar
               </Button>
             ))}
           </div>
+
+          {/* Botão Focar */}
+          {!tarefa.emFoco && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs gap-1 text-primary hover:text-primary hover:bg-primary/10"
+              onClick={() => onSetFoco(tarefa.id)}
+            >
+              <Target className="h-3 w-3" />
+              Focar
+            </Button>
+          )}
         </>
       )}
     </Card>
@@ -153,6 +214,7 @@ interface TarefaSectionProps {
   bgColor: string;
   onUpdateTarefa: (id: string, data: Partial<BacklogTarefa>) => void;
   onRemoveTarefa: (id: string) => void;
+  onSetFoco: (id: string) => void;
 }
 
 function TarefaSection({ 
@@ -163,6 +225,7 @@ function TarefaSection({
   bgColor,
   onUpdateTarefa,
   onRemoveTarefa,
+  onSetFoco,
 }: TarefaSectionProps) {
   if (tarefas.length === 0) return null;
   
@@ -186,6 +249,7 @@ function TarefaSection({
           borderColor={borderColor}
           onUpdateTarefa={onUpdateTarefa}
           onRemoveTarefa={onRemoveTarefa}
+          onSetFoco={onSetFoco}
         />
       ))}
     </div>
@@ -201,6 +265,7 @@ export function BacklogMode({
   onAddIdeia,
   onUpdateIdeia,
   onRemoveIdeia,
+  onSetTarefaEmFoco,
 }: BacklogModeProps) {
   const [novaTarefa, setNovaTarefa] = useState('');
   const [novaIdeia, setNovaIdeia] = useState('');
@@ -210,10 +275,13 @@ export function BacklogMode({
   const tarefas = backlogData.tarefas ?? [];
   const ideias = backlogData.ideias ?? [];
 
-  // Separar tarefas por categoria
-  const tarefasHoje = tarefas.filter(t => t.quandoFazer === 'hoje');
-  const tarefasProximo = tarefas.filter(t => t.quandoFazer === 'proximo');
-  const tarefasDepois = tarefas.filter(t => t.quandoFazer === 'depois');
+  // Encontrar tarefa em foco (não completada)
+  const tarefaEmFoco = tarefas.find(t => t.emFoco && !t.completed);
+
+  // Separar tarefas por categoria (excluindo a em foco)
+  const tarefasHoje = tarefas.filter(t => t.quandoFazer === 'hoje' && !t.emFoco);
+  const tarefasProximo = tarefas.filter(t => t.quandoFazer === 'proximo' && !t.emFoco);
+  const tarefasDepois = tarefas.filter(t => t.quandoFazer === 'depois' && !t.emFoco);
 
   const tempoHoje = calcularTempoHoje(tarefas);
   const percentual = tempoDisponivelHoje > 0 ? (tempoHoje / tempoDisponivelHoje) * 100 : 0;
@@ -256,6 +324,15 @@ export function BacklogMode({
 
   return (
     <div className="space-y-6">
+      {/* FAZENDO AGORA */}
+      {tarefaEmFoco && (
+        <FazendoAgoraSection
+          tarefa={tarefaEmFoco}
+          onConcluir={() => onUpdateTarefa(tarefaEmFoco.id, { completed: true })}
+          onPausar={() => onSetTarefaEmFoco(null)}
+        />
+      )}
+
       {/* CAPACIDADE DO DIA */}
       <Card className="p-4 space-y-4 border-2">
         <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
@@ -342,6 +419,7 @@ export function BacklogMode({
                 bgColor="bg-green-500/10 text-green-700 dark:text-green-400"
                 onUpdateTarefa={onUpdateTarefa}
                 onRemoveTarefa={onRemoveTarefa}
+                onSetFoco={onSetTarefaEmFoco}
               />
               <TarefaSection 
                 titulo="Próximo" 
@@ -351,6 +429,7 @@ export function BacklogMode({
                 bgColor="bg-blue-500/10 text-blue-700 dark:text-blue-400"
                 onUpdateTarefa={onUpdateTarefa}
                 onRemoveTarefa={onRemoveTarefa}
+                onSetFoco={onSetTarefaEmFoco}
               />
               <TarefaSection 
                 titulo="Depois" 
@@ -360,6 +439,7 @@ export function BacklogMode({
                 bgColor="bg-muted/50 text-muted-foreground"
                 onUpdateTarefa={onUpdateTarefa}
                 onRemoveTarefa={onRemoveTarefa}
+                onSetFoco={onSetTarefaEmFoco}
               />
             </>
           )}

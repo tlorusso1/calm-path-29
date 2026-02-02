@@ -368,6 +368,7 @@ export interface BacklogTarefa {
   urgente: boolean;
   quandoFazer: BacklogQuandoFazer;
   completed: boolean;
+  emFoco?: boolean;  // Indica se está sendo trabalhada agora
 }
 
 export interface BacklogIdeia {

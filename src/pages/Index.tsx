@@ -62,6 +62,7 @@ const Index = () => {
     addBacklogIdeia,
     updateBacklogIdeia,
     removeBacklogIdeia,
+    setTarefaEmFoco,
   } = useFocusModes();
 
   useEffect(() => {
@@ -153,6 +154,7 @@ const Index = () => {
             onAddBacklogIdeia={addBacklogIdeia}
             onUpdateBacklogIdeia={updateBacklogIdeia}
             onRemoveBacklogIdeia={removeBacklogIdeia}
+            onSetBacklogTarefaEmFoco={setTarefaEmFoco}
           />
         ) : (
           <NoModeSelected lastCompletedMode={lastCompletedMode} />

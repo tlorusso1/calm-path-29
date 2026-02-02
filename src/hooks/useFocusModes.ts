@@ -1094,8 +1094,42 @@ export function useFocusModes() {
             backlogData: {
               ...currentBacklog,
               tarefas: (currentBacklog.tarefas || []).map(t =>
-                t.id === id ? { ...t, ...data } : t
+                t.id === id 
+                  ? { 
+                      ...t, 
+                      ...data,
+                      // Se completando, remove o foco automaticamente
+                      emFoco: data.completed ? false : (data.emFoco ?? t.emFoco)
+                    } 
+                  : t
               ),
+            },
+          },
+        },
+      };
+    });
+  }, []);
+
+  const setTarefaEmFoco = useCallback((id: string | null) => {
+    setState(prev => {
+      const currentBacklog = prev.modes.backlog.backlogData ?? {
+        tempoDisponivelHoje: 480,
+        tarefas: [],
+        ideias: [],
+      };
+      
+      return {
+        ...prev,
+        modes: {
+          ...prev.modes,
+          backlog: {
+            ...prev.modes.backlog,
+            backlogData: {
+              ...currentBacklog,
+              tarefas: (currentBacklog.tarefas || []).map(t => ({
+                ...t,
+                emFoco: t.id === id, // Define foco na tarefa selecionada, remove das outras
+              })),
             },
           },
         },
@@ -1259,5 +1293,6 @@ export function useFocusModes() {
     addBacklogIdeia,
     updateBacklogIdeia,
     removeBacklogIdeia,
+    setTarefaEmFoco,
   };
 }
