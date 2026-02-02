@@ -11,7 +11,6 @@ import {
   BacklogStage,
   BacklogTarefa,
   PreReuniaoGeralStage,
-  PreReuniaoAdsStage,
   ReuniaoAdsStage,
   ReuniaoAdsAcao,
   FinanceiroExports,
@@ -23,7 +22,6 @@ import {
   DEFAULT_SUPPLYCHAIN_DATA,
   DEFAULT_BACKLOG_DATA,
   DEFAULT_PREREUNIAO_GERAL_DATA,
-  DEFAULT_PREREUNIAO_ADS_DATA,
   DEFAULT_REUNIAO_ADS_DATA,
 } from '@/types/focus-mode';
 import {
@@ -33,7 +31,6 @@ import {
   calculateChecklistStatus,
   calculateModeStatus,
   calculatePreReuniaoGeralStatus,
-  calculatePreReuniaoAdsStatus,
   calculateReuniaoAdsStatus,
   calculateFinanceiroV2,
   calculateMarketingOrganico,
@@ -95,10 +92,6 @@ function createDefaultMode(id: FocusModeId): FocusMode {
 
   if (id === 'pre-reuniao-geral') {
     mode.preReuniaoGeralData = { ...DEFAULT_PREREUNIAO_GERAL_DATA };
-  }
-
-  if (id === 'pre-reuniao-ads') {
-    mode.preReuniaoAdsData = { ...DEFAULT_PREREUNIAO_ADS_DATA };
   }
 
   if (id === 'reuniao-ads') {
@@ -909,30 +902,6 @@ export function useFocusModes() {
     });
   }, []);
 
-  // ============= Pre-Reunião Ads =============
-  const updatePreReuniaoAdsData = useCallback((data: Partial<PreReuniaoAdsStage>) => {
-    setState(prev => {
-      const currentData = prev.modes['pre-reuniao-ads'].preReuniaoAdsData ?? DEFAULT_PREREUNIAO_ADS_DATA;
-      const newData: PreReuniaoAdsStage = {
-        ...currentData,
-        ...data,
-      };
-      const newStatus = calculatePreReuniaoAdsStatus(newData);
-      
-      return {
-        ...prev,
-        modes: {
-          ...prev.modes,
-          'pre-reuniao-ads': {
-            ...prev.modes['pre-reuniao-ads'],
-            preReuniaoAdsData: newData,
-            status: newStatus,
-          },
-        },
-      };
-    });
-  }, []);
-
   // ============= Reunião Ads =============
   const updateReuniaoAdsData = useCallback((data: Partial<ReuniaoAdsStage>) => {
     setState(prev => {
@@ -1278,10 +1247,8 @@ export function useFocusModes() {
     removeSupplyItem,
     // Pre-Reunião Geral
     updatePreReuniaoGeralData,
-    // Pre-Reunião Ads
-    marketingExports,
-    updatePreReuniaoAdsData,
     // Reunião Ads
+    marketingExports,
     updateReuniaoAdsData,
     addReuniaoAdsAcao,
     removeReuniaoAdsAcao,

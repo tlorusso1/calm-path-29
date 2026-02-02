@@ -13,7 +13,7 @@ const MODE_ORDER: FocusModeId[] = [
   'marketing',
   'supplychain',
   'pre-reuniao-geral',
-  'pre-reuniao-ads',
+  'reuniao-ads',
   'pre-reuniao-verter',
   'tasks',
 ];

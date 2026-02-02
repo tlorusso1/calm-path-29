@@ -11,7 +11,6 @@ const MODE_ROLE_MAP: Record<FocusModeId, AppRole[]> = {
   'marketing': ['admin', 'marketing'],
   'supplychain': ['admin'],
   'pre-reuniao-geral': ['admin'],
-  'pre-reuniao-ads': ['admin', 'marketing'],
   'reuniao-ads': ['admin', 'marketing'],
   'pre-reuniao-verter': ['admin'],
   'tasks': ['admin', 'operacional'],

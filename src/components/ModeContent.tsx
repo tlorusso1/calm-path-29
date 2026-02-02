@@ -1,10 +1,9 @@
-import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, PreReuniaoAdsStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, ScoreNegocio, ItemEstoque } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, ScoreNegocio, ItemEstoque } from '@/types/focus-mode';
 import { Button } from '@/components/ui/button';
 import { FinanceiroMode } from '@/components/modes/FinanceiroMode';
 import { MarketingMode } from '@/components/modes/MarketingMode';
 import { SupplyChainMode } from '@/components/modes/SupplyChainMode';
 import { PreReuniaoGeralMode } from '@/components/modes/PreReuniaoGeralMode';
-import { PreReuniaoAdsMode } from '@/components/modes/PreReuniaoAdsMode';
 import { PreReuniaoVerterMode } from '@/components/modes/PreReuniaoVerterMode';
 import { ReuniaoAdsMode } from '@/components/modes/ReuniaoAdsMode';
 import { TasksMode } from '@/components/modes/TasksMode';
@@ -35,11 +34,9 @@ interface ModeContentProps {
   financeiroExports?: FinanceiroExports;
   scoreNegocio?: ScoreNegocio;
   onUpdatePreReuniaoGeralData?: (data: Partial<PreReuniaoGeralStage>) => void;
-  // Pre-Reunião Ads
+  // Reunião Ads
   prioridadeSemana?: string | null;
   marketingExports?: MarketingExports;
-  onUpdatePreReuniaoAdsData?: (data: Partial<PreReuniaoAdsStage>) => void;
-  // Reunião Ads
   onUpdateReuniaoAdsData?: (data: Partial<ReuniaoAdsStage>) => void;
   onAddReuniaoAdsAcao?: (acao: Omit<ReuniaoAdsAcao, 'id'>) => ReuniaoAdsAcao;
   onRemoveReuniaoAdsAcao?: (id: string) => void;
@@ -78,7 +75,6 @@ export function ModeContent({
   onUpdatePreReuniaoGeralData,
   prioridadeSemana,
   marketingExports,
-  onUpdatePreReuniaoAdsData,
   onUpdateReuniaoAdsData,
   onAddReuniaoAdsAcao,
   onRemoveReuniaoAdsAcao,
@@ -122,26 +118,19 @@ export function ModeContent({
           <PreReuniaoGeralMode 
             mode={mode}
             financeiroExports={financeiroExports!}
-            preReuniaoAdsData={mode.preReuniaoAdsData}
+            reuniaoAdsData={mode.reuniaoAdsData}
             scoreNegocio={scoreNegocio!}
             onUpdatePreReuniaoGeralData={onUpdatePreReuniaoGeralData!}
-          />
-        );
-      case 'pre-reuniao-ads':
-        return (
-          <PreReuniaoAdsMode 
-            mode={mode}
-            financeiroExports={financeiroExports!}
-            prioridadeSemana={prioridadeSemana ?? null}
-            marketingExports={marketingExports!}
-            scoreNegocio={scoreNegocio}
-            onUpdatePreReuniaoAdsData={onUpdatePreReuniaoAdsData!}
           />
         );
       case 'reuniao-ads':
         return (
           <ReuniaoAdsMode 
             mode={mode}
+            financeiroExports={financeiroExports!}
+            prioridadeSemana={prioridadeSemana ?? null}
+            marketingExports={marketingExports!}
+            scoreNegocio={scoreNegocio}
             onUpdateReuniaoAdsData={onUpdateReuniaoAdsData!}
             onAddAcao={onAddReuniaoAdsAcao!}
             onRemoveAcao={onRemoveReuniaoAdsAcao!}
