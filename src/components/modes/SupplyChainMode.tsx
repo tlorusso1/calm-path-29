@@ -295,6 +295,73 @@ export function SupplyChainMode({
                 </div>
               )}
 
+              {/* Cobertura Baixa (Amarelos) */}
+              {itensProcessados.some(i => i.status === 'amarelo') && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-yellow-500" />
+                    <span className="font-medium text-yellow-600 text-sm">
+                      Cobertura Baixa (Atenção)
+                    </span>
+                  </div>
+                  <ul className="ml-6 space-y-0.5">
+                    {itensProcessados
+                      .filter(i => i.status === 'amarelo')
+                      .sort((a, b) => (a.coberturaDias ?? 999) - (b.coberturaDias ?? 999))
+                      .map(item => (
+                        <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
+                          <span>•</span>
+                          <span>{item.nome}</span>
+                          {item.coberturaDias !== undefined && (
+                            <span className="text-yellow-600 font-medium">
+                              ({item.coberturaDias}d)
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Acelerar Vendas - validade < cobertura */}
+              {(() => {
+                const itensParaAcelerar = itensProcessados
+                  .map(item => ({
+                    ...item,
+                    diasVenc: calcularDiasAteVencimento(item.dataValidade)
+                  }))
+                  .filter(item => 
+                    item.diasVenc !== null && 
+                    item.coberturaDias !== undefined && 
+                    item.diasVenc < item.coberturaDias
+                  )
+                  .sort((a, b) => (a.diasVenc ?? 999) - (b.diasVenc ?? 999));
+
+                if (itensParaAcelerar.length === 0) return null;
+
+                return (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🔥</span>
+                      <span className="font-medium text-orange-600 text-sm">
+                        Acelerar Vendas
+                      </span>
+                    </div>
+                    <ul className="ml-6 space-y-0.5">
+                      {itensParaAcelerar.map(item => (
+                        <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
+                          <span>•</span>
+                          <span>{item.nome}</span>
+                          <span className="text-orange-600 font-medium">
+                            (vence: {item.diasVenc}d, estoque: {item.coberturaDias}d)
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
+
               {/* Vencendo em Breve - 3 níveis */}
               {(() => {
                 const itensComVencimento = itensProcessados
@@ -473,9 +540,9 @@ export function SupplyChainMode({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className={cn(itensProcessados.length > 5 ? "h-[350px]" : "h-auto")}>
+            <ScrollArea className={cn(itensProcessados.length > 5 ? "h-[500px]" : "h-auto")}>
               <div className="space-y-2">
-                {itensProcessados.map((item) => {
+                {[...itensProcessados].sort((a, b) => a.quantidade - b.quantidade).map((item) => {
                   const diasVenc = calcularDiasAteVencimento(item.dataValidade);
                   const usandoGlobal = item.demandaSemanal === undefined;
                   
