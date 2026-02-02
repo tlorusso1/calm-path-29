@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FocusMode, BacklogStage, BacklogTarefa, BacklogTempoEstimado, BacklogQuandoFazer } from '@/types/focus-mode';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -72,11 +73,11 @@ function TarefaCard({ tarefa, borderColor, onUpdateTarefa, onRemoveTarefa }: Tar
           onCheckedChange={() => onUpdateTarefa(tarefa.id, { completed: !tarefa.completed })}
           className="mt-0.5"
         />
-        <Input
+        <AutoResizeTextarea
           value={tarefa.descricao}
           onChange={(e) => onUpdateTarefa(tarefa.id, { descricao: e.target.value })}
           className={cn(
-            "flex-1 text-sm h-7 border-none shadow-none px-1 bg-transparent focus-visible:ring-1",
+            "flex-1 text-sm border-none shadow-none",
             tarefa.completed && "line-through text-muted-foreground"
           )}
         />
@@ -401,10 +402,10 @@ export function BacklogMode({
                 className="flex items-center gap-2 p-2 bg-background rounded border"
               >
                 <span className="text-sm text-muted-foreground">•</span>
-                <Input
+                <AutoResizeTextarea
                   value={ideia.texto}
                   onChange={(e) => onUpdateIdeia(ideia.id, e.target.value)}
-                  className="flex-1 text-sm h-7 border-none shadow-none px-1 bg-transparent focus-visible:ring-1"
+                  className="flex-1 text-sm border-none shadow-none"
                 />
                 <Button
                   variant="ghost"
