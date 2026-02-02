@@ -44,17 +44,20 @@ function formatToBrazilian(isoDate: string | undefined): string {
 const DatePasteInput = React.forwardRef<HTMLInputElement, DatePasteInputProps>(
   ({ className, onChange, value, placeholder, ...props }, ref) => {
     const [textValue, setTextValue] = React.useState(() => formatToBrazilian(value));
-    const [isFocused, setIsFocused] = React.useState(false);
+    const lastEmittedValue = React.useRef<string | undefined>(value);
     const inputRef = React.useRef<HTMLInputElement>(null);
 
-    // Sync textValue when value prop changes externally
+    // Sync textValue when value prop changes externally (not from our own emit)
     React.useEffect(() => {
-      if (!isFocused) {
+      // Only update if value changed from external source
+      if (value !== lastEmittedValue.current) {
         setTextValue(formatToBrazilian(value));
+        lastEmittedValue.current = value;
       }
-    }, [value, isFocused]);
+    }, [value]);
 
-    const emitChange = (isoDate: string) => {
+    const emitChange = React.useCallback((isoDate: string) => {
+      lastEmittedValue.current = isoDate || undefined;
       if (onChange) {
         const syntheticEvent = {
           target: { value: isoDate },
@@ -62,7 +65,7 @@ const DatePasteInput = React.forwardRef<HTMLInputElement, DatePasteInputProps>(
         } as React.ChangeEvent<HTMLInputElement>;
         onChange(syntheticEvent);
       }
-    };
+    }, [onChange]);
 
     const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const newText = e.target.value;
@@ -76,8 +79,6 @@ const DatePasteInput = React.forwardRef<HTMLInputElement, DatePasteInputProps>(
     };
 
     const handleBlur = () => {
-      setIsFocused(false);
-      
       // Ao sair do campo, tentar converter
       const isoDate = parseBrazilianDate(textValue);
       if (isoDate) {
@@ -91,17 +92,14 @@ const DatePasteInput = React.forwardRef<HTMLInputElement, DatePasteInputProps>(
       }
     };
 
-    const handleFocus = () => {
-      setIsFocused(true);
-    };
-
     const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
       const pastedText = e.clipboardData.getData('text');
       const isoDate = parseBrazilianDate(pastedText);
       
       if (isoDate) {
         e.preventDefault();
-        setTextValue(formatToBrazilian(isoDate));
+        const formatted = formatToBrazilian(isoDate);
+        setTextValue(formatted);
         emitChange(isoDate);
       }
     };
@@ -135,7 +133,6 @@ const DatePasteInput = React.forwardRef<HTMLInputElement, DatePasteInputProps>(
         value={textValue}
         onChange={handleTextChange}
         onBlur={handleBlur}
-        onFocus={handleFocus}
         onPaste={handlePaste}
         onKeyDown={handleKeyDown}
         {...props}
