@@ -1,66 +1,308 @@
 
-# Plano: Corrigir Migração de Dados Backlog → Tasks
+# Plano: Gráfico de Fluxo de Caixa Híbrido no Financeiro
 
-## Problema Identificado
+## Objetivo
 
-Os dados das tarefas e ideias estão salvos no banco em `modes.backlog.backlogData`, mas o código agora procura em `modes.tasks.backlogData`.
+Adicionar um gráfico de fluxo de caixa ao módulo Financeiro que funciona em dois modos:
+1. **Modo Projeção** (sem inputs detalhados): Usa dados já existentes para estimar
+2. **Modo Preciso** (com inputs detalhados): Usa contas a pagar/receber com datas
 
-**Dados confirmados no banco:**
-- 12 tarefas (Comprar manual, Levedura, Reunião Geral, etc.)
-- 3 ideias (Nice milk shake, Materiais PDV, Pote castanha creme)
-- tempoDisponivelHoje: 300 minutos
+---
 
-## Solução
+## Estratégia Híbrida
 
-Adicionar lógica de migração no hook `useFocusModes.ts` que:
-1. Ao carregar dados do banco, verifica se existe `modes.backlog` com dados
-2. Se existir, migra para `modes.tasks`
-3. Remove o `backlog` antigo para não duplicar
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  📊 FLUXO DE CAIXA (próximos 30 dias)                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  R$     ┌────────────────────────────────────────────────────┐ │
+│  100k   │    ████                                             │ │
+│   80k   │    ████  ████                                       │ │
+│   60k   │    ████  ████  ████                                 │ │
+│   40k   │    ████  ████  ████  ████  ────────────────────────│ │
+│   20k   │    ████  ████  ████  ████  ████████████████████████│ │
+│    0k   └────────────────────────────────────────────────────┘ │
+│         Hoje   S1    S2    S3    S4                            │
+│                                                                 │
+│  ⓘ Projeção simplificada (baseada em médias)                   │
+│  [+ Adicionar Conta a Pagar/Receber] ← link para seção         │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-## Alteração Técnica
+---
 
-**Arquivo: `src/hooks/useFocusModes.ts`**
+## 1. Dados Atuais Disponíveis (Projeção)
 
-Adicionar após carregar os dados do Supabase (linha ~304):
+Já existem no `FinanceiroStage`:
+- `caixaAtual` - Ponto de partida
+- `faturamentoEsperado30d` - Entrada esperada (dividir em 4 semanas)
+- `custoFixoMensal` - Saída fixa (dividir em 4 semanas)
+- `marketingEstrutural` - Saída fixa (dividir em 4 semanas)
+- `adsBase` - Saída variável (dividir em 4 semanas)
+- `custosDefasados` - Saídas comprometidas com datas específicas
+
+**Cálculo do Modo Projeção:**
+```typescript
+// Semana 0 = Caixa Atual
+// Semana 1-4 = Caixa Anterior + (Entradas - Saídas) / 4
+
+const entradasSemanais = (faturamentoEsperado30d * 0.40) / 4; // Margem
+const saidasSemanais = (custoFixo + mktEstrutural + ads) / 4;
+const resultadoSemanal = entradasSemanais - saidasSemanais;
+```
+
+---
+
+## 2. Nova Estrutura: Contas a Pagar/Receber (Opcional)
+
+Adicionar ao `FinanceiroStage`:
 
 ```typescript
-// MIGRAÇÃO: backlog -> tasks
-// Se existe backlog com dados e tasks está vazio, migrar
-if (loadedState.modes.backlog?.backlogData && 
-    (!loadedState.modes.tasks?.backlogData?.tarefas?.length)) {
-  console.log('Migrando dados de backlog para tasks...');
+export interface ContaFluxo {
+  id: string;
+  tipo: 'pagar' | 'receber';
+  descricao: string;
+  valor: string;
+  dataVencimento: string;  // ISO date (YYYY-MM-DD)
+  pago?: boolean;
+}
+
+export interface FinanceiroStage {
+  // ... campos existentes ...
   
-  loadedState.modes.tasks = {
-    ...loadedState.modes.tasks,
-    backlogData: loadedState.modes.backlog.backlogData,
-  };
-  
-  // Limpar backlog antigo para evitar confusão
-  delete (loadedState.modes as any).backlog;
+  // NOVO: Contas detalhadas para fluxo de caixa preciso
+  contasFluxo?: ContaFluxo[];
 }
 ```
 
-## Fluxo da Correção
+---
 
-1. Usuário abre o app
-2. Hook carrega dados do Supabase
-3. Detecta `modes.backlog.backlogData` com tarefas
-4. Copia para `modes.tasks.backlogData`
-5. Remove `backlog` antigo
-6. Processa normalmente
-7. Salva com a estrutura correta
-8. Próximas vezes: dados já estarão em `tasks`
+## 3. Lógica Híbrida
 
-## Arquivos a Modificar
+```typescript
+function calcularFluxoCaixa(data: FinanceiroStage): FluxoCaixaData[] {
+  const temContasDetalhadas = (data.contasFluxo?.length ?? 0) > 0;
+  
+  if (temContasDetalhadas) {
+    // MODO PRECISO: Usa contasFluxo com datas reais
+    return calcularFluxoPreciso(data);
+  } else {
+    // MODO PROJEÇÃO: Estima baseado em médias
+    return calcularFluxoProjecao(data);
+  }
+}
+```
+
+---
+
+## 4. Interface Visual
+
+### Gráfico de Barras (Recharts)
+
+```typescript
+// Já disponível: recharts + ChartContainer
+import { BarChart, Bar, XAxis, YAxis, ReferenceLine } from 'recharts';
+
+const dadosGrafico = [
+  { semana: 'Hoje', saldo: 85000, cor: 'green' },
+  { semana: 'S1', saldo: 72000, cor: 'green' },
+  { semana: 'S2', saldo: 58000, cor: 'yellow' },
+  { semana: 'S3', saldo: 45000, cor: 'yellow' },
+  { semana: 'S4', saldo: 32000, cor: 'red' },
+];
+```
+
+### Cores Dinâmicas
+
+```text
+Verde:   saldo > caixaMinimo
+Amarelo: saldo > 0 && saldo < caixaMinimo
+Vermelho: saldo <= 0
+```
+
+### Linha de Referência
+
+```typescript
+<ReferenceLine 
+  y={caixaMinimo} 
+  stroke="orange" 
+  strokeDasharray="3 3"
+  label="Mínimo" 
+/>
+```
+
+---
+
+## 5. Seção de Contas (Collapsible)
+
+Quando clicado em "Adicionar Conta", expande:
+
+```text
+┌── 📑 CONTAS A PAGAR/RECEBER ──────────────────────────────────┐
+│                                                                │
+│  [A Pagar ▼] [Descrição...        ] R$[____] [Data][Adicionar] │
+│                                                                │
+│  📤 A Pagar (próx. 30d)                                        │
+│  ├── 05/02 - Fornecedor X ............... R$ 5.000 [x]        │
+│  ├── 10/02 - Cartão Ads ................. R$ 3.200 [x]        │
+│  └── 15/02 - Aluguel .................... R$ 4.500 [x]        │
+│                                                                │
+│  📥 A Receber (próx. 30d)                                      │
+│  └── 08/02 - Cliente Y .................. R$ 12.000 [x]       │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 6. Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useFocusModes.ts` | Adicionar migração backlog → tasks após carregar do Supabase |
+| `src/types/focus-mode.ts` | Adicionar `ContaFluxo[]` ao `FinanceiroStage` + defaults |
+| `src/components/modes/FinanceiroMode.tsx` | Adicionar seção do gráfico + contas |
+| `src/utils/modeStatusCalculator.ts` | Adicionar função `calcularFluxoCaixa()` |
+| `src/hooks/useFocusModes.ts` | Adicionar handlers para CRUD de contasFluxo |
 
-## Resultado Esperado
+---
 
-Após a correção:
-- Suas 12 tarefas vão aparecer novamente
-- Suas 3 ideias vão aparecer novamente
-- O tempo disponível (300min) será preservado
-- Dados serão salvos na estrutura correta (`tasks`)
+## 7. Componente do Gráfico
+
+Criar `src/components/financeiro/FluxoCaixaChart.tsx`:
+
+```typescript
+interface FluxoCaixaChartProps {
+  caixaAtual: number;
+  caixaMinimo: number;
+  projecoes: { semana: string; saldo: number }[];
+  modoProjecao: boolean;  // true = estimado, false = preciso
+}
+
+export function FluxoCaixaChart({ ... }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Fluxo de Caixa (30d)</CardTitle>
+        {modoProjecao && (
+          <Badge variant="outline">Projeção estimada</Badge>
+        )}
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={chartConfig}>
+          <BarChart data={projecoes}>
+            <XAxis dataKey="semana" />
+            <YAxis />
+            <Bar dataKey="saldo" fill="var(--color-saldo)" />
+            <ReferenceLine y={caixaMinimo} stroke="orange" />
+          </BarChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+---
+
+## 8. Fluxo de Uso
+
+1. **Usuário abre Financeiro**
+2. **Gráfico aparece** com projeção baseada nos dados existentes
+3. **Badge "Projeção estimada"** indica que são médias
+4. **Usuário pode clicar** em "Adicionar Conta" para detalhar
+5. **Quando adiciona contas**, gráfico muda para "Fluxo real"
+6. **Badge muda** para "Baseado em X contas"
+
+---
+
+## 9. Dados do Gráfico em Modo Projeção
+
+Usando os dados que já existem:
+
+```typescript
+function calcularFluxoProjecao(data: FinanceiroStage) {
+  const caixa = parseCurrency(data.caixaAtual);
+  const entradas = parseCurrency(data.faturamentoEsperado30d) * 0.40; // Margem
+  const saidas = 
+    parseCurrency(data.custoFixoMensal) +
+    parseCurrency(data.marketingEstrutural) +
+    parseCurrency(data.adsBase);
+  
+  const resultadoSemanal = (entradas - saidas) / 4;
+  
+  return [
+    { semana: 'Hoje', saldo: caixa },
+    { semana: 'S1', saldo: caixa + resultadoSemanal },
+    { semana: 'S2', saldo: caixa + (resultadoSemanal * 2) },
+    { semana: 'S3', saldo: caixa + (resultadoSemanal * 3) },
+    { semana: 'S4', saldo: caixa + (resultadoSemanal * 4) },
+  ];
+}
+```
+
+---
+
+## 10. Dados do Gráfico em Modo Preciso
+
+Quando tem contas detalhadas:
+
+```typescript
+function calcularFluxoPreciso(data: FinanceiroStage) {
+  const caixa = parseCurrency(data.caixaAtual);
+  const contas = data.contasFluxo || [];
+  
+  // Agrupar por semana
+  const hoje = new Date();
+  const semanas = [0, 7, 14, 21, 28].map(dias => {
+    const dataRef = addDays(hoje, dias);
+    return {
+      semana: dias === 0 ? 'Hoje' : `S${Math.ceil(dias / 7)}`,
+      dataFim: dataRef,
+    };
+  });
+  
+  let saldoAcumulado = caixa;
+  
+  return semanas.map(({ semana, dataFim }, i) => {
+    const dataInicio = i === 0 ? hoje : semanas[i - 1].dataFim;
+    
+    // Somar contas nesse período
+    const movimentacao = contas
+      .filter(c => {
+        const data = parseISO(c.dataVencimento);
+        return data >= dataInicio && data < dataFim && !c.pago;
+      })
+      .reduce((acc, c) => {
+        const valor = parseCurrency(c.valor);
+        return acc + (c.tipo === 'receber' ? valor : -valor);
+      }, 0);
+    
+    saldoAcumulado += movimentacao;
+    
+    return { semana, saldo: saldoAcumulado };
+  });
+}
+```
+
+---
+
+## Resultado Final
+
+O Financeiro ganhará uma seção de Fluxo de Caixa que:
+
+1. **Funciona imediatamente** com os dados que você já preenche
+2. **Evolui para precisão** quando você adiciona contas específicas
+3. **Alerta visualmente** quando o saldo vai cruzar o mínimo
+4. **Mantém simplicidade** - não é obrigatório detalhar
+
+---
+
+## Consideracoes Tecnicas
+
+- O gráfico usa `recharts` que já está instalado no projeto
+- As contas ficam salvas no mesmo state do Financeiro (persiste no Supabase)
+- O cálculo considera a margem operacional de 40% (já definida como constante)
+- A seção de contas fica colapsada por padrão para não poluir a interface
+
