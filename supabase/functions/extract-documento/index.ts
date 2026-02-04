@@ -155,19 +155,21 @@ serve(async (req) => {
     const data = await response.json();
     console.log("AI response:", JSON.stringify(data, null, 2));
 
-    // Extract tool call result
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall || toolCall.function.name !== "extract_conta") {
+    // Extract ALL tool calls (support multiple accounts from one image)
+    const toolCalls = data.choices?.[0]?.message?.tool_calls || [];
+    const extractedContas = toolCalls
+      .filter((tc: any) => tc.function?.name === "extract_conta")
+      .map((tc: any) => JSON.parse(tc.function.arguments));
+
+    if (extractedContas.length === 0) {
       return new Response(
         JSON.stringify({ error: "Não foi possível extrair dados do documento" }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const extractedData = JSON.parse(toolCall.function.arguments);
-    
     return new Response(
-      JSON.stringify(extractedData),
+      JSON.stringify({ contas: extractedContas }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
