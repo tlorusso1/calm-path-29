@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 interface ContasFluxoSectionProps {
   contas: ContaFluxo[];
   onAddConta: (conta: Omit<ContaFluxo, 'id'>) => void;
+  onAddMultipleContas?: (contas: Omit<ContaFluxo, 'id'>[]) => void;
   onRemoveConta: (id: string) => void;
   onTogglePago: (id: string) => void;
   isOpen: boolean;
@@ -24,6 +25,7 @@ interface ContasFluxoSectionProps {
 export function ContasFluxoSection({
   contas,
   onAddConta,
+  onAddMultipleContas,
   onRemoveConta,
   onTogglePago,
   isOpen,
@@ -88,15 +90,48 @@ export function ContasFluxoSection({
         return;
       }
       
-      if (data && !data.error) {
-        if (data.descricao) setDescricao(data.descricao);
-        if (data.valor) setValor(data.valor);
-        if (data.dataVencimento) setDataVencimento(data.dataVencimento);
-        if (data.tipo) setTipo(data.tipo);
-        
-        toast.success('Dados extraídos! Confira e ajuste se necessário.');
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+      
+      // Handle array of contas from OCR
+      const contasExtraidas = data?.contas || [];
+      
+      if (contasExtraidas.length === 0) {
+        toast.error('Nenhum lançamento encontrado na imagem.');
+        return;
+      }
+      
+      if (contasExtraidas.length === 1) {
+        // Single account: fill form for review
+        const c = contasExtraidas[0];
+        if (c.descricao) setDescricao(c.descricao);
+        if (c.valor) setValor(c.valor);
+        if (c.dataVencimento) setDataVencimento(c.dataVencimento);
+        if (c.tipo) setTipo(c.tipo);
+        toast.success('Dados extraídos! Confira e clique em + para adicionar.');
       } else {
-        toast.error(data?.error || 'Não foi possível extrair os dados.');
+        // Multiple accounts: add all at once
+        if (onAddMultipleContas) {
+          const contasParaAdicionar = contasExtraidas.map((c: any) => ({
+            tipo: c.tipo || 'pagar',
+            descricao: c.descricao || '',
+            valor: c.valor || '',
+            dataVencimento: c.dataVencimento || '',
+            pago: false,
+          }));
+          onAddMultipleContas(contasParaAdicionar);
+          toast.success(`${contasExtraidas.length} lançamentos extraídos e adicionados!`);
+        } else {
+          // Fallback: fill form with first item if handler not provided
+          const c = contasExtraidas[0];
+          if (c.descricao) setDescricao(c.descricao);
+          if (c.valor) setValor(c.valor);
+          if (c.dataVencimento) setDataVencimento(c.dataVencimento);
+          if (c.tipo) setTipo(c.tipo);
+          toast.success(`Extraídos ${contasExtraidas.length} itens. Mostrando o primeiro.`);
+        }
       }
     } catch (err) {
       console.error('Error processing image:', err);

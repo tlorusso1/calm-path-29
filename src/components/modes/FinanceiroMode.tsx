@@ -148,6 +148,16 @@ export function FinanceiroMode({
     });
   };
   
+  const handleAddMultipleContas = (novasContas: Omit<ContaFluxo, 'id'>[]) => {
+    const contasComId: ContaFluxo[] = novasContas.map(c => ({
+      ...c,
+      id: crypto.randomUUID(),
+    }));
+    onUpdateFinanceiroData({
+      contasFluxo: [...(data.contasFluxo || []), ...contasComId],
+    });
+  };
+  
   const handleRemoveConta = (id: string) => {
     onUpdateFinanceiroData({
       contasFluxo: (data.contasFluxo || []).filter(c => c.id !== id),
@@ -814,6 +824,7 @@ export function FinanceiroMode({
       <ContasFluxoSection
         contas={data.contasFluxo || []}
         onAddConta={handleAddConta}
+        onAddMultipleContas={handleAddMultipleContas}
         onRemoveConta={handleRemoveConta}
         onTogglePago={handleTogglePago}
         isOpen={openSections.fluxoContas}
