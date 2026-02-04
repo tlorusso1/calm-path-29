@@ -1,280 +1,197 @@
 
 
-# Plano: OCR para Documentos Financeiros + Projeção com Histórico Real
+# Plano: Suporte a Múltiplas Contas na Extração OCR
 
-## Objetivo
+## Problema Identificado
 
-Implementar duas melhorias no módulo Financeiro:
+O Gemini está extraindo corretamente todas as 8 linhas da imagem via múltiplas `tool_calls`, mas:
+1. A **edge function** só retorna a primeira (`tool_calls[0]`)
+2. O **frontend** espera um único objeto e preenche o form
 
-1. **OCR de Documentos**: Colar/arrastar uma imagem de boleto, nota fiscal ou DDA e a IA extrai automaticamente os campos (descrição, valor, vencimento)
-2. **Projeção com Histórico**: Usar dados reais das semanas anteriores (da tabela `weekly_snapshots`) para projetar o fluxo de caixa de forma mais precisa
+## Solução
+
+Modificar o fluxo para processar **todas** as contas extraídas de uma vez.
 
 ---
 
-## Melhoria 1: OCR de Documentos Financeiros
+## Mudanças Necessárias
 
-### Fluxo Visual
+### 1. Edge Function: Retornar Array de Contas
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  📑 Contas a Pagar/Receber                                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐ │
-│  │  📸 Cole ou arraste uma imagem de boleto/NF aqui          │ │
-│  │  (DDA, Nota Fiscal, Boleto)                                │ │
-│  │  ───────────────────────────────────────────────────────── │ │
-│  │  [Ctrl+V ou drag-and-drop]                                 │ │
-│  └───────────────────────────────────────────────────────────┘ │
-│                                                                 │
-│  [A Pagar ▼] [Descrição preenchida] R$[1.234,56] [15/02] [+]   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Arquitetura
-
-```text
-┌──────────────┐     ┌─────────────────────┐     ┌──────────────────┐
-│   Frontend   │────▶│   Edge Function     │────▶│   Lovable AI     │
-│  (drop zone) │     │ extract-documento   │     │   (Gemini 2.5)   │
-└──────────────┘     └─────────────────────┘     └──────────────────┘
-      │                        │                          │
-      │  base64 da imagem      │    Prompt estruturado    │
-      │  + tipo documento      │    + tool calling        │
-      │                        │                          │
-      ▼                        ▼                          ▼
-┌──────────────┐     ┌─────────────────────┐     ┌──────────────────┐
-│  Preenche    │◀────│   JSON Response     │◀────│  Extração:       │
-│  campos form │     │ {descricao, valor,  │     │  - beneficiario  │
-│              │     │  dataVencimento,    │     │  - valor         │
-│              │     │  tipo}              │     │  - vencimento    │
-└──────────────┘     └─────────────────────┘     └──────────────────┘
-```
-
-### Edge Function: `extract-documento`
+**Arquivo:** `supabase/functions/extract-documento/index.ts`
 
 ```typescript
-// supabase/functions/extract-documento/index.ts
-// Recebe: { imageBase64: string, tipoDocumento?: 'boleto' | 'nf' | 'dda' }
-// Retorna: { descricao, valor, dataVencimento, tipo, confianca }
+// ANTES (linha 158-167):
+const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+const extractedData = JSON.parse(toolCall.function.arguments);
+return new Response(JSON.stringify(extractedData), ...);
 
-const systemPrompt = `
-Você é um especialista em extração de dados de documentos financeiros brasileiros.
-Analise a imagem e extraia:
-- Beneficiário/Sacado/Fornecedor (será a descrição)
-- Valor total em reais (formato: "1234.56")
-- Data de vencimento (formato: "YYYY-MM-DD")
-- Se é uma conta a PAGAR ou a RECEBER
+// DEPOIS:
+const toolCalls = data.choices?.[0]?.message?.tool_calls || [];
+const extractedContas = toolCalls
+  .filter(tc => tc.function.name === "extract_conta")
+  .map(tc => JSON.parse(tc.function.arguments));
 
-Documentos comuns:
-- Boleto: procure linha digitável, beneficiário, valor, vencimento
-- NF: procure fornecedor, valor total, data emissão + prazo
-- DDA: procure sacado, valor, vencimento
+if (extractedContas.length === 0) {
+  return new Response(
+    JSON.stringify({ error: "Não foi possível extrair dados" }),
+    { status: 422, ... }
+  );
+}
 
-Retorne usando a função extract_conta.
-`;
-
-// Tool calling para garantir estrutura
-const tools = [{
-  type: "function",
-  function: {
-    name: "extract_conta",
-    parameters: {
-      type: "object",
-      properties: {
-        descricao: { type: "string" },
-        valor: { type: "string" },
-        dataVencimento: { type: "string" },
-        tipo: { type: "string", enum: ["pagar", "receber"] },
-        confianca: { type: "number" }
-      },
-      required: ["descricao", "valor", "dataVencimento", "tipo"]
-    }
-  }
-}];
+// Retorna array (mesmo se for uma única conta)
+return new Response(
+  JSON.stringify({ contas: extractedContas }),
+  { ... }
+);
 ```
 
-### Frontend: Zona de Drop/Paste
+---
 
-Adicionar ao `ContasFluxoSection.tsx`:
+### 2. Frontend: Processar Array e Adicionar Múltiplas Contas
+
+**Arquivo:** `src/components/financeiro/ContasFluxoSection.tsx`
+
+**Props:** Adicionar `onAddMultipleContas` para adicionar várias de uma vez:
 
 ```typescript
-// Novo estado para loading e preview
-const [isExtracting, setIsExtracting] = useState(false);
-const [previewImage, setPreviewImage] = useState<string | null>(null);
+interface ContasFluxoSectionProps {
+  // ... existentes ...
+  onAddMultipleContas?: (contas: Omit<ContaFluxo, 'id'>[]) => void;  // NOVO
+}
+```
 
-// Handler para paste (Ctrl+V)
-const handlePaste = async (e: React.ClipboardEvent) => {
-  const items = e.clipboardData?.items;
-  for (const item of Array.from(items || [])) {
-    if (item.type.startsWith('image/')) {
-      const blob = item.getAsFile();
-      if (blob) await processImage(blob);
-    }
-  }
-};
+**processImage:** Ajustar para lidar com array:
 
-// Handler para drag-and-drop
-const handleDrop = async (e: React.DragEvent) => {
-  e.preventDefault();
-  const file = e.dataTransfer?.files?.[0];
-  if (file?.type.startsWith('image/')) {
-    await processImage(file);
-  }
-};
-
-// Processar imagem via edge function
+```typescript
 const processImage = async (file: File) => {
   setIsExtracting(true);
-  const base64 = await fileToBase64(file);
-  
-  const { data, error } = await supabase.functions.invoke('extract-documento', {
-    body: { imageBase64: base64 }
-  });
-  
-  if (data && !error) {
-    setDescricao(data.descricao);
-    setValor(data.valor);
-    setDataVencimento(data.dataVencimento);
-    setTipo(data.tipo);
+  try {
+    const base64 = await fileToBase64(file);
+    
+    const { data, error } = await supabase.functions.invoke('extract-documento', {
+      body: { imageBase64: base64 }
+    });
+    
+    if (error || data?.error) {
+      toast.error(data?.error || 'Erro ao processar documento.');
+      return;
+    }
+    
+    // NOVO: Processar array de contas
+    const contas = data.contas || [];
+    
+    if (contas.length === 0) {
+      toast.error('Nenhum lançamento encontrado na imagem.');
+      return;
+    }
+    
+    if (contas.length === 1) {
+      // Uma conta: preenche o form para revisão
+      const c = contas[0];
+      if (c.descricao) setDescricao(c.descricao);
+      if (c.valor) setValor(c.valor);
+      if (c.dataVencimento) setDataVencimento(c.dataVencimento);
+      if (c.tipo) setTipo(c.tipo);
+      toast.success('Dados extraídos! Confira e clique em + para adicionar.');
+    } else {
+      // Múltiplas contas: adiciona todas diretamente
+      if (onAddMultipleContas) {
+        const contasParaAdicionar = contas.map(c => ({
+          tipo: c.tipo || 'pagar',
+          descricao: c.descricao || '',
+          valor: c.valor || '',
+          dataVencimento: c.dataVencimento || '',
+          pago: false,
+        }));
+        onAddMultipleContas(contasParaAdicionar);
+        toast.success(`${contas.length} lançamentos extraídos e adicionados!`);
+      }
+    }
+  } catch (err) {
+    console.error('Error processing image:', err);
+    toast.error('Erro ao processar imagem.');
+  } finally {
+    setIsExtracting(false);
   }
-  
-  setIsExtracting(false);
 };
 ```
 
 ---
 
-## Melhoria 2: Projeção com Histórico Real
+### 3. FinanceiroMode: Adicionar Handler para Múltiplas Contas
 
-### Dados Disponíveis na Tabela `weekly_snapshots`
+**Arquivo:** `src/components/modes/FinanceiroMode.tsx`
 
-A tabela já armazena dados semanais que podem melhorar a projeção:
-
-| Campo | Uso na Projeção |
-|-------|-----------------|
-| `resultado_mes` | Resultado histórico real |
-| `gasto_ads` | Gastos históricos de Ads |
-| `sessoes_semana` | Correlação com demanda |
-| `caixa_livre_real` | Posição de caixa real |
-
-### Lógica de Projeção Melhorada
+Adicionar função `handleAddMultipleContas`:
 
 ```typescript
-// src/utils/fluxoCaixaCalculator.ts
+const handleAddMultipleContas = (novasContas: Omit<ContaFluxo, 'id'>[]) => {
+  const contasComId = novasContas.map(c => ({
+    ...c,
+    id: crypto.randomUUID(),
+  }));
+  
+  updateStageData('financeiro', {
+    contasFluxo: [...(financeiroData.contasFluxo || []), ...contasComId],
+  });
+};
 
-interface FluxoCaixaInput {
-  data: FinanceiroStage;
-  historicoSemanas?: WeeklySnapshot[];  // NOVO: histórico opcional
-}
-
-function calcularFluxoProjecao(
-  data: FinanceiroStage, 
-  historico: WeeklySnapshot[] = []
-): FluxoCaixaDataPoint[] {
-  
-  // 1. Tentar calcular médias do histórico (últimas 4 semanas)
-  const ultimas4 = historico.slice(0, 4).filter(s => s.resultado_mes != null);
-  
-  let entradasMensais: number;
-  let saidasMensais: number;
-  
-  if (ultimas4.length >= 2) {
-    // MODO HISTÓRICO: usa média real das últimas semanas
-    const mediaResultado = ultimas4.reduce((acc, s) => 
-      acc + (s.resultado_mes || 0), 0) / ultimas4.length;
-    
-    const mediaGastoAds = ultimas4.reduce((acc, s) => 
-      acc + (s.gasto_ads || 0), 0) / ultimas4.length;
-    
-    // Resultado = Entradas - Saídas, então:
-    // Se histórico mostra resultado positivo, tendência é boa
-    entradasMensais = /* calculado com base no histórico */;
-    saidasMensais = /* calculado com base no histórico */;
-    
-  } else {
-    // MODO ESTIMADO: usa inputs manuais (comportamento atual)
-    const faturamentoEsperado = parseCurrency(data.faturamentoEsperado30d || '');
-    entradasMensais = faturamentoEsperado * MARGEM_OPERACIONAL;
-    
-    saidasMensais = 
-      parseCurrency(data.custoFixoMensal || '') +
-      parseCurrency(data.marketingEstrutural || '') +
-      parseCurrency(data.adsBase || '');
-  }
-  
-  // 2. Calcular resultado semanal
-  const resultadoSemanal = (entradasMensais - saidasMensais) / 4;
-  
-  // 3. Construir projeção com indicador de fonte
-  return buildProjection(caixa, resultadoSemanal, caixaMinimo);
-}
-```
-
-### Exibição do Modo de Projeção
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  📊 Fluxo de Caixa (30d)           [Baseado em histórico ✓]    │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Gráfico com barras...                                         │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│  ⓘ Projeção baseada nas últimas 4 semanas de resultados reais  │
-│     Tendência: Resultado médio R$ +X.XXX/semana                 │
-└─────────────────────────────────────────────────────────────────┘
+// Passar para o componente:
+<ContasFluxoSection
+  contas={financeiroData.contasFluxo || []}
+  onAddConta={handleAddConta}
+  onAddMultipleContas={handleAddMultipleContas}  // NOVO
+  onRemoveConta={handleRemoveConta}
+  onTogglePago={handleTogglePago}
+  isOpen={contasSectionOpen}
+  onToggle={() => setContasSectionOpen(!contasSectionOpen)}
+/>
 ```
 
 ---
 
-## Arquivos a Criar
+## Fluxo Atualizado
 
-| Arquivo | Descrição |
-|---------|-----------|
-| `supabase/functions/extract-documento/index.ts` | Edge function para OCR via Lovable AI |
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  Usuário cola imagem com 8 lançamentos                          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Edge Function retorna: { contas: [...8 itens...] }             │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Frontend detecta contas.length > 1                             │
+│  → Adiciona todas de uma vez                                    │
+│  → Toast: "8 lançamentos extraídos e adicionados!"              │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Lista mostra todos os 8 lançamentos                            │
+│  Usuário pode excluir os que não quiser                         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/config.toml` | Registrar nova edge function |
-| `src/components/financeiro/ContasFluxoSection.tsx` | Adicionar zona de drop/paste para imagens |
-| `src/utils/fluxoCaixaCalculator.ts` | Aceitar histórico e usar para projeção |
-| `src/components/financeiro/FluxoCaixaChart.tsx` | Exibir indicador de fonte (histórico vs estimado) |
-| `src/components/modes/FinanceiroMode.tsx` | Passar histórico para o calculador |
+| `supabase/functions/extract-documento/index.ts` | Retornar array `{ contas: [...] }` com todas as tool_calls |
+| `src/components/financeiro/ContasFluxoSection.tsx` | Aceitar prop `onAddMultipleContas`, processar array de contas |
+| `src/components/modes/FinanceiroMode.tsx` | Adicionar handler `handleAddMultipleContas` e passar como prop |
 
 ---
 
-## Fluxo de Uso Final
+## Comportamento Final
 
-### OCR de Documentos
-
-1. Usuário abre seção "Contas a Pagar/Receber"
-2. Cola imagem de boleto (Ctrl+V) ou arrasta arquivo
-3. Sistema mostra loading "Extraindo dados..."
-4. Campos preenchem automaticamente
-5. Usuário confirma/ajusta e clica em "+"
-6. Conta adicionada ao fluxo
-
-### Projeção com Histórico
-
-1. Sistema carrega `weekly_snapshots` das últimas 4 semanas
-2. Se tem histórico suficiente:
-   - Usa média de resultados reais para projetar
-   - Badge indica "Baseado em histórico"
-3. Se não tem histórico:
-   - Usa inputs manuais (comportamento atual)
-   - Badge indica "Projeção estimada"
-
----
-
-## Consideracoes Tecnicas
-
-1. **Lovable AI**: Usando `google/gemini-2.5-flash` com suporte a imagens para OCR
-2. **Tool Calling**: Garante estrutura JSON consistente na resposta
-3. **Fallback**: Se OCR falhar, usuário ainda pode preencher manualmente
-4. **Histórico**: Hook `useWeeklyHistory` já existe e pode ser reutilizado
-5. **Limite de Imagem**: Aceitar imagens até 5MB (suficiente para screenshots/fotos)
+- **1 lançamento na imagem**: Preenche o form para revisão (comportamento atual)
+- **Múltiplos lançamentos**: Adiciona todos automaticamente com toast de confirmação
+- **Usuário pode excluir** qualquer lançamento que não queira manter
 
