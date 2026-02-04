@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronUp, Plus, Trash2, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2 } from 'lucide-react';
 import { ContaFluxo } from '@/types/focus-mode';
 import { format, parseISO, isAfter, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface ContasFluxoSectionProps {
   contas: ContaFluxo[];
@@ -31,6 +33,9 @@ export function ContasFluxoSection({
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
   const [dataVencimento, setDataVencimento] = useState('');
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
 
   const hoje = new Date();
   const limite30d = addDays(hoje, 30);
@@ -51,6 +56,91 @@ export function ContasFluxoSection({
       return isAfter(data, hoje) || format(data, 'yyyy-MM-dd') === format(hoje, 'yyyy-MM-dd');
     })
     .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento));
+
+  // File to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // Process image via edge function
+  const processImage = async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Imagem muito grande. Máximo 5MB.');
+      return;
+    }
+
+    setIsExtracting(true);
+    try {
+      const base64 = await fileToBase64(file);
+      
+      const { data, error } = await supabase.functions.invoke('extract-documento', {
+        body: { imageBase64: base64 }
+      });
+      
+      if (error) {
+        console.error('Error extracting document:', error);
+        toast.error('Erro ao processar documento. Tente novamente.');
+        return;
+      }
+      
+      if (data && !data.error) {
+        if (data.descricao) setDescricao(data.descricao);
+        if (data.valor) setValor(data.valor);
+        if (data.dataVencimento) setDataVencimento(data.dataVencimento);
+        if (data.tipo) setTipo(data.tipo);
+        
+        toast.success('Dados extraídos! Confira e ajuste se necessário.');
+      } else {
+        toast.error(data?.error || 'Não foi possível extrair os dados.');
+      }
+    } catch (err) {
+      console.error('Error processing image:', err);
+      toast.error('Erro ao processar imagem.');
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  // Handle paste (Ctrl+V)
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    for (const item of Array.from(items || [])) {
+      if (item.type.startsWith('image/')) {
+        const blob = item.getAsFile();
+        if (blob) {
+          e.preventDefault();
+          await processImage(blob);
+          return;
+        }
+      }
+    }
+  };
+
+  // Handle drag events
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const file = e.dataTransfer?.files?.[0];
+    if (file?.type.startsWith('image/')) {
+      await processImage(file);
+    }
+  };
 
   const handleAdd = () => {
     if (!descricao.trim() || !valor || !dataVencimento) return;
@@ -95,7 +185,34 @@ export function ContasFluxoSection({
           </CardHeader>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <CardContent className="space-y-4 pt-0">
+          <CardContent className="space-y-4 pt-0" onPaste={handlePaste}>
+            {/* Zona de Drop/Paste para OCR */}
+            <div
+              ref={dropZoneRef}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`
+                relative border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer
+                ${isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/30 hover:border-muted-foreground/50'}
+                ${isExtracting ? 'pointer-events-none opacity-70' : ''}
+              `}
+            >
+              {isExtracting ? (
+                <div className="flex items-center justify-center gap-2 py-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">Extraindo dados...</span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-1 py-1">
+                  <ImageIcon className="h-6 w-6 text-muted-foreground/60" />
+                  <p className="text-xs text-muted-foreground">
+                    Cole (Ctrl+V) ou arraste uma imagem de boleto, NF ou DDA
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Form para adicionar */}
             <div className="grid grid-cols-12 gap-2 p-3 rounded-lg border bg-muted/30">
               <div className="col-span-3">

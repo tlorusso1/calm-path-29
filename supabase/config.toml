@@ -1,1 +1,7 @@
 project_id = "ibxzyodvtmagnetpyyfz"
+
+[functions.extract-documento]
+verify_jwt = false
+
+[functions.create-user]
+verify_jwt = false

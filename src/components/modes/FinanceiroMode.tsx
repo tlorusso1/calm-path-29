@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria, ContaFluxo } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria, ContaFluxo, WeeklySnapshot } from '@/types/focus-mode';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/mo
 import { FluxoCaixaChart } from '@/components/financeiro/FluxoCaixaChart';
 import { ContasFluxoSection } from '@/components/financeiro/ContasFluxoSection';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
+import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 
 interface FinanceiroModeProps {
   mode: FocusMode;
@@ -117,13 +118,19 @@ export function FinanceiroMode({
     return { caixaTotal, aReceber };
   }, [data.contas]);
   
+  // Buscar histórico para projeção
+  const { history: historicoSemanas } = useWeeklyHistory(4);
+  
   // Calcular exports
   const exports: FinanceiroExports = calculateFinanceiroV2(data);
   const caixaLivreStatus = getCaixaLivreStatus(exports.caixaLivreReal);
   const StatusIcon = caixaLivreStatus.icon;
   
-  // Calcular fluxo de caixa
-  const fluxoCaixa = useMemo(() => calcularFluxoCaixa(data), [data]);
+  // Calcular fluxo de caixa com histórico
+  const fluxoCaixa = useMemo(
+    () => calcularFluxoCaixa(data, historicoSemanas),
+    [data, historicoSemanas]
+  );
   const caixaMinimo = parseCurrency(data.caixaMinimo || '');
 
   const toggleSection = (section: keyof typeof openSections) => {
@@ -798,6 +805,8 @@ export function FinanceiroMode({
         caixaMinimo={caixaMinimo}
         modoProjecao={fluxoCaixa.modoProjecao}
         numContas={fluxoCaixa.numContas}
+        fonteHistorico={fluxoCaixa.fonteHistorico}
+        semanasHistorico={fluxoCaixa.semanasHistorico}
         onAddConta={() => toggleSection('fluxoContas')}
       />
       

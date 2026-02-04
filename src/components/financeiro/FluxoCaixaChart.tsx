@@ -17,6 +17,8 @@ interface FluxoCaixaChartProps {
   caixaMinimo: number;
   modoProjecao: boolean;
   numContas: number;
+  fonteHistorico?: boolean;
+  semanasHistorico?: number;
   onAddConta: () => void;
 }
 
@@ -49,10 +51,25 @@ export function FluxoCaixaChart({
   caixaMinimo,
   modoProjecao,
   numContas,
+  fonteHistorico = false,
+  semanasHistorico = 0,
   onAddConta,
 }: FluxoCaixaChartProps) {
   const temRiscoVermelho = dados.some(d => d.cor === 'vermelho');
   const temRiscoAmarelo = dados.some(d => d.cor === 'amarelo');
+
+  // Determine badge text based on source
+  const getBadgeInfo = () => {
+    if (!modoProjecao) {
+      return { text: `${numContas} conta${numContas > 1 ? 's' : ''}`, variant: 'secondary' as const };
+    }
+    if (fonteHistorico) {
+      return { text: `Histórico (${semanasHistorico}sem)`, variant: 'default' as const };
+    }
+    return { text: 'Projeção estimada', variant: 'outline' as const };
+  };
+
+  const badgeInfo = getBadgeInfo();
 
   return (
     <Card>
@@ -74,8 +91,8 @@ export function FluxoCaixaChart({
                 Atenção
               </Badge>
             )}
-            <Badge variant={modoProjecao ? 'outline' : 'secondary'} className="text-xs">
-              {modoProjecao ? 'Projeção estimada' : `${numContas} contas`}
+            <Badge variant={badgeInfo.variant} className="text-xs">
+              {badgeInfo.text}
             </Badge>
           </div>
         </CardTitle>
@@ -133,9 +150,11 @@ export function FluxoCaixaChart({
 
         <div className="flex items-center justify-between pt-1 border-t">
           <p className="text-xs text-muted-foreground">
-            {modoProjecao 
-              ? 'Baseado em Faturamento Esperado × Margem 40% − Custos' 
-              : `Fluxo calculado com ${numContas} conta(s) lançada(s)`}
+            {!modoProjecao 
+              ? `Fluxo calculado com ${numContas} conta(s) lançada(s)`
+              : fonteHistorico
+                ? `Baseado nas últimas ${semanasHistorico} semanas de resultados`
+                : 'Baseado em Faturamento Esperado × Margem 40% − Custos'}
           </p>
           <Button
             variant="ghost"

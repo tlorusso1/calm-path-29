@@ -1,6 +1,7 @@
 import { FinanceiroStage, ContaFluxo, MARGEM_OPERACIONAL } from '@/types/focus-mode';
 import { parseCurrency } from './modeStatusCalculator';
 import { addDays, parseISO, isAfter, isBefore, format, startOfDay } from 'date-fns';
+import type { WeeklySnapshot } from '@/types/focus-mode';
 
 export interface FluxoCaixaDataPoint {
   semana: string;
@@ -12,14 +13,19 @@ export interface FluxoCaixaResult {
   dados: FluxoCaixaDataPoint[];
   modoProjecao: boolean;
   numContas: number;
+  fonteHistorico: boolean;
+  semanasHistorico: number;
 }
 
 /**
  * Calcula o fluxo de caixa híbrido:
- * - Se não tem contas detalhadas: usa projeção baseada em médias
+ * - Se não tem contas detalhadas: usa projeção baseada em médias (ou histórico se disponível)
  * - Se tem contas detalhadas: usa datas reais de vencimento
  */
-export function calcularFluxoCaixa(data: FinanceiroStage): FluxoCaixaResult {
+export function calcularFluxoCaixa(
+  data: FinanceiroStage,
+  historico: WeeklySnapshot[] = []
+): FluxoCaixaResult {
   const contasAtivas = (data.contasFluxo || []).filter(c => !c.pago);
   const temContasDetalhadas = contasAtivas.length > 0;
 
@@ -28,35 +34,64 @@ export function calcularFluxoCaixa(data: FinanceiroStage): FluxoCaixaResult {
       dados: calcularFluxoPreciso(data, contasAtivas),
       modoProjecao: false,
       numContas: contasAtivas.length,
+      fonteHistorico: false,
+      semanasHistorico: 0,
     };
   } else {
+    const { dados, usouHistorico, semanasUsadas } = calcularFluxoProjecaoComHistorico(data, historico);
     return {
-      dados: calcularFluxoProjecao(data),
+      dados,
       modoProjecao: true,
       numContas: 0,
+      fonteHistorico: usouHistorico,
+      semanasHistorico: semanasUsadas,
     };
   }
 }
 
 /**
- * Modo Projeção: Estima baseado em médias semanais
+ * Modo Projeção com suporte a histórico:
+ * - Se tem histórico suficiente (2+ semanas): usa média real
+ * - Senão: estima baseado em inputs manuais
  */
-function calcularFluxoProjecao(data: FinanceiroStage): FluxoCaixaDataPoint[] {
+function calcularFluxoProjecaoComHistorico(
+  data: FinanceiroStage,
+  historico: WeeklySnapshot[]
+): { dados: FluxoCaixaDataPoint[]; usouHistorico: boolean; semanasUsadas: number } {
   const caixa = parseCurrency(data.caixaAtual || '');
   const caixaMinimo = parseCurrency(data.caixaMinimo || '');
   
-  // Entradas: Faturamento esperado × Margem / 4 semanas
-  const faturamentoEsperado = parseCurrency(data.faturamentoEsperado30d || '') || parseCurrency(data.faturamentoMes || '');
-  const entradasMensais = faturamentoEsperado * MARGEM_OPERACIONAL;
+  // Tentar usar histórico (últimas 4 semanas com resultado válido)
+  const semanasValidas = historico
+    .filter(s => s.resultado_mes != null && s.resultado_mes !== 0)
+    .slice(0, 4);
   
-  // Saídas: Custo fixo + Marketing estrutural + Ads base / 4 semanas
-  const custoFixo = parseCurrency(data.custoFixoMensal || '');
-  const marketingEstrutural = parseCurrency(data.marketingEstrutural || data.marketingBase || '');
-  const adsBase = parseCurrency(data.adsBase || '');
-  const saidasMensais = custoFixo + marketingEstrutural + adsBase;
+  let resultadoSemanal: number;
+  let usouHistorico = false;
+  let semanasUsadas = 0;
   
-  // Resultado semanal
-  const resultadoSemanal = (entradasMensais - saidasMensais) / 4;
+  if (semanasValidas.length >= 2) {
+    // MODO HISTÓRICO: usa média real das últimas semanas
+    usouHistorico = true;
+    semanasUsadas = semanasValidas.length;
+    
+    // resultado_mes é o resultado mensal, dividir por 4 para semanal
+    const mediaResultadoMensal = semanasValidas.reduce((acc, s) => 
+      acc + (s.resultado_mes || 0), 0) / semanasValidas.length;
+    
+    resultadoSemanal = mediaResultadoMensal / 4;
+  } else {
+    // MODO ESTIMADO: usa inputs manuais (comportamento original)
+    const faturamentoEsperado = parseCurrency(data.faturamentoEsperado30d || '') || parseCurrency(data.faturamentoMes || '');
+    const entradasMensais = faturamentoEsperado * MARGEM_OPERACIONAL;
+    
+    const custoFixo = parseCurrency(data.custoFixoMensal || '');
+    const marketingEstrutural = parseCurrency(data.marketingEstrutural || data.marketingBase || '');
+    const adsBase = parseCurrency(data.adsBase || '');
+    const saidasMensais = custoFixo + marketingEstrutural + adsBase;
+    
+    resultadoSemanal = (entradasMensais - saidasMensais) / 4;
+  }
   
   // Construir projeção
   const dados: FluxoCaixaDataPoint[] = [];
@@ -70,6 +105,14 @@ function calcularFluxoProjecao(data: FinanceiroStage): FluxoCaixaDataPoint[] {
     });
   }
   
+  return { dados, usouHistorico, semanasUsadas };
+}
+
+/**
+ * Modo Projeção simples (para compatibilidade)
+ */
+function calcularFluxoProjecao(data: FinanceiroStage): FluxoCaixaDataPoint[] {
+  const { dados } = calcularFluxoProjecaoComHistorico(data, []);
   return dados;
 }
 
