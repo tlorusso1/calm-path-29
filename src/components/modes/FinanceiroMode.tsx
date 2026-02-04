@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria, ContaFluxo } from '@/types/focus-mode';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,9 @@ import { TrendingUp, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock,
 import { useState, useMemo } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/modeStatusCalculator';
+import { FluxoCaixaChart } from '@/components/financeiro/FluxoCaixaChart';
+import { ContasFluxoSection } from '@/components/financeiro/ContasFluxoSection';
+import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 
 interface FinanceiroModeProps {
   mode: FocusMode;
@@ -59,6 +62,7 @@ export function FinanceiroMode({
   const [openSections, setOpenSections] = useState({
     contas: true,
     defasados: false,
+    fluxoContas: false,
     diario: true,
     semanal: false,
     mensal: false,
@@ -117,9 +121,38 @@ export function FinanceiroMode({
   const exports: FinanceiroExports = calculateFinanceiroV2(data);
   const caixaLivreStatus = getCaixaLivreStatus(exports.caixaLivreReal);
   const StatusIcon = caixaLivreStatus.icon;
+  
+  // Calcular fluxo de caixa
+  const fluxoCaixa = useMemo(() => calcularFluxoCaixa(data), [data]);
+  const caixaMinimo = parseCurrency(data.caixaMinimo || '');
 
   const toggleSection = (section: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+  
+  // Handlers para contas do fluxo de caixa
+  const handleAddConta = (conta: Omit<ContaFluxo, 'id'>) => {
+    const novasConta: ContaFluxo = {
+      ...conta,
+      id: crypto.randomUUID(),
+    };
+    onUpdateFinanceiroData({
+      contasFluxo: [...(data.contasFluxo || []), novasConta],
+    });
+  };
+  
+  const handleRemoveConta = (id: string) => {
+    onUpdateFinanceiroData({
+      contasFluxo: (data.contasFluxo || []).filter(c => c.id !== id),
+    });
+  };
+  
+  const handleTogglePago = (id: string) => {
+    onUpdateFinanceiroData({
+      contasFluxo: (data.contasFluxo || []).map(c => 
+        c.id === id ? { ...c, pago: !c.pago } : c
+      ),
+    });
   };
 
   return (
@@ -758,6 +791,25 @@ export function FinanceiroMode({
           </div>
         </CardContent>
       </Card>
+
+      {/* ========== GRÁFICO FLUXO DE CAIXA ========== */}
+      <FluxoCaixaChart
+        dados={fluxoCaixa.dados}
+        caixaMinimo={caixaMinimo}
+        modoProjecao={fluxoCaixa.modoProjecao}
+        numContas={fluxoCaixa.numContas}
+        onAddConta={() => toggleSection('fluxoContas')}
+      />
+      
+      {/* ========== CONTAS A PAGAR/RECEBER ========== */}
+      <ContasFluxoSection
+        contas={data.contasFluxo || []}
+        onAddConta={handleAddConta}
+        onRemoveConta={handleRemoveConta}
+        onTogglePago={handleTogglePago}
+        isOpen={openSections.fluxoContas}
+        onToggle={() => toggleSection('fluxoContas')}
+      />
 
       {/* ========== CHECKLIST DIÁRIO ========== */}
       <Collapsible open={openSections.diario} onOpenChange={() => toggleSection('diario')}>

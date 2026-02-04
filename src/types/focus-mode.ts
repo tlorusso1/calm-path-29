@@ -40,6 +40,16 @@ export interface FinanceiroContas {
   mercadoPagoEcom: ContaBancaria;
 }
 
+// ============= Contas a Pagar/Receber (Fluxo de Caixa) =============
+export interface ContaFluxo {
+  id: string;
+  tipo: 'pagar' | 'receber';
+  descricao: string;
+  valor: string;
+  dataVencimento: string;  // ISO date (YYYY-MM-DD)
+  pago?: boolean;
+}
+
 // ============= Financeiro V2 =============
 export interface FinanceiroStage {
   // INPUTS BÁSICOS
@@ -107,6 +117,9 @@ export interface FinanceiroStage {
   decisaoPagar?: string;
   decisaoSegurar?: string;
   decisaoRenegociar?: string;
+  
+  // NOVO: Contas a Pagar/Receber para fluxo de caixa preciso
+  contasFluxo?: ContaFluxo[];
 }
 
 // Interface de Exports do Financeiro (para outros modos)
