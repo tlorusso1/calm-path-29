@@ -1,251 +1,390 @@
 
+# Plano Técnico Completo: Governança V2 + Correções Pendentes
 
-# Plano: Mapeamento Detalhado de Custos Fixos
+## 1. DIAGNÓSTICO: O QUE FALTA IMPLEMENTAR
 
-## Problema Atual
-O sistema tem apenas **um campo único** (`custoFixoMensal`) sem visibilidade de onde o dinheiro vai. Isso impede decisões racionais de corte.
+### 1.1 Features Pendentes do Plano Governança V2:
 
-## Solução: Breakdown Estruturado de Custos Fixos
+| Feature | Status | Prioridade |
+|---------|--------|------------|
+| Executive Resume (Resumo Executivo) | ❌ Não implementado | ALTA |
+| Global Inputs únicos | ❌ Não implementado | ALTA |
+| Classificação de Informações (⚙️📊✏️) | ❌ Não implementado | MÉDIA |
+| Tipo Intercompany em ContaFluxo | ❌ Não implementado | ALTA |
+| Margem Real Estimada | ❌ Não implementado | MÉDIA |
+| Impostos configuráveis | ❌ Não implementado | BAIXA |
+| Gargalo da Semana automático | ❌ Não implementado | MÉDIA |
+| Contexto obrigatório em Reunião Ads | ⚠️ Parcial (tem limites, falta contexto bloqueante) | MÉDIA |
+| Decisão governa limites reais | ⚠️ Parcial (tem lógica, falta trava rígida) | ALTA |
+| Loop de Aprendizado | ❌ Não implementado | BAIXA |
 
-### Estrutura de Dados Proposta
+### 1.2 Bugs/Features Reportados pelo Usuário:
 
-Com base nos dados fornecidos, criar 5 categorias principais:
-
-```
-┌────────────────────────────────────────────────────────────────────┐
-│ 💰 CUSTOS FIXOS DETALHADOS                    R$ 56.800/mês       │
-├────────────────────────────────────────────────────────────────────┤
-│                                                                    │
-│  👥 PESSOAS                                   R$ 22.269,38         │
-│  ├── Paola - Distribuição lucros              R$ 5.000,00         │
-│  ├── Paola - Pró-labore                       R$ 1.351,02         │
-│  ├── Thiago - Distribuição lucros             R$ 8.000,00         │
-│  ├── Thiago - Pró-labore                      R$ 1.351,02         │
-│  ├── Gabrielle - CLT                          R$ 1.901,87         │
-│  ├── Julia - CLT                              R$ 1.282,87         │
-│  ├── Amanda - PJ                              R$ 2.382,60         │
-│  └── Geral - Auxílios                         R$ 1.000,00         │
-│                                                                    │
-│  💻 SOFTWARE                                  R$ 2.862,19          │
-│  ├── Bling (ERP Ecom)                         R$ 450,00           │
-│  ├── Tiny B2B (x2)                            R$ 324,84           │
-│  ├── Nuvemshop                                R$ 394,00           │
-│  ├── Google GSUITE                            R$ 560,00           │
-│  ├── Perfit (Email MKT)                       R$ 476,00           │
-│  ├── Empreender.com                           R$ 169,51           │
-│  ├── Adobe                                    R$ 124,00           │
-│  └── Outros (+7)                              R$ 363,84           │
-│                                                                    │
-│  📣 MARKETING ESTRUTURAL                      R$ 22.000,00         │
-│  ├── Vegui - Influencer                       R$ 1.500,00         │
-│  ├── Matheus - Conteúdo                       R$ 2.500,00         │
-│  ├── Ads (Meta + Google)                      R$ 15.000,00  ⚠️    │
-│  └── Impressos                                R$ 1.000,00         │
-│                                                                    │
-│  🔧 SERVIÇOS                                  R$ 8.000,00          │
-│  ├── Gioia (Contabilidade)                    R$ 3.000,00         │
-│  └── Verter (Consultoria)                     R$ 5.000,00         │
-│                                                                    │
-│  📦 ARMAZENAGEM                               R$ 1.800,00          │
-│  └── Galpão/Estoque                           R$ 1.800,00         │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
-```
+| Issue | Status | Solução |
+|-------|--------|---------|
+| **Excluir lançamentos do histórico** | ❌ Não existe botão | Adicionar botão de delete no histórico |
+| **Meta Mensal estática** | ⚠️ Dinâmica mas usando props incorretas | Corrigir passagem de `custoFixoMensal` para usar total calculado |
 
 ---
 
-## Alterações Técnicas
+## 2. ALTERAÇÕES TÉCNICAS DETALHADAS
 
-### 1. Novos Tipos em `src/types/focus-mode.ts`
+### 2.1 EXECUTIVE RESUME (NOVO COMPONENTE)
+
+**Arquivo:** `src/components/financeiro/ExecutiveResume.tsx` (NOVO)
+
+Componente fixo no topo do Financeiro que mostra:
+- Badge de estado global (🟢 Estratégia / 🟡 Atenção / 🔴 Sobrevivência)
+- Caixa Livre Real
+- Queima Operacional/dia
+- Fôlego de Caixa em dias
+- Resultado Esperado 30d
+- Ads Máximo Permitido (semana)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ 🟢 ESTRATÉGIA                                           │
+├─────────────────────────────────────────────────────────┤
+│ Caixa Livre Real      R$ 45.000    │ Fôlego: 42 dias   │
+│ Queima/dia            R$ 1.066     │ Ads Máx: R$ 15k   │
+│ Resultado 30d         R$ 8.000     │                   │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Integrar em:** `FinanceiroMode.tsx` como primeiro elemento após os alerts de Ritmo.
+
+---
+
+### 2.2 INTERCOMPANY (NOVO TIPO)
+
+**Arquivo:** `src/types/focus-mode.ts`
 
 ```typescript
-// Item individual de custo fixo
-export interface CustoFixoItem {
+// Alterar ContaFluxo.tipo
+export interface ContaFluxo {
   id: string;
-  nome: string;
-  valor: number;
-  tipo: 'fixo' | 'variavel' | 'cortavel';  // Classificação para decisão
-  notas?: string;
-}
-
-// Categoria de custo fixo
-export interface CustoFixoCategoria {
-  id: 'pessoas' | 'software' | 'marketing' | 'servicos' | 'armazenagem';
-  nome: string;
-  icone: string;
-  itens: CustoFixoItem[];
-  total: number;  // Calculado automaticamente
-}
-
-// Estrutura completa de custos fixos
-export interface CustosFixosDetalhados {
-  pessoas: CustoFixoItem[];
-  software: CustoFixoItem[];
-  marketing: CustoFixoItem[];  // Marketing ESTRUTURAL (não Ads)
-  servicos: CustoFixoItem[];
-  armazenagem: CustoFixoItem[];
-  totalGeral: number;  // Calculado
+  tipo: 'pagar' | 'receber' | 'intercompany';  // ADICIONAR 'intercompany'
+  // ... resto igual
 }
 ```
 
-### 2. Adicionar ao `FinanceiroStage`
+**Arquivo:** `src/utils/modeStatusCalculator.ts`
+
+Excluir intercompany dos cálculos de DRE e margem:
+```typescript
+// Na função de cálculo de margem/DRE:
+const contasParaDRE = contas.filter(c => c.tipo !== 'intercompany');
+```
+
+**Arquivo:** `src/components/financeiro/ContasFluxoSection.tsx`
+
+Adicionar 'intercompany' no Select de tipo:
+```typescript
+<SelectItem value="intercompany">🔁 Intercompany</SelectItem>
+```
+
+**Arquivo:** `src/components/financeiro/ConciliacaoSection.tsx`
+
+IA sugerir intercompany quando detectar transferências entre CNPJs:
+- Regex para "TED", "Transferência", nomes de empresas do grupo
+
+---
+
+### 2.3 MARGEM REAL ESTIMADA (NOVO CARD)
+
+**Arquivo:** `src/components/financeiro/MargemRealCard.tsx` (NOVO)
+
+Fórmula:
+```
+Margem Real = 1 - (Compras de Produtos + Logística) / Faturamento
+```
+
+Baseado em categorias de DRE dos lançamentos pagos:
+- Identificar lançamentos com categoria contendo "Compra", "Produto", "Frete", "Logística"
+- Calcular percentual
+- Comparar com MARGEM_OPERACIONAL (40%)
+- Alerta visual se desvio > 5 p.p.
+
+---
+
+### 2.4 IMPOSTOS CONFIGURÁVEIS
+
+**Arquivo:** `src/types/focus-mode.ts`
 
 ```typescript
 export interface FinanceiroStage {
-  // ... campos existentes
-  
-  // NOVO: Custos Fixos Detalhados
-  custosFixosDetalhados?: CustosFixosDetalhados;
+  // ... existente
+  impostoPercentual?: number;  // default 0.16 (16%)
+  impostoOverrideMotivo?: string;
 }
 ```
 
-### 3. Novo Componente: `CustosFixosCard.tsx`
-
-**Arquivo:** `src/components/financeiro/CustosFixosCard.tsx`
-
-Features:
-- Collapsible por categoria
-- Edição inline de valores
-- Adicionar/remover itens
-- Badge de "cortável" para destacar custos não essenciais
-- Total automático por categoria e geral
-- Comparação com mês anterior (se houver histórico)
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ 💰 Custos Fixos Detalhados          Total: R$ 56.800   │
-│                                                         │
-│ ▼ 👥 Pessoas                                R$ 22.269  │
-│   ┌──────────────────────────────────────────────────┐ │
-│   │ Paola - Dist. Lucros    [R$ 5.000,00]  [🗑️]    │ │
-│   │ Thiago - Dist. Lucros   [R$ 8.000,00]  [🗑️]    │ │
-│   │ ...                                              │ │
-│   │ [+ Adicionar item]                               │ │
-│   └──────────────────────────────────────────────────┘ │
-│                                                         │
-│ ► 💻 Software                               R$ 2.862   │
-│ ► 📣 Marketing Estrutural                   R$ 22.000  │
-│ ► 🔧 Serviços                               R$ 8.000   │
-│ ► 📦 Armazenagem                            R$ 1.800   │
-│                                                         │
-│ ⚠️ Ads (R$ 15k) está em Marketing.                     │
-│    Considere separar para Ads Base no modo Ads.        │
-└─────────────────────────────────────────────────────────┘
-```
-
-### 4. Defaults com Dados Fornecidos
-
-Pré-popular com os valores informados:
+**Arquivo:** `src/utils/modeStatusCalculator.ts`
 
 ```typescript
-export const DEFAULT_CUSTOS_FIXOS: CustosFixosDetalhados = {
-  pessoas: [
-    { id: '1', nome: 'Paola - Distribuição lucros', valor: 5000, tipo: 'fixo' },
-    { id: '2', nome: 'Paola - Pró-labore', valor: 1351.02, tipo: 'fixo' },
-    { id: '3', nome: 'Thiago - Distribuição lucros', valor: 8000, tipo: 'fixo' },
-    { id: '4', nome: 'Thiago - Pró-labore', valor: 1351.02, tipo: 'fixo' },
-    { id: '5', nome: 'Gabrielle - CLT', valor: 1901.87, tipo: 'fixo' },
-    { id: '6', nome: 'Julia - CLT', valor: 1282.87, tipo: 'fixo' },
-    { id: '7', nome: 'Amanda - PJ', valor: 2382.60, tipo: 'cortavel' },
-    { id: '8', nome: 'Geral - Auxílios', valor: 1250, tipo: 'cortavel' },
-  ],
-  software: [
-    { id: 's1', nome: 'Bling (ERP Ecom)', valor: 450, tipo: 'fixo' },
-    { id: 's2', nome: 'Tiny B2B (x2)', valor: 324.84, tipo: 'fixo' },
-    { id: 's3', nome: 'Nuvemshop', valor: 394, tipo: 'fixo' },
-    { id: 's4', nome: 'Google GSUITE', valor: 560, tipo: 'fixo' },
-    { id: 's5', nome: 'Perfit (Email MKT)', valor: 476, tipo: 'cortavel' },
-    { id: 's6', nome: 'Empreender.com', valor: 169.51, tipo: 'cortavel' },
-    { id: 's7', nome: 'Adobe', valor: 124, tipo: 'cortavel' },
-    { id: 's8', nome: 'Canva', valor: 44.99, tipo: 'cortavel' },
-    { id: 's9', nome: 'Claspo.io', valor: 48.04, tipo: 'cortavel' },
-    { id: 's10', nome: 'Cashing', valor: 99.90, tipo: 'cortavel' },
-    { id: 's11', nome: 'Pluga', valor: 89, tipo: 'cortavel' },
-    { id: 's12', nome: 'Chipbot', valor: 49.01, tipo: 'cortavel' },
-    { id: 's13', nome: 'ML nível 6', valor: 17.99, tipo: 'fixo' },
-    { id: 's14', nome: 'Apple iCloud', valor: 14.90, tipo: 'cortavel' },
-  ],
-  marketing: [
-    { id: 'm1', nome: 'Vegui - Influencer', valor: 1500, tipo: 'cortavel' },
-    { id: 'm2', nome: 'Matheus - Conteúdo', valor: 2500, tipo: 'cortavel' },
-    { id: 'm3', nome: 'Impressos', valor: 1000, tipo: 'cortavel' },
-    // Ads Base vai para campo separado (já existe)
-  ],
-  servicos: [
-    { id: 'sv1', nome: 'Gioia - Contabilidade', valor: 3000, tipo: 'fixo' },
-    { id: 'sv2', nome: 'Verter - Consultoria', valor: 5000, tipo: 'cortavel' },
-  ],
-  armazenagem: [
-    { id: 'a1', nome: 'Galpão/Estoque', valor: 1800, tipo: 'fixo' },
-  ],
-  totalGeral: 0, // Calculado
-};
+const impostoPercent = data.impostoPercentual ?? 0.16;
+const impostosCalculados = faturamento * impostoPercent;
 ```
 
-### 5. Integração com Cálculos Existentes
+**UI:** Adicionar campo editável no card de Custos Defasados com aviso se alterado.
 
-- O total de `custosFixosDetalhados` substitui o campo `custoFixoMensal`
-- Separar Marketing Estrutural dos custos fixos gerais
-- Ads Base continua separado (já existe no sistema)
+---
 
-### 6. Análise de Corte (Feature Extra)
+### 2.5 GARGALO DA SEMANA (NOVO COMPONENTE)
 
-Adicionar seção de análise:
+**Arquivo:** `src/components/GargaloIdentifier.tsx` (NOVO)
 
+Lógica:
+```typescript
+function identificarGargalo(
+  financeiroExports: FinanceiroExports,
+  supplyExports?: SupplyExports,
+  marketingExports?: MarketingExports
+): { gargalo: string; areaSoberana: string } {
+  
+  if (financeiroExports.caixaLivreReal <= 0) {
+    return { gargalo: 'FINANCEIRO', areaSoberana: 'Financeiro' };
+  }
+  if (supplyExports?.riscoRuptura) {
+    return { gargalo: 'ESTOQUE', areaSoberana: 'Financeiro' };
+  }
+  if (marketingExports?.statusDemanda === 'fraco') {
+    return { gargalo: 'DEMANDA', areaSoberana: 'Financeiro' };
+  }
+  return { gargalo: 'Nenhum', areaSoberana: 'Financeiro' };
+}
 ```
-┌─────────────────────────────────────────────────────────┐
-│ 🔍 ANÁLISE PARA CORTE                                   │
-│                                                         │
-│ Custos cortáveis identificados:          R$ 12.500/mês │
-│                                                         │
-│ Maior impacto:                                          │
-│ • Verter (R$ 5k) - Avaliar ROI da consultoria          │
-│ • Vegui + Matheus (R$ 4k) - Reavaliar se gera vendas   │
-│ • Perfit (R$ 476) - Comparar com alternativas          │
-│                                                         │
-│ Softwares redundantes:                                  │
-│ • Adobe + Canva (R$ 169) - Manter apenas 1             │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+
+**Integrar em:** `PreReuniaoGeralMode.tsx` e `ReuniaoAdsMode.tsx`
+
+---
+
+### 2.6 CONTEXTO OBRIGATÓRIO EM REUNIÃO ADS
+
+**Arquivo:** `src/components/modes/ReuniaoAdsMode.tsx`
+
+Adicionar card de contexto no topo que bloqueia a tela se decisão não existir:
+
+```typescript
+{!prioridadeSemana && (
+  <Card className="bg-destructive/5 border-destructive/30">
+    <CardContent className="p-4">
+      <div className="flex items-center gap-3">
+        <AlertTriangle className="h-5 w-5 text-destructive" />
+        <div>
+          <p className="font-medium text-destructive">Decisão da Semana não definida</p>
+          <p className="text-xs text-muted-foreground">
+            Defina a prioridade na Pré-Reunião Geral para liberar esta tela.
+          </p>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+)}
+```
+
+Se `!prioridadeSemana`, desabilitar todos os inputs abaixo.
+
+---
+
+### 2.7 GLOBAL INPUTS (ANTI-RETRABALHO)
+
+**Arquivo:** `src/types/focus-mode.ts`
+
+```typescript
+export interface GlobalInputs {
+  pedidosSemanaAnterior: number;
+  faturamentoMesAtual: string;
+  faturamentoEsperado30d: string;
+  margemOperacional: number;  // Default 40%, editável
+}
+
+export interface FocusModeState {
+  // ... existente
+  globalInputs?: GlobalInputs;
+}
+```
+
+**Arquivo:** `src/hooks/useFocusModes.ts`
+
+Adicionar:
+```typescript
+const updateGlobalInput = useCallback((key: keyof GlobalInputs, value: any) => {
+  setState(prev => ({
+    ...prev,
+    globalInputs: { ...prev.globalInputs, [key]: value },
+  }));
+}, []);
+```
+
+**UI:** Financeiro edita esses campos → Marketing/Supply lêem apenas (readonly).
+
+---
+
+### 2.8 CLASSIFICAÇÃO DE INFORMAÇÕES (⚙️📊✏️)
+
+**Arquivo:** `src/components/ui/info-label.tsx` (NOVO)
+
+Componente reutilizável:
+```typescript
+type InfoType = 'parametro' | 'leitura' | 'input';
+
+export function InfoLabel({ type, children }: { type: InfoType; children: React.ReactNode }) {
+  const styles = {
+    parametro: { icon: '⚙️', bg: 'bg-blue-50', text: 'text-blue-700', label: 'PARÂMETRO' },
+    leitura: { icon: '📊', bg: 'bg-cyan-50', text: 'text-cyan-700', label: 'LEITURA' },
+    input: { icon: '✏️', bg: 'bg-amber-50', text: 'text-amber-700', label: 'INPUT' },
+  };
+  
+  const s = styles[type];
+  return (
+    <div className={`${s.bg} rounded p-1 flex items-center gap-1`}>
+      <span className={`text-[10px] font-bold ${s.text}`}>{s.icon} {s.label}</span>
+      {children}
+    </div>
+  );
+}
+```
+
+**Integrar:** Em cada card do Financeiro, Marketing, etc.
+
+---
+
+### 2.9 EXCLUIR LANÇAMENTOS DO HISTÓRICO
+
+**Arquivo:** `src/components/financeiro/ContasFluxoSection.tsx`
+
+Na seção de histórico (linhas 516-536), adicionar botão de delete:
+
+```typescript
+{contasPagas.slice(0, historicoLimit).map((conta) => (
+  <div 
+    key={conta.id}
+    className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border text-xs"
+  >
+    {/* ... conteúdo existente ... */}
+    
+    {/* NOVO: Botão de excluir */}
+    <Button
+      size="sm"
+      variant="ghost"
+      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive ml-2"
+      onClick={() => onRemoveConta(conta.id)}
+    >
+      <Trash2 className="h-3 w-3" />
+    </Button>
+  </div>
+))}
 ```
 
 ---
 
-## Arquivos a Criar/Modificar
+### 2.10 META MENSAL DINÂMICA (CORREÇÃO)
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/types/focus-mode.ts` | Adicionar interfaces `CustoFixoItem`, `CustosFixosDetalhados` |
-| `src/components/financeiro/CustosFixosCard.tsx` | **NOVO** - Card com breakdown por categoria |
-| `src/components/modes/FinanceiroMode.tsx` | Integrar CustosFixosCard, substituir input simples |
-| `src/utils/modeStatusCalculator.ts` | Calcular total de custos fixos a partir do breakdown |
+**Problema:** `MetaMensalCard` recebe `custoFixoMensal` como string, mas o Financeiro agora usa `custosFixosDetalhados` com breakdown.
+
+**Arquivo:** `src/components/modes/FinanceiroMode.tsx`
+
+Onde renderiza `MetaMensalCard`, passar o total calculado:
+
+```typescript
+<MetaMensalCard
+  contasFluxo={data.contasFluxo || []}
+  custoFixoMensal={formatCurrency(totalCustosFixos).replace('R$', '').trim()}  // ← JÁ CORRETO
+  marketingEstrutural={data.marketingEstrutural || ''}
+  adsBase={data.adsBase || ''}
+  faturamentoCanais={data.faturamentoCanais}
+/>
+```
+
+**Verificar:** Se `totalCustosFixos` está sendo calculado corretamente do breakdown.
+
+Atualmente em FinanceiroMode.tsx linha 127-129:
+```typescript
+const totalCustosFixos = useMemo(() => {
+  return calcularTotalCustosFixos(data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS);
+}, [data.custosFixosDetalhados]);
+```
+
+Isso está correto - o problema pode ser que `faturamentoCanais` não está preenchido (mostra R$0 faturado).
+
+**Solução adicional:** Usar `faturamentoMes` como fallback se canais estiverem vazios:
+```typescript
+// Em MetaMensalCard.tsx
+const faturadoAtual = faturamentoCanais
+  ? (parseValorFlexivel(faturamentoCanais.b2b) + ...)
+  : parseValorFlexivel(faturamentoMes || '0');  // FALLBACK
+```
 
 ---
 
-## Ordem de Implementação
+### 2.11 LOOP DE APRENDIZADO (OPCIONAL)
 
-1. Tipos e interface de dados
-2. Defaults com dados fornecidos
-3. Componente CustosFixosCard
-4. Integração no FinanceiroMode
-5. (Opcional) Análise de corte
+**Arquivo:** `src/components/financeiro/LoopAprendizado.tsx` (NOVO)
+
+Comparar dados da semana atual com `weekly_snapshots` da semana anterior:
+```
+"Semana passada você decidiu ESCALAR"
+"Resultado: ROAS 3.2 (+0.4 vs semana anterior)"
+```
+
+**Integrar em:** `ReuniaoAdsMode.tsx` no topo.
 
 ---
 
-## Notas Importantes
+## 3. ORDEM DE IMPLEMENTAÇÃO
 
-### Separação Ads vs Marketing Estrutural
+| Fase | Item | Arquivos | Créditos Est. |
+|------|------|----------|---------------|
+| 1 | Excluir do histórico (BUG) | ContasFluxoSection.tsx | 1 |
+| 1 | Meta Mensal fallback (BUG) | MetaMensalCard.tsx | 1 |
+| 2 | Executive Resume | ExecutiveResume.tsx, FinanceiroMode.tsx | 2 |
+| 2 | Intercompany tipo | focus-mode.ts, modeStatusCalculator.ts, ContasFluxoSection.tsx | 2 |
+| 3 | Margem Real Estimada | MargemRealCard.tsx, FinanceiroMode.tsx | 1 |
+| 3 | Impostos configuráveis | focus-mode.ts, modeStatusCalculator.ts, FinanceiroMode.tsx | 1 |
+| 4 | Gargalo da Semana | GargaloIdentifier.tsx, PreReuniaoGeralMode.tsx | 1 |
+| 4 | Contexto bloqueante Ads | ReuniaoAdsMode.tsx | 1 |
+| 5 | Global Inputs | focus-mode.ts, useFocusModes.ts, FinanceiroMode.tsx | 2 |
+| 5 | Classificação visual (⚙️📊✏️) | info-label.tsx, múltiplos | 2 |
+| 6 | Loop de Aprendizado | LoopAprendizado.tsx | 1 |
 
-O valor de **R$ 15k de Ads** que você mencionou em Marketing **NÃO** deve entrar nos custos fixos. Ele já está no campo `adsBase` separado. No breakdown:
+**Total estimado: 15 alterações**
 
-- **Marketing Estrutural** (custo fixo): Vegui + Matheus + Impressos = R$ 5.000
-- **Ads Base** (variável): R$ 15.000 → campo separado
+---
 
-### Distribuição de Lucros
+## 4. RESUMO VISUAL FINAL
 
-Conforme regra do sistema:
-- ✅ Afeta caixa (sai do banco)
-- ❌ Não entra no DRE (não é despesa operacional)
+Após implementação:
 
-No breakdown, manter como "custo fixo de caixa" mas com flag especial para não computar no DRE.
-
+```
+┌───────────────────────────────────────────────────────────────┐
+│ 🟢 Hoje está tudo em dia                                      │  ← RitmoStatusBar
+├───────────────────────────────────────────────────────────────┤
+│ [💰] [📣] [🚚] [🧠] [🎯] [📈] [📋]                            │  ← ModeSelector
+├───────────────────────────────────────────────────────────────┤
+│                                                               │
+│  🟢 ESTRATÉGIA           Caixa Livre: R$ 45.000              │  ← Executive Resume
+│  Queima/dia: R$ 1.066    Fôlego: 42 dias                     │
+│  Resultado 30d: R$ 8k    Ads Máx: R$ 15.000                  │
+│                                                               │
+│  ⚙️ PARÂMETROS                                               │
+│  ├── Margem: 40%                                             │
+│  └── Impostos: 16%                                           │
+│                                                               │
+│  📊 LEITURAS AUTOMÁTICAS                                     │
+│  ├── Margem Real Estimada: 38% (⚠️ -2pp vs padrão)          │
+│  └── Gargalo: Nenhum                                         │
+│                                                               │
+│  💰 Custos Fixos Detalhados         Total: R$ 36.131         │
+│  ▼ 👥 Pessoas                       R$ 22.269                │
+│  ► 💻 Software                      R$ 2.862                 │
+│  ...                                                         │
+│                                                               │
+│  📋 Contas a Pagar/Receber                                   │
+│  ├── Pendentes (12)                                          │
+│  └── ▼ Histórico (últimos 60d)                              │
+│       ├── 05/02 Fornecedor X  R$ -500  [🗑️]                 │  ← NOVO: Delete
+│       └── ...                                                │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
+```
