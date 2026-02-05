@@ -130,6 +130,8 @@ export function ConciliacaoSection({
     const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
+      console.log('🔄 Chamando extract-extrato com:', { textoLote: textoLote.substring(0, 100), mesAno });
+      
       const { data, error } = await supabase.functions.invoke('extract-extrato', {
         body: { texto: textoLote, mesAno },
         signal: controller.signal as any,
@@ -137,16 +139,28 @@ export function ConciliacaoSection({
 
       clearTimeout(timeoutId);
 
+      console.log('✅ Resposta extract-extrato:', { data, error });
+
       if (error) {
-        console.error('Error extracting extrato batch:', error);
+        console.error('❌ Erro na chamada:', error);
         throw error;
       }
 
+      // Verificar estrutura de resposta
+      if (!data) {
+        console.warn('⚠️ Data vazia recebida');
+        return [];
+      }
+
       if (data?.error) {
+        console.error('❌ Erro na resposta:', data.error);
         throw new Error(data.error);
       }
 
-      return (data?.contas || []).map((c: any) => ({
+      const contas = data?.contas || [];
+      console.log(`📊 ${contas.length} lançamentos extraídos`);
+
+      return contas.map((c: any) => ({
         tipo: c.tipo || 'pagar',
         subtipo: c.subtipo,
         descricao: c.descricao || '',
@@ -156,6 +170,7 @@ export function ConciliacaoSection({
       } as ExtractedLancamento));
     } catch (err) {
       clearTimeout(timeoutId);
+      console.error('❌ Erro ao processar lote:', err);
       throw err;
     }
   };
