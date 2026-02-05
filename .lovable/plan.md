@@ -1,25 +1,92 @@
 
+# Plano: Sistema de Conciliação Bancária Completo + Cadastro de Fornecedores
 
-# Plano: Status Visual + Dar Baixa Manual + Agendamento
+## Problemas Identificados
 
-## Resumo
+### 1. Edge Function Só Importa 8 Lançamentos
+**Causa raiz:** A IA (Gemini) retorna `MALFORMED_FUNCTION_CALL` quando o texto é muito grande. Após ~8 tool calls, ocorre um erro e a resposta é truncada.
 
-Adicionar funcionalidades para controle manual de pagamentos na lista de Contas a Pagar/Receber:
-- Botão de **dar baixa** com um clique (marcar como pago)
-- **Indicador visual de atraso** (conta vencida muda de cor)
-- **Status "Agendado"** - quando marcado, dá baixa automática no dia do vencimento
+**Solução:** Processar o extrato em chunks de 30 linhas por vez e agregar os resultados.
+
+### 2. Sem Match com Contas Existentes
+A conciliação atual apenas **adiciona** lançamentos. Não há:
+- Verificação de valor (± R$ 0,01)
+- Verificação de data (± 1 dia)
+- Match automático com contas a pagar/receber
+
+### 3. Parsing de Valores Incorreto
+A função `parseCurrency` não lida bem com valores em formato americano (`1234.56`) vindos da IA:
+```typescript
+// Problema: "15622.01" vira 1562201 (remove o ponto)
+const cleaned = value.replace(/[R$\s.]/g, '').replace(',', '.');
+```
+
+### 4. Sem Cadastro de Fornecedores
+Não existe uma tabela/lista de fornecedores para:
+- Classificar lançamentos automaticamente (DRE)
+- Selecionar fornecedor ao editar conta
+- Extrair beneficiário final de nomes compostos
+
+---
+
+## Arquitetura da Solução
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                    EXTRATO COLADO                               │
+└───────────────────────────┬─────────────────────────────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Edge Function: extract-extrato (MELHORADA)                     │
+│  1. Dividir texto em chunks de 30 linhas                        │
+│  2. Processar cada chunk com a IA                               │
+│  3. Validar/corrigir datas inválidas (ex: 30/02 → 28/02)        │
+│  4. Agregar todos os lançamentos                                │
+│  5. Tentar match com fornecedores conhecidos                    │
+└───────────────────────────┬─────────────────────────────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Frontend: ConciliacaoSection (NOVA LÓGICA)                     │
+│  1. Receber lista de lançamentos extraídos                      │
+│  2. Para cada lançamento:                                       │
+│     → Buscar match: valor ± R$0,01 E data ± 1 dia               │
+│     → Se match: marcar conta existente como paga                │
+│     → Se não match: adicionar como novo lançamento              │
+│  3. Permitir edição manual do match                             │
+│  4. Mostrar resumo: X conciliados, Y novos, Z ignorados         │
+└───────────────────────────┬─────────────────────────────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Gestão de Fornecedores                                         │
+│  1. Importar CSV do usuário como lista mestre                   │
+│  2. Autocomplete ao digitar descrição                           │
+│  3. Herdar classificação (Modalidade, Grupo, Categoria)         │
+│  4. Extrair "Beneficiário Final" de nomes compostos             │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Mudanças Necessárias
 
-### 1. Atualizar Tipo ContaFluxo
+### 1. Tipo Fornecedor + Atualização ContaFluxo
 
 **Arquivo:** `src/types/focus-mode.ts`
 
-Adicionar campo `agendado`:
-
 ```typescript
+// NOVO: Fornecedor com classificação para DRE
+export interface Fornecedor {
+  id: string;
+  nome: string;
+  modalidade: string;       // Ex: "DESPESAS ADMINISTRATIVAS"
+  grupo: string;            // Ex: "Serviços de Consultoria Operacional"
+  categoria: string;        // Ex: "Assessoria Contábil"
+  cnpj?: string;
+  chavePix?: string;
+  aliases?: string[];       // Nomes alternativos (para match)
+}
+
+// Atualizar ContaFluxo
 export interface ContaFluxo {
   id: string;
   tipo: 'pagar' | 'receber';
@@ -27,153 +94,232 @@ export interface ContaFluxo {
   valor: string;
   dataVencimento: string;
   pago?: boolean;
-  agendado?: boolean;  // NOVO: indica se foi agendado no banco
+  agendado?: boolean;
+  // NOVOS CAMPOS
+  fornecedorId?: string;    // Referência ao fornecedor
+  categoria?: string;       // Categoria para DRE
+  conciliado?: boolean;     // Flag: veio de conciliação
 }
 ```
 
----
+### 2. Edge Function: Processamento em Chunks
 
-### 2. ContaItem: Botões de Ação + Visual de Atraso
-
-**Arquivo:** `src/components/financeiro/ContaItem.tsx`
-
-Adicionar:
-- Botão de **check** para dar baixa manual (toggle pago)
-- Botão de **calendário** para marcar como agendado
-- **Cor vermelha/laranja** para contas vencidas
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ 30/01  Fornecedor XYZ           R$ 1.234,56  [✓] [📅] [✏️] [🗑] │
-│                                                                 │
-│ 28/01  Conta Atrasada!          R$ 500,00    [✓] [📅] [✏️] [🗑] │ ← Fundo vermelho
-│                                                                 │
-│ 05/02  Conta Agendada           R$ 2.000,00  [agendado]   [🗑] │ ← Badge "agendado"
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Lógica de cores:**
-- **Atrasada** (data < hoje e não pago): fundo vermelho claro
-- **Vence hoje**: fundo amarelo claro
-- **Agendada**: badge azul "agendado"
-- **Normal**: fundo padrão
-
----
-
-### 3. ContasFluxoSection: Mostrar Contas Atrasadas
-
-**Arquivo:** `src/components/financeiro/ContasFluxoSection.tsx`
-
-Separar contas em 3 grupos:
-1. **Atrasadas** (data < hoje, não pago) - destaque vermelho
-2. **Hoje** (vence hoje) - destaque amarelo
-3. **Futuras** (próximos 30d)
-
-Adicionar nova seção visual:
-
-```text
-⚠️ Atrasadas (2)
-  [lista vermelha]
-
-📅 Vence Hoje (1)
-  [lista amarela]
-
-⬆️ A Pagar (próx. 30d)
-  [lista normal]
-```
-
----
-
-### 4. Auto-Baixa de Contas Agendadas
-
-**Arquivo:** `src/components/modes/FinanceiroMode.tsx`
-
-Adicionar `useEffect` para verificar contas agendadas cujo vencimento chegou:
+**Arquivo:** `supabase/functions/extract-extrato/index.ts`
 
 ```typescript
-useEffect(() => {
-  const hoje = format(new Date(), 'yyyy-MM-dd');
-  const contasParaDarBaixa = (data.contasFluxo || []).filter(c => 
-    c.agendado && 
-    !c.pago && 
-    c.dataVencimento <= hoje
-  );
-  
-  if (contasParaDarBaixa.length > 0) {
-    // Marcar todas como pagas automaticamente
-    const contasAtualizadas = (data.contasFluxo || []).map(c => {
-      if (contasParaDarBaixa.find(cp => cp.id === c.id)) {
-        return { ...c, pago: true };
-      }
-      return c;
-    });
-    onUpdateFinanceiroData({ contasFluxo: contasAtualizadas });
-    toast.success(`${contasParaDarBaixa.length} conta(s) agendada(s) marcada(s) como paga(s)`);
+// Dividir texto em chunks
+const MAX_LINHAS_POR_CHUNK = 30;
+const linhas = texto.split('\n').filter(l => l.trim());
+
+// Se muito grande, processar em partes
+const chunks: string[] = [];
+for (let i = 0; i < linhas.length; i += MAX_LINHAS_POR_CHUNK) {
+  chunks.push(linhas.slice(i, i + MAX_LINHAS_POR_CHUNK).join('\n'));
+}
+
+const todosLancamentos: any[] = [];
+for (const chunk of chunks) {
+  const response = await processarChunk(chunk, mesAno);
+  todosLancamentos.push(...response);
+}
+
+// Validar datas
+function validarData(dataStr: string): string {
+  try {
+    const [ano, mes, dia] = dataStr.split('-').map(Number);
+    const ultimoDia = new Date(ano, mes, 0).getDate();
+    const diaValido = Math.min(dia, ultimoDia);
+    return `${ano}-${String(mes).padStart(2,'0')}-${String(diaValido).padStart(2,'0')}`;
+  } catch {
+    return new Date().toISOString().split('T')[0];
   }
-}, [data.contasFluxo]);
+}
 ```
+
+### 3. Parser de Valores Flexível
+
+**Arquivo:** `src/utils/fluxoCaixaCalculator.ts`
+
+```typescript
+// NOVO: Aceita formato brasileiro E americano
+export function parseValorFlexivel(valor: string): number {
+  if (!valor || valor === '') return 0;
+  
+  let str = String(valor).trim();
+  str = str.replace(/[R$\s]/g, '');
+  
+  // Detectar formato pelo último separador
+  const lastComma = str.lastIndexOf(',');
+  const lastDot = str.lastIndexOf('.');
+  
+  if (lastComma > lastDot) {
+    // Brasileiro: 1.234,56
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else if (lastDot > lastComma) {
+    // Americano: 1,234.56
+    str = str.replace(/,/g, '');
+  }
+  // Senão: número puro
+  
+  return parseFloat(str) || 0;
+}
+```
+
+### 4. ConciliacaoSection com Match Inteligente
+
+**Arquivo:** `src/components/financeiro/ConciliacaoSection.tsx`
+
+Nova lógica:
+
+```typescript
+interface ConciliacaoSectionProps {
+  contasExistentes: ContaFluxo[];
+  fornecedores: Fornecedor[];
+  onConciliar: (result: {
+    conciliados: { id: string }[];
+    novos: Omit<ContaFluxo, 'id'>[];
+    ignorados: number;
+  }) => void;
+  // ...
+}
+
+// Lógica de match
+function encontrarMatch(
+  lancamento: { valor: string; dataVencimento: string },
+  contas: ContaFluxo[]
+): ContaFluxo | null {
+  const valorLanc = parseValorFlexivel(lancamento.valor);
+  const dataLanc = parseISO(lancamento.dataVencimento);
+  
+  return contas.find(conta => {
+    if (conta.pago) return false;
+    
+    const valorConta = parseValorFlexivel(conta.valor);
+    const dataConta = parseISO(conta.dataVencimento);
+    
+    // Tolerância: ± R$0,01 e ± 1 dia
+    const valorMatch = Math.abs(valorLanc - valorConta) <= 0.01;
+    const diffDias = Math.abs(differenceInDays(dataLanc, dataConta));
+    const dataMatch = diffDias <= 1;
+    
+    return valorMatch && dataMatch;
+  });
+}
+```
+
+### 5. Armazenamento de Fornecedores
+
+**Opção A: LocalStorage/State (simples)**
+Armazenar a lista de fornecedores no `financeiroData`:
+
+```typescript
+financeiroData: {
+  // ...
+  fornecedores?: Fornecedor[];
+}
+```
+
+**Opção B: Tabela no Banco (recomendado para escala)**
+Criar tabela `fornecedores` no Cloud.
+
+Para esta implementação, usaremos **Opção A** (LocalStorage via state) + importação do CSV.
+
+### 6. Componente de Seleção de Fornecedor
+
+**Novo arquivo:** `src/components/financeiro/FornecedorSelect.tsx`
+
+Um combobox com:
+- Busca por nome (fuzzy match)
+- Mostra categoria do fornecedor
+- Botão "Criar novo" se não encontrar
+- Extrai "Beneficiário Final" de nomes compostos
 
 ---
 
-## Interface Visual do ContaItem
+## Interface de Resultado da Conciliação
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│  NORMAL (futuro)                                                │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 10/02  Fornecedor ABC    R$ 2.500,00  [✓] [📅] [✏️] [🗑]   │ │
-│  └────────────────────────────────────────────────────────────┘ │
+│  📊 Conciliação Bancária                                        │
+├─────────────────────────────────────────────────────────────────┤
+│  [Textarea com extrato]                                         │
 │                                                                 │
-│  ATRASADA (fundo vermelho)                                      │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 28/01  Boleto Atrasado   R$ 800,00    [✓] [📅] [✏️] [🗑]   │ │
-│  └────────────────────────────────────────────────────────────┘ │
+│  [Processar Extrato]                                            │
 │                                                                 │
-│  AGENDADA (badge azul)                                          │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 05/02  Imposto    [agendado]  R$ 1.000,00      [❌] [🗑]   │ │
-│  └────────────────────────────────────────────────────────────┘ │
+│  ─────────────────────────────────────────────────────────────  │
+│  ✅ Resultado:                                                  │
+│  • 12 conciliados com contas existentes (marcados como pagos)   │
+│  • 45 novos lançamentos adicionados ao histórico                │
+│  • 8 ignorados (transf. entre contas próprias, rendimentos)     │
+│                                                                 │
+│  ⚠️ 3 lançamentos precisam de revisão:                          │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 26/01 BOLETO PAGO RNX FIDC MUL  R$ -770,00               │   │
+│  │ Fornecedor: [▼ Selecionar]  [+ Criar novo]               │   │
+│  │ → Sugestão: JUND COCO LTDA (extraído de beneficiário)    │   │
+│  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
-
-Legenda:
-[✓] = Dar baixa (marcar como pago)
-[📅] = Marcar como agendado
-[✏️] = Editar
-[🗑] = Excluir
-[❌] = Desmarcar agendamento
 ```
 
 ---
 
-## Arquivos a Modificar
+## Arquivos a Modificar/Criar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/types/focus-mode.ts` | Adicionar campo `agendado?: boolean` ao ContaFluxo |
-| `src/components/financeiro/ContaItem.tsx` | Botões de ação, cores por status (atrasado/agendado) |
-| `src/components/financeiro/ContasFluxoSection.tsx` | Separar listas por status (atrasadas/hoje/futuras) |
-| `src/components/modes/FinanceiroMode.tsx` | Handler `handleToggleAgendado`, auto-baixa de agendadas |
+| `src/types/focus-mode.ts` | Adicionar `Fornecedor` e campos extras em `ContaFluxo` |
+| `supabase/functions/extract-extrato/index.ts` | Chunks + validação de data |
+| `src/utils/fluxoCaixaCalculator.ts` | `parseValorFlexivel()` para formatos BR/US |
+| `src/components/financeiro/ConciliacaoSection.tsx` | Match inteligente + UI de revisão |
+| `src/components/financeiro/FornecedorSelect.tsx` | **NOVO** - Combobox de fornecedor |
+| `src/components/financeiro/ImportarFornecedores.tsx` | **NOVO** - Importar CSV |
+| `src/components/modes/FinanceiroMode.tsx` | Integrar fornecedores e nova conciliação |
 
 ---
 
-## Comportamentos
+## Fluxo de Importação do CSV de Fornecedores
 
-**Dar Baixa Manual:**
-- Clique no [✓] marca como `pago: true`
-- Conta some da lista de pendentes
-- Vai para seção "Histórico" (se implementada)
+1. Usuário faz upload do CSV ou cola dados
+2. Sistema parseia colunas: `Fornecedor,Modalidade,Grupo,Categoria`
+3. Cria lista de fornecedores no state
+4. Para nomes com "Beneficiário Final", extrai o nome real:
+   - Input: `"RNX FIDC MULTISSETORIAL LP (Beneficiário Final: JUND COCO LTDA)"`
+   - Extrai: `"JUND COCO LTDA"` como alias
 
-**Marcar como Agendado:**
-- Clique no [📅] marca `agendado: true`
-- Exibe badge "agendado" na linha
-- No dia do vencimento, automaticamente marca como pago
+---
 
-**Visual de Atraso:**
-- Data < hoje E não pago → fundo vermelho
-- Data = hoje → fundo amarelo (atenção)
-- Com tooltip "Vencido há X dias"
+## Correção do Fluxo de Caixa
 
-**Desmarcar Agendamento:**
-- Se agendado, botão [❌] remove o agendamento
-- Conta volta ao estado normal
+O cálculo atual usa `parseCurrency` que falha com valores americanos. Substituir por:
 
+```typescript
+// Em calcularFluxoPreciso
+.reduce((acc, c) => {
+  const valor = parseValorFlexivel(c.valor); // Em vez de parseCurrency
+  return acc + (c.tipo === 'receber' ? valor : -valor);
+}, 0);
+```
+
+---
+
+## Histórico (Contas Pagas)
+
+Adicionar seção colapsável em `ContasFluxoSection` para mostrar lançamentos já pagos dos últimos 30 dias:
+
+```text
+▶ Histórico (42 lançamentos)
+  [lista colapsável de contas pagas recentes]
+```
+
+---
+
+## Resumo das Funcionalidades
+
+1. **Conciliação Inteligente**: Match automático valor ± R$0,01, data ± 1 dia
+2. **Processamento em Chunks**: Divide extrato grande para não truncar
+3. **Validação de Datas**: Corrige datas inválidas (30/02 → 28/02)
+4. **Cadastro de Fornecedores**: Importar CSV, autocomplete, categorização
+5. **Extração de Beneficiário**: Identifica "Beneficiário Final" em nomes compostos
+6. **Parsing Flexível**: Aceita valores em formato BR e US
+7. **Histórico Visível**: Seção colapsável com contas já pagas
+8. **Edição Manual**: Alterar match se conciliação automática errar
