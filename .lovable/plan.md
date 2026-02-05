@@ -1,180 +1,146 @@
 
 
-# Plano: Suporte a Múltiplas Contas na Extração OCR
+# Plano: Status Visual + Dar Baixa Manual + Agendamento
 
-## Problema Identificado
+## Resumo
 
-O Gemini está extraindo corretamente todas as 8 linhas da imagem via múltiplas `tool_calls`, mas:
-1. A **edge function** só retorna a primeira (`tool_calls[0]`)
-2. O **frontend** espera um único objeto e preenche o form
-
-## Solução
-
-Modificar o fluxo para processar **todas** as contas extraídas de uma vez.
+Adicionar funcionalidades para controle manual de pagamentos na lista de Contas a Pagar/Receber:
+- Botão de **dar baixa** com um clique (marcar como pago)
+- **Indicador visual de atraso** (conta vencida muda de cor)
+- **Status "Agendado"** - quando marcado, dá baixa automática no dia do vencimento
 
 ---
 
 ## Mudanças Necessárias
 
-### 1. Edge Function: Retornar Array de Contas
+### 1. Atualizar Tipo ContaFluxo
 
-**Arquivo:** `supabase/functions/extract-documento/index.ts`
+**Arquivo:** `src/types/focus-mode.ts`
 
-```typescript
-// ANTES (linha 158-167):
-const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-const extractedData = JSON.parse(toolCall.function.arguments);
-return new Response(JSON.stringify(extractedData), ...);
-
-// DEPOIS:
-const toolCalls = data.choices?.[0]?.message?.tool_calls || [];
-const extractedContas = toolCalls
-  .filter(tc => tc.function.name === "extract_conta")
-  .map(tc => JSON.parse(tc.function.arguments));
-
-if (extractedContas.length === 0) {
-  return new Response(
-    JSON.stringify({ error: "Não foi possível extrair dados" }),
-    { status: 422, ... }
-  );
-}
-
-// Retorna array (mesmo se for uma única conta)
-return new Response(
-  JSON.stringify({ contas: extractedContas }),
-  { ... }
-);
-```
-
----
-
-### 2. Frontend: Processar Array e Adicionar Múltiplas Contas
-
-**Arquivo:** `src/components/financeiro/ContasFluxoSection.tsx`
-
-**Props:** Adicionar `onAddMultipleContas` para adicionar várias de uma vez:
+Adicionar campo `agendado`:
 
 ```typescript
-interface ContasFluxoSectionProps {
-  // ... existentes ...
-  onAddMultipleContas?: (contas: Omit<ContaFluxo, 'id'>[]) => void;  // NOVO
+export interface ContaFluxo {
+  id: string;
+  tipo: 'pagar' | 'receber';
+  descricao: string;
+  valor: string;
+  dataVencimento: string;
+  pago?: boolean;
+  agendado?: boolean;  // NOVO: indica se foi agendado no banco
 }
 ```
 
-**processImage:** Ajustar para lidar com array:
-
-```typescript
-const processImage = async (file: File) => {
-  setIsExtracting(true);
-  try {
-    const base64 = await fileToBase64(file);
-    
-    const { data, error } = await supabase.functions.invoke('extract-documento', {
-      body: { imageBase64: base64 }
-    });
-    
-    if (error || data?.error) {
-      toast.error(data?.error || 'Erro ao processar documento.');
-      return;
-    }
-    
-    // NOVO: Processar array de contas
-    const contas = data.contas || [];
-    
-    if (contas.length === 0) {
-      toast.error('Nenhum lançamento encontrado na imagem.');
-      return;
-    }
-    
-    if (contas.length === 1) {
-      // Uma conta: preenche o form para revisão
-      const c = contas[0];
-      if (c.descricao) setDescricao(c.descricao);
-      if (c.valor) setValor(c.valor);
-      if (c.dataVencimento) setDataVencimento(c.dataVencimento);
-      if (c.tipo) setTipo(c.tipo);
-      toast.success('Dados extraídos! Confira e clique em + para adicionar.');
-    } else {
-      // Múltiplas contas: adiciona todas diretamente
-      if (onAddMultipleContas) {
-        const contasParaAdicionar = contas.map(c => ({
-          tipo: c.tipo || 'pagar',
-          descricao: c.descricao || '',
-          valor: c.valor || '',
-          dataVencimento: c.dataVencimento || '',
-          pago: false,
-        }));
-        onAddMultipleContas(contasParaAdicionar);
-        toast.success(`${contas.length} lançamentos extraídos e adicionados!`);
-      }
-    }
-  } catch (err) {
-    console.error('Error processing image:', err);
-    toast.error('Erro ao processar imagem.');
-  } finally {
-    setIsExtracting(false);
-  }
-};
-```
-
 ---
 
-### 3. FinanceiroMode: Adicionar Handler para Múltiplas Contas
+### 2. ContaItem: Botões de Ação + Visual de Atraso
 
-**Arquivo:** `src/components/modes/FinanceiroMode.tsx`
+**Arquivo:** `src/components/financeiro/ContaItem.tsx`
 
-Adicionar função `handleAddMultipleContas`:
-
-```typescript
-const handleAddMultipleContas = (novasContas: Omit<ContaFluxo, 'id'>[]) => {
-  const contasComId = novasContas.map(c => ({
-    ...c,
-    id: crypto.randomUUID(),
-  }));
-  
-  updateStageData('financeiro', {
-    contasFluxo: [...(financeiroData.contasFluxo || []), ...contasComId],
-  });
-};
-
-// Passar para o componente:
-<ContasFluxoSection
-  contas={financeiroData.contasFluxo || []}
-  onAddConta={handleAddConta}
-  onAddMultipleContas={handleAddMultipleContas}  // NOVO
-  onRemoveConta={handleRemoveConta}
-  onTogglePago={handleTogglePago}
-  isOpen={contasSectionOpen}
-  onToggle={() => setContasSectionOpen(!contasSectionOpen)}
-/>
-```
-
----
-
-## Fluxo Atualizado
+Adicionar:
+- Botão de **check** para dar baixa manual (toggle pago)
+- Botão de **calendário** para marcar como agendado
+- **Cor vermelha/laranja** para contas vencidas
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│  Usuário cola imagem com 8 lançamentos                          │
+│ 30/01  Fornecedor XYZ           R$ 1.234,56  [✓] [📅] [✏️] [🗑] │
+│                                                                 │
+│ 28/01  Conta Atrasada!          R$ 500,00    [✓] [📅] [✏️] [🗑] │ ← Fundo vermelho
+│                                                                 │
+│ 05/02  Conta Agendada           R$ 2.000,00  [agendado]   [🗑] │ ← Badge "agendado"
 └─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
+```
+
+**Lógica de cores:**
+- **Atrasada** (data < hoje e não pago): fundo vermelho claro
+- **Vence hoje**: fundo amarelo claro
+- **Agendada**: badge azul "agendado"
+- **Normal**: fundo padrão
+
+---
+
+### 3. ContasFluxoSection: Mostrar Contas Atrasadas
+
+**Arquivo:** `src/components/financeiro/ContasFluxoSection.tsx`
+
+Separar contas em 3 grupos:
+1. **Atrasadas** (data < hoje, não pago) - destaque vermelho
+2. **Hoje** (vence hoje) - destaque amarelo
+3. **Futuras** (próximos 30d)
+
+Adicionar nova seção visual:
+
+```text
+⚠️ Atrasadas (2)
+  [lista vermelha]
+
+📅 Vence Hoje (1)
+  [lista amarela]
+
+⬆️ A Pagar (próx. 30d)
+  [lista normal]
+```
+
+---
+
+### 4. Auto-Baixa de Contas Agendadas
+
+**Arquivo:** `src/components/modes/FinanceiroMode.tsx`
+
+Adicionar `useEffect` para verificar contas agendadas cujo vencimento chegou:
+
+```typescript
+useEffect(() => {
+  const hoje = format(new Date(), 'yyyy-MM-dd');
+  const contasParaDarBaixa = (data.contasFluxo || []).filter(c => 
+    c.agendado && 
+    !c.pago && 
+    c.dataVencimento <= hoje
+  );
+  
+  if (contasParaDarBaixa.length > 0) {
+    // Marcar todas como pagas automaticamente
+    const contasAtualizadas = (data.contasFluxo || []).map(c => {
+      if (contasParaDarBaixa.find(cp => cp.id === c.id)) {
+        return { ...c, pago: true };
+      }
+      return c;
+    });
+    onUpdateFinanceiroData({ contasFluxo: contasAtualizadas });
+    toast.success(`${contasParaDarBaixa.length} conta(s) agendada(s) marcada(s) como paga(s)`);
+  }
+}, [data.contasFluxo]);
+```
+
+---
+
+## Interface Visual do ContaItem
+
+```text
 ┌─────────────────────────────────────────────────────────────────┐
-│  Edge Function retorna: { contas: [...8 itens...] }             │
+│  NORMAL (futuro)                                                │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ 10/02  Fornecedor ABC    R$ 2.500,00  [✓] [📅] [✏️] [🗑]   │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ATRASADA (fundo vermelho)                                      │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ 28/01  Boleto Atrasado   R$ 800,00    [✓] [📅] [✏️] [🗑]   │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  AGENDADA (badge azul)                                          │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ 05/02  Imposto    [agendado]  R$ 1.000,00      [❌] [🗑]   │ │
+│  └────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Frontend detecta contas.length > 1                             │
-│  → Adiciona todas de uma vez                                    │
-│  → Toast: "8 lançamentos extraídos e adicionados!"              │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Lista mostra todos os 8 lançamentos                            │
-│  Usuário pode excluir os que não quiser                         │
-└─────────────────────────────────────────────────────────────────┘
+
+Legenda:
+[✓] = Dar baixa (marcar como pago)
+[📅] = Marcar como agendado
+[✏️] = Editar
+[🗑] = Excluir
+[❌] = Desmarcar agendamento
 ```
 
 ---
@@ -183,15 +149,31 @@ const handleAddMultipleContas = (novasContas: Omit<ContaFluxo, 'id'>[]) => {
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/functions/extract-documento/index.ts` | Retornar array `{ contas: [...] }` com todas as tool_calls |
-| `src/components/financeiro/ContasFluxoSection.tsx` | Aceitar prop `onAddMultipleContas`, processar array de contas |
-| `src/components/modes/FinanceiroMode.tsx` | Adicionar handler `handleAddMultipleContas` e passar como prop |
+| `src/types/focus-mode.ts` | Adicionar campo `agendado?: boolean` ao ContaFluxo |
+| `src/components/financeiro/ContaItem.tsx` | Botões de ação, cores por status (atrasado/agendado) |
+| `src/components/financeiro/ContasFluxoSection.tsx` | Separar listas por status (atrasadas/hoje/futuras) |
+| `src/components/modes/FinanceiroMode.tsx` | Handler `handleToggleAgendado`, auto-baixa de agendadas |
 
 ---
 
-## Comportamento Final
+## Comportamentos
 
-- **1 lançamento na imagem**: Preenche o form para revisão (comportamento atual)
-- **Múltiplos lançamentos**: Adiciona todos automaticamente com toast de confirmação
-- **Usuário pode excluir** qualquer lançamento que não queira manter
+**Dar Baixa Manual:**
+- Clique no [✓] marca como `pago: true`
+- Conta some da lista de pendentes
+- Vai para seção "Histórico" (se implementada)
+
+**Marcar como Agendado:**
+- Clique no [📅] marca `agendado: true`
+- Exibe badge "agendado" na linha
+- No dia do vencimento, automaticamente marca como pago
+
+**Visual de Atraso:**
+- Data < hoje E não pago → fundo vermelho
+- Data = hoje → fundo amarelo (atenção)
+- Com tooltip "Vencido há X dias"
+
+**Desmarcar Agendamento:**
+- Se agendado, botão [❌] remove o agendamento
+- Conta volta ao estado normal
 
