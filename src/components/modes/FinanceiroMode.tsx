@@ -348,7 +348,7 @@ export function FinanceiroMode({
           
           <Separator />
           
-          <div className="space-y-1.5">
+          <div id="ritmo-caixa" className="space-y-1.5 scroll-mt-20">
             <label className="text-sm font-medium">Caixa atual</label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
@@ -364,7 +364,7 @@ export function FinanceiroMode({
           <Separator />
           
           {/* NOVO: Faturamento Esperado 30d */}
-          <div className="space-y-1.5">
+          <div id="ritmo-premissas" className="space-y-1.5 scroll-mt-20">
             <label className="text-sm font-medium flex items-center gap-1.5">
               Faturamento esperado (próx. 30d)
               <Info className="h-3.5 w-3.5 text-muted-foreground" />
@@ -962,20 +962,23 @@ export function FinanceiroMode({
       />
       
       {/* ========== CONTAS A PAGAR/RECEBER ========== */}
-      <ContasFluxoSection
-        contas={data.contasFluxo || []}
-        onAddConta={handleAddConta}
-        onAddMultipleContas={handleAddMultipleContas}
-        onUpdateConta={handleUpdateConta}
-        onRemoveConta={handleRemoveConta}
-        onTogglePago={handleTogglePago}
-        onToggleAgendado={handleToggleAgendado}
-        isOpen={openSections.fluxoContas}
-        onToggle={() => toggleSection('fluxoContas')}
-      />
+      <div id="ritmo-contas-hoje" className="scroll-mt-20">
+        <ContasFluxoSection
+          contas={data.contasFluxo || []}
+          onAddConta={handleAddConta}
+          onAddMultipleContas={handleAddMultipleContas}
+          onUpdateConta={handleUpdateConta}
+          onRemoveConta={handleRemoveConta}
+          onTogglePago={handleTogglePago}
+          onToggleAgendado={handleToggleAgendado}
+          isOpen={openSections.fluxoContas}
+          onToggle={() => toggleSection('fluxoContas')}
+        />
+      </div>
       
       {/* ========== CONCILIAÇÃO BANCÁRIA ========== */}
-      <ConciliacaoSection
+      <div id="ritmo-conciliacao" className="scroll-mt-20">
+        <ConciliacaoSection
         contasExistentes={data.contasFluxo || []}
         fornecedores={data.fornecedores || []}
         onConciliar={(result) => {
@@ -1011,6 +1014,7 @@ export function FinanceiroMode({
         isOpen={openSections.conciliacao || false}
         onToggle={() => toggleSection('conciliacao')}
       />
+      </div>
       
       {/* ========== DRE - RESULTADO DO EXERCÍCIO ========== */}
       <DRESection

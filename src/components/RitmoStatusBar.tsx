@@ -5,16 +5,16 @@ import { cn } from '@/lib/utils';
 
 interface RitmoStatusBarProps {
   ritmo: UserRitmoExpectativa;
-  onNavigateTo?: (modeId: string) => void;
+  onNavigateTo?: (modeId: string, taskId?: RitmoTaskId) => void;
 }
 
-// Mapear tarefas de ritmo para modos
-const taskToMode: Record<RitmoTaskId, string> = {
-  'caixa': 'financeiro',
-  'contas-hoje': 'financeiro',
-  'decisao': 'reuniao-ads',
-  'conciliacao': 'financeiro',
-  'premissas': 'financeiro',
+// Mapear tarefas de ritmo para modos e IDs de elementos
+export const taskToMode: Record<RitmoTaskId, { modeId: string; elementId: string }> = {
+  'caixa': { modeId: 'financeiro', elementId: 'ritmo-caixa' },
+  'contas-hoje': { modeId: 'financeiro', elementId: 'ritmo-contas-hoje' },
+  'decisao': { modeId: 'reuniao-ads', elementId: 'ritmo-decisao' },
+  'conciliacao': { modeId: 'financeiro', elementId: 'ritmo-conciliacao' },
+  'premissas': { modeId: 'financeiro', elementId: 'ritmo-premissas' },
 };
 
 export function RitmoStatusBar({ ritmo, onNavigateTo }: RitmoStatusBarProps) {
@@ -55,8 +55,8 @@ export function RitmoStatusBar({ ritmo, onNavigateTo }: RitmoStatusBarProps) {
 
   const handleTaskClick = (taskId: RitmoTaskId) => {
     if (onNavigateTo) {
-      const modeId = taskToMode[taskId];
-      onNavigateTo(modeId);
+      const { modeId } = taskToMode[taskId];
+      onNavigateTo(modeId, taskId);
       setExpanded(false);
     }
   };
