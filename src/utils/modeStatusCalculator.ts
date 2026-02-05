@@ -47,10 +47,15 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
   // Custo fixo: preferir breakdown detalhado, fallback para campo simples
   let custoFixo: number;
   if (d.custosFixosDetalhados) {
-    const cats: (keyof typeof d.custosFixosDetalhados)[] = ['pessoas', 'software', 'marketing', 'servicos', 'armazenagem'];
+    const cats = ['pessoas', 'software', 'marketing', 'servicos', 'armazenagem'] as const;
     custoFixo = cats.reduce((sum, cat) => {
-      return sum + (d.custosFixosDetalhados![cat] || []).reduce((s, item) => s + item.valor, 0);
+      const items = d.custosFixosDetalhados![cat];
+      if (!items || !Array.isArray(items)) return sum;
+      return sum + items.reduce((s, item) => s + ((item as any).valor || 0), 0);
     }, 0);
+    // Adicionar parcelas de empréstimos
+    const emprestimos = d.custosFixosDetalhados.emprestimos || [];
+    custoFixo += emprestimos.reduce((s, emp) => s + (emp.parcelaMedia || 0), 0);
   } else {
     custoFixo = parseCurrency(d.custoFixoMensal || '');
   }

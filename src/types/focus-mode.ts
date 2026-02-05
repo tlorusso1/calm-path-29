@@ -54,7 +54,7 @@ export interface Fornecedor {
 
 // ============= Custos Fixos Detalhados =============
 export type CustoFixoTipo = 'fixo' | 'variavel' | 'cortavel';
-export type CustoFixoCategoriaId = 'pessoas' | 'software' | 'marketing' | 'servicos' | 'armazenagem';
+export type CustoFixoCategoriaId = 'pessoas' | 'software' | 'marketing' | 'servicos' | 'armazenagem' | 'emprestimos';
 
 export interface CustoFixoItem {
   id: string;
@@ -64,12 +64,33 @@ export interface CustoFixoItem {
   notas?: string;
 }
 
+// Empréstimo com dados completos
+export interface Emprestimo {
+  id: string;
+  empresa: string;              // NICE FOODS ECOMMERCE LTDA ou NICE FOODS LTDA
+  banco: string;                // Itaú, Receita Federal, etc.
+  produto: string;              // PRONAMPE 2025, PEAC FGI, SIMPLES NACIONAL, etc.
+  valorContratado: number;
+  saldoDevedor: number;
+  taxaJurosAnual: number;       // % anual
+  taxaJurosMensal: number;      // % mensal
+  parcelasRestantes: number;
+  parcelasTotais: number;
+  parcelaMedia: number;
+  diaVencimento: number;        // Dia do mês
+  vencimentoFinal: string;      // Ex: "abr.2029"
+  primeiraParcelaData?: string; // Ex: "mai.2026"
+  carencia?: string;            // Ex: "12 meses", "3 meses"
+  notas?: string;
+}
+
 export interface CustosFixosDetalhados {
   pessoas: CustoFixoItem[];
   software: CustoFixoItem[];
   marketing: CustoFixoItem[];  // Marketing ESTRUTURAL (não Ads)
   servicos: CustoFixoItem[];
   armazenagem: CustoFixoItem[];
+  emprestimos?: Emprestimo[];  // Empréstimos com estrutura diferenciada
 }
 
 // ============= Contas a Pagar/Receber (Fluxo de Caixa) =============

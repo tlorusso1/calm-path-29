@@ -1,4 +1,4 @@
-import { CustosFixosDetalhados } from '@/types/focus-mode';
+import { CustosFixosDetalhados, CustoFixoItem } from '@/types/focus-mode';
 
 export const DEFAULT_CUSTOS_FIXOS: CustosFixosDetalhados = {
   pessoas: [
@@ -41,22 +41,34 @@ export const DEFAULT_CUSTOS_FIXOS: CustosFixosDetalhados = {
   armazenagem: [
     { id: 'a1', nome: 'Galpão/Estoque', valor: 1800, tipo: 'fixo' },
   ],
+  emprestimos: [],
 };
+
+// Categorias padrão (sem empréstimos que tem estrutura diferente)
+const CATEGORIAS_CUSTO_FIXO: (keyof CustosFixosDetalhados)[] = ['pessoas', 'software', 'marketing', 'servicos', 'armazenagem'];
 
 // Helper para calcular total
 export function calcularTotalCustosFixos(data: CustosFixosDetalhados): number {
-  const categorias: (keyof CustosFixosDetalhados)[] = ['pessoas', 'software', 'marketing', 'servicos', 'armazenagem'];
-  return categorias.reduce((sum, cat) => {
-    return sum + (data[cat] || []).reduce((s, item) => s + item.valor, 0);
+  const totalCategorias = CATEGORIAS_CUSTO_FIXO.reduce((sum, cat) => {
+    return sum + ((data[cat] as CustoFixoItem[]) || []).reduce((s, item) => s + item.valor, 0);
   }, 0);
+  
+  // Adicionar parcelas de empréstimos
+  const totalEmprestimos = (data.emprestimos || []).reduce((s, emp) => s + emp.parcelaMedia, 0);
+  
+  return totalCategorias + totalEmprestimos;
 }
 
 // Helper para calcular total de cortáveis
 export function calcularTotalCortavel(data: CustosFixosDetalhados): number {
-  const categorias: (keyof CustosFixosDetalhados)[] = ['pessoas', 'software', 'marketing', 'servicos', 'armazenagem'];
-  return categorias.reduce((sum, cat) => {
-    return sum + (data[cat] || [])
+  return CATEGORIAS_CUSTO_FIXO.reduce((sum, cat) => {
+    return sum + ((data[cat] as CustoFixoItem[]) || [])
       .filter(item => item.tipo === 'cortavel')
       .reduce((s, item) => s + item.valor, 0);
   }, 0);
+}
+
+// Helper para calcular total de empréstimos (parcelas mensais)
+export function calcularTotalEmprestimos(data: CustosFixosDetalhados): number {
+  return (data.emprestimos || []).reduce((s, emp) => s + emp.parcelaMedia, 0);
 }
