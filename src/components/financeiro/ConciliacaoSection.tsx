@@ -42,7 +42,7 @@ interface ConciliacaoSectionProps {
   contasExistentes: ContaFluxo[];
   fornecedores: Fornecedor[];
   onConciliar: (result: ConciliacaoResult) => void;
-  onCreateFornecedor?: (fornecedor: Omit<Fornecedor, 'id'>) => void;
+  onCreateFornecedor?: (fornecedor: Omit<Fornecedor, 'id'>) => string | void;
   isOpen: boolean;
   onToggle: () => void;
   // Mapeamentos descrição→fornecedor

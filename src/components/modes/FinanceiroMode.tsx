@@ -756,14 +756,16 @@ export function FinanceiroMode({
                 }
               }}
               onCreateFornecedor={(novoFornecedor) => {
+                const novoId = crypto.randomUUID();
                 const fornecedorComId: Fornecedor = {
                   ...novoFornecedor,
-                  id: crypto.randomUUID(),
+                  id: novoId,
                 };
                 onUpdateFinanceiroData({
                   fornecedores: [...(data.fornecedores || []), fornecedorComId],
                 });
                 toast.success(`Fornecedor "${novoFornecedor.nome}" criado!`);
+                return novoId; // Retorna ID para seleção automática
               }}
               isOpen={openSections.conciliacao || false}
               onToggle={() => toggleSection('conciliacao')}

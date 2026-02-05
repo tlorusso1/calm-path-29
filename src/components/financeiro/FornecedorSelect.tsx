@@ -15,7 +15,7 @@ interface FornecedorSelectProps {
   onChange: (fornecedorId: string | undefined) => void;
   placeholder?: string;
   descricaoSugerida?: string; // Para tentar match automático
-  onCreateNew?: (fornecedor: Omit<Fornecedor, 'id'>) => void;
+  onCreateNew?: (fornecedor: Omit<Fornecedor, 'id'>) => string | void;
   className?: string;
 }
 
@@ -105,7 +105,14 @@ export function FornecedorSelect({
       categoria: newFornecedorCategoria.categoria,
     };
     
-    onCreateNew?.(novoFornecedor);
+    // Chamar callback e capturar ID retornado
+    const novoId = onCreateNew?.(novoFornecedor);
+    
+    // Se retornou ID, selecionar automaticamente
+    if (novoId) {
+      onChange(novoId);
+    }
+    
     setSearch('');
     setOpen(false);
     setShowCreateForm(false);
