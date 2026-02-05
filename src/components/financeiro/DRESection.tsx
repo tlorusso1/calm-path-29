@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ChevronDown, ChevronUp, BarChart3, Calendar } from 'lucide-react';
 import { ContaFluxo, Fornecedor } from '@/types/focus-mode';
 import { ORDEM_MODALIDADES_DRE, findCategoria, getTipoByModalidade } from '@/data/categorias-dre';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
-import { parseISO, format, startOfMonth, endOfMonth, subMonths, isWithinInterval } from 'date-fns';
+import { parseISO, format, startOfMonth, endOfMonth, subMonths, isWithinInterval, startOfYear, endOfYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -35,6 +36,9 @@ interface DREModalidade {
   total: number;
 }
 
+// Tipos que NÃO entram no DRE (afetam caixa mas não resultado operacional)
+const TIPOS_EXCLUIDOS_DRE = ['intercompany', 'aplicacao', 'resgate'];
+
 function formatCurrency(valor: number): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -47,11 +51,12 @@ export function DRESection({
 }: DRESectionProps) {
   const hoje = new Date();
   const [mesAno, setMesAno] = useState(() => format(hoje, 'yyyy-MM'));
+  const [viewMode, setViewMode] = useState<'mensal' | 'anual'>('mensal');
   
-  // Gerar opções de meses (últimos 6 meses)
+  // Gerar opções de meses (últimos 12 meses)
   const mesesDisponiveis = useMemo(() => {
     const meses = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 12; i++) {
       const data = subMonths(hoje, i);
       meses.push({
         value: format(data, 'yyyy-MM'),
@@ -61,29 +66,53 @@ export function DRESection({
     return meses;
   }, [hoje]);
   
-  // Filtrar lançamentos do mês selecionado
-  const lancamentosMes = useMemo(() => {
-    const [ano, mes] = mesAno.split('-').map(Number);
-    const inicio = startOfMonth(new Date(ano, mes - 1));
-    const fim = endOfMonth(new Date(ano, mes - 1));
-    
+  // Filtrar lançamentos EXCLUINDO tipos que não entram no DRE
+  const lancamentosFiltrados = useMemo(() => {
     return lancamentos.filter(l => {
       if (!l.pago) return false;
-      try {
-        const data = parseISO(l.dataVencimento);
-        return isWithinInterval(data, { start: inicio, end: fim });
-      } catch {
-        return false;
-      }
+      // Excluir tipos que não afetam resultado operacional
+      if (TIPOS_EXCLUIDOS_DRE.includes(l.tipo)) return false;
+      return true;
     });
-  }, [lancamentos, mesAno]);
+  }, [lancamentos]);
+  
+  // Filtrar por período
+  const lancamentosPeriodo = useMemo(() => {
+    if (viewMode === 'anual') {
+      const anoAtual = hoje.getFullYear();
+      const inicio = startOfYear(new Date(anoAtual, 0, 1));
+      const fim = endOfYear(new Date(anoAtual, 11, 31));
+      
+      return lancamentosFiltrados.filter(l => {
+        try {
+          const data = parseISO(l.dataVencimento);
+          return isWithinInterval(data, { start: inicio, end: fim });
+        } catch {
+          return false;
+        }
+      });
+    } else {
+      const [ano, mes] = mesAno.split('-').map(Number);
+      const inicio = startOfMonth(new Date(ano, mes - 1));
+      const fim = endOfMonth(new Date(ano, mes - 1));
+      
+      return lancamentosFiltrados.filter(l => {
+        try {
+          const data = parseISO(l.dataVencimento);
+          return isWithinInterval(data, { start: inicio, end: fim });
+        } catch {
+          return false;
+        }
+      });
+    }
+  }, [lancamentosFiltrados, mesAno, viewMode, hoje]);
   
   // Agrupar por categoria DRE
   const dre = useMemo(() => {
     const modalidadesMap = new Map<string, Map<string, Map<string, number>>>();
     
     // Inicializar estrutura
-    for (const lanc of lancamentosMes) {
+    for (const lanc of lancamentosPeriodo) {
       // Tentar obter categoria do fornecedor ou do lançamento
       let categoria = lanc.categoria;
       
@@ -156,7 +185,7 @@ export function DRESection({
     }
     
     return resultado;
-  }, [lancamentosMes, fornecedores]);
+  }, [lancamentosPeriodo, fornecedores]);
   
   // Calcular totais do DRE
   const totais = useMemo(() => {
@@ -192,6 +221,11 @@ export function DRESection({
     };
   }, [dre]);
   
+  // Contar lançamentos excluídos para feedback
+  const lancamentosExcluidos = useMemo(() => {
+    return lancamentos.filter(l => l.pago && TIPOS_EXCLUIDOS_DRE.includes(l.tipo)).length;
+  }, [lancamentos]);
+  
   const mesLabel = mesesDisponiveis.find(m => m.value === mesAno)?.label || mesAno;
 
   return (
@@ -218,23 +252,43 @@ export function DRESection({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0">
-            {/* Seletor de mês */}
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                Baseado em {lancamentosMes.length} lançamentos pagos
-              </p>
-              <Select value={mesAno} onValueChange={setMesAno}>
-                <SelectTrigger className="w-[180px] h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {mesesDisponiveis.map(mes => (
-                    <SelectItem key={mes.value} value={mes.value} className="text-xs">
-                      {mes.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Toggle Mensal/Anual + Seletor de mês */}
+            <div className="flex flex-col gap-3">
+              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'mensal' | 'anual')} className="w-full">
+                <TabsList className="grid w-full grid-cols-2 h-8">
+                  <TabsTrigger value="mensal" className="text-xs gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Mensal
+                  </TabsTrigger>
+                  <TabsTrigger value="anual" className="text-xs gap-1">
+                    <BarChart3 className="h-3 w-3" />
+                    Anual {hoje.getFullYear()}
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {lancamentosPeriodo.length} lançamentos
+                  {lancamentosExcluidos > 0 && (
+                    <span className="text-muted-foreground/70"> ({lancamentosExcluidos} mov. financeiras excluídas)</span>
+                  )}
+                </p>
+                {viewMode === 'mensal' && (
+                  <Select value={mesAno} onValueChange={setMesAno}>
+                    <SelectTrigger className="w-[180px] h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mesesDisponiveis.map(mes => (
+                        <SelectItem key={mes.value} value={mes.value} className="text-xs">
+                          {mes.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
             
             {/* DRE */}

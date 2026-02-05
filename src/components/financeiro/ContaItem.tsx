@@ -4,14 +4,14 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Trash2, Check, X, Pencil, Calendar, CalendarCheck, CheckCircle } from 'lucide-react';
-import { ContaFluxo } from '@/types/focus-mode';
+import { ContaFluxo, ContaFluxoTipo } from '@/types/focus-mode';
 import { format, parseISO, isBefore, isToday, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 interface ContaItemProps {
   conta: ContaFluxo;
-  variant: 'pagar' | 'receber' | 'intercompany';
+  variant: ContaFluxoTipo;
   onUpdate: (id: string, updates: Partial<ContaFluxo>) => void;
   onRemove: (id: string) => void;
   onTogglePago?: (id: string) => void;
@@ -34,9 +34,23 @@ function getStatusConta(conta: ContaFluxo): StatusConta {
   return 'normal';
 }
 
-function getStatusStyles(status: StatusConta, variant: 'pagar' | 'receber' | 'intercompany') {
-  // Intercompany tratado como neutro
-  const effectiveVariant = variant === 'intercompany' ? 'pagar' : variant;
+// Mapeia tipo para estilo visual
+function getEffectiveVariant(tipo: ContaFluxoTipo): 'pagar' | 'receber' | 'neutro' {
+  switch (tipo) {
+    case 'receber':
+    case 'resgate':
+      return 'receber';
+    case 'pagar':
+      return 'pagar';
+    case 'intercompany':
+    case 'aplicacao':
+    default:
+      return 'neutro';
+  }
+}
+
+function getStatusStyles(status: StatusConta, variant: ContaFluxoTipo) {
+  const effectiveVariant = getEffectiveVariant(variant);
   
   switch (status) {
     case 'atrasada':
@@ -52,12 +66,12 @@ function getStatusStyles(status: StatusConta, variant: 'pagar' | 'receber' | 'in
     case 'agendada':
       return {
         bg: 'bg-blue-50 dark:bg-blue-900/20 border-blue-300',
-        text: effectiveVariant === 'pagar' ? 'text-destructive' : 'text-green-600',
+        text: effectiveVariant === 'pagar' ? 'text-destructive' : effectiveVariant === 'receber' ? 'text-green-600' : 'text-blue-600',
       };
     default:
       return {
-        bg: effectiveVariant === 'pagar' ? 'bg-destructive/5' : 'bg-green-500/5',
-        text: effectiveVariant === 'pagar' ? 'text-destructive' : 'text-green-600',
+        bg: effectiveVariant === 'pagar' ? 'bg-destructive/5' : effectiveVariant === 'receber' ? 'bg-green-500/5' : 'bg-blue-500/5',
+        text: effectiveVariant === 'pagar' ? 'text-destructive' : effectiveVariant === 'receber' ? 'text-green-600' : 'text-blue-600',
       };
   }
 }

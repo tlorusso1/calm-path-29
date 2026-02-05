@@ -5,11 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { TrendingUp, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock, Flame, Timer, Info, Target, Building2 } from 'lucide-react';
+import { TrendingUp, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock, Flame, Timer, Info, Target, Building2, Wallet, TrendingDown, BarChart3, Settings } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/modeStatusCalculator';
 import { FluxoCaixaChart } from '@/components/financeiro/FluxoCaixaChart';
+import { FluxoCaixaDiarioChart } from '@/components/financeiro/FluxoCaixaDiarioChart';
 import { ContasFluxoSection } from '@/components/financeiro/ContasFluxoSection';
 import { ConciliacaoSection } from '@/components/financeiro/ConciliacaoSection';
 import { MetaVendasCard } from '@/components/financeiro/MetaVendasCard';
@@ -81,13 +82,23 @@ export function FinanceiroMode({
   onUpdateTimestamp,
 }: FinanceiroModeProps) {
   const [openSections, setOpenSections] = useState({
+    // Posição Atual (Real)
     contas: true,
+    fluxoContas: false,
+    historico: false,
+    // Projeção (Estimado)
+    premissas: true,
+    fluxoGrafico: true,
+    fluxoDiario: false,
+    // Análise
+    dre: false,
+    margem: false,
+    // Configurações
     custosFixos: false,
     defasados: false,
-    fluxoContas: false,
     conciliacao: false,
-    dre: false,
-    diario: true,
+    // Checklists
+    diario: false,
     semanal: false,
     mensal: false,
   });
@@ -257,6 +268,24 @@ export function FinanceiroMode({
       toast.success(`${contasParaDarBaixa.length} conta(s) agendada(s) marcada(s) como paga(s)`);
     }
   }, [data.contasFluxo, onUpdateFinanceiroData]);
+
+  // RITMO: Atualizar timestamp quando caixa muda
+  const prevCaixaRef = useRef(data.caixaAtual);
+  useEffect(() => {
+    if (data.caixaAtual !== prevCaixaRef.current && data.caixaAtual) {
+      prevCaixaRef.current = data.caixaAtual;
+      onUpdateTimestamp?.('lastCaixaUpdate');
+    }
+  }, [data.caixaAtual, onUpdateTimestamp]);
+
+  // RITMO: Atualizar timestamp quando premissas mudam
+  const prevPremissasRef = useRef(data.faturamentoEsperado30d);
+  useEffect(() => {
+    if (data.faturamentoEsperado30d !== prevPremissasRef.current && data.faturamentoEsperado30d) {
+      prevPremissasRef.current = data.faturamentoEsperado30d;
+      onUpdateTimestamp?.('lastPremissasReview');
+    }
+  }, [data.faturamentoEsperado30d, onUpdateTimestamp]);
 
   // Ritmo: Get task status for contextual alerts
   const getCaixaStatus = () => ritmoExpectativa?.tarefasHoje.find(t => t.id === 'caixa')?.status ?? 'ok';
@@ -930,6 +959,13 @@ export function FinanceiroMode({
         onAddConta={() => toggleSection('fluxoContas')}
       />
       
+      {/* ========== PROJEÇÃO DIÁRIA DE FLUXO (NOVO) ========== */}
+      <FluxoCaixaDiarioChart
+        contasFluxo={data.contasFluxo || []}
+        caixaAtual={parseCurrency(data.caixaAtual || '')}
+        caixaMinimo={caixaMinimo}
+      />
+      
       {/* ========== META DE VENDAS SEMANAL ========== */}
       <MetaVendasCard contas={data.contasFluxo || []} />
       
@@ -1014,6 +1050,11 @@ export function FinanceiroMode({
           onUpdateFinanceiroData({
             contasFluxo: [...contasAtualizadas, ...novasContas],
           });
+          
+          // Atualizar timestamp de conciliação
+          if (result.conciliados.length > 0 || result.novos.length > 0) {
+            onUpdateTimestamp?.('lastConciliacaoCheck');
+          }
         }}
         onCreateFornecedor={(novoFornecedor) => {
           const fornecedorComId: Fornecedor = {
