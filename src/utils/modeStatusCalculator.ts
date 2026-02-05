@@ -43,7 +43,18 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
   
   // Parse valores básicos
   const faturamento = parseCurrency(d.faturamentoMes || '');
-  const custoFixo = parseCurrency(d.custoFixoMensal || '');
+  
+  // Custo fixo: preferir breakdown detalhado, fallback para campo simples
+  let custoFixo: number;
+  if (d.custosFixosDetalhados) {
+    const cats: (keyof typeof d.custosFixosDetalhados)[] = ['pessoas', 'software', 'marketing', 'servicos', 'armazenagem'];
+    custoFixo = cats.reduce((sum, cat) => {
+      return sum + (d.custosFixosDetalhados![cat] || []).reduce((s, item) => s + item.valor, 0);
+    }, 0);
+  } else {
+    custoFixo = parseCurrency(d.custoFixoMensal || '');
+  }
+  
   const caixaAtual = parseCurrency(d.caixaAtual || '');
   const caixaMinimo = parseCurrency(d.caixaMinimo || '');
   const faturamentoEsperado = parseCurrency(d.faturamentoEsperado30d || '') || faturamento; // Fallback para faturamento atual

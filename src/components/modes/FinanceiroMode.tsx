@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria, ContaFluxo, WeeklySnapshot, Fornecedor, UserRitmoExpectativa, RitmoTimestamps } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria, ContaFluxo, WeeklySnapshot, Fornecedor, UserRitmoExpectativa, RitmoTimestamps, CustosFixosDetalhados } from '@/types/focus-mode';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,9 +17,11 @@ import { MetaMensalCard } from '@/components/financeiro/MetaMensalCard';
 import { SugestoesIACard, SugestoesIAState } from '@/components/financeiro/SugestoesIACard';
 import { DRESection } from '@/components/financeiro/DRESection';
 import { FaturamentoCanaisCard } from '@/components/financeiro/FaturamentoCanaisCard';
+import { CustosFixosCard } from '@/components/financeiro/CustosFixosCard';
 import { RitmoContextualAlert } from '@/components/RitmoContextualAlert';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
+import { DEFAULT_CUSTOS_FIXOS, calcularTotalCustosFixos } from '@/data/custos-fixos-default';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { loadFornecedores } from '@/utils/loadFornecedores';
@@ -76,6 +78,7 @@ export function FinanceiroMode({
 }: FinanceiroModeProps) {
   const [openSections, setOpenSections] = useState({
     contas: true,
+    custosFixos: false,
     defasados: false,
     fluxoContas: false,
     conciliacao: false,
@@ -112,11 +115,18 @@ export function FinanceiroMode({
       ...DEFAULT_FINANCEIRO_DATA.checklistMensal,
       ...mode.financeiroData?.checklistMensal,
     },
+    // Custos Fixos Detalhados - usar defaults se não existir
+    custosFixosDetalhados: mode.financeiroData?.custosFixosDetalhados ?? DEFAULT_CUSTOS_FIXOS,
     // Usar fornecedores do CSV se não tiver customizados
     fornecedores: mode.financeiroData?.fornecedores?.length 
       ? mode.financeiroData.fornecedores 
       : fornecedoresCarregados,
   }), [mode.financeiroData, fornecedoresCarregados]);
+  
+  // Calcular total dos custos fixos detalhados
+  const totalCustosFixos = useMemo(() => {
+    return calcularTotalCustosFixos(data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS);
+  }, [data.custosFixosDetalhados]);
   
   // Calcular totais das contas bancárias
   const totaisContas = useMemo(() => {
@@ -271,16 +281,19 @@ export function FinanceiroMode({
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Custo fixo/mês</label>
+              <label className="text-xs text-muted-foreground">Custo fixo/mês (total)</label>
               <div className="relative">
                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
                 <Input
                   placeholder="0,00"
-                  value={data.custoFixoMensal}
-                  onChange={(e) => onUpdateFinanceiroData({ custoFixoMensal: e.target.value })}
-                  className="h-9 text-sm pl-8 text-right"
+                  value={formatCurrency(totalCustosFixos).replace('R$', '').trim()}
+                  readOnly
+                  className="h-9 text-sm pl-8 text-right bg-muted/50 cursor-pointer"
+                  onClick={() => toggleSection('custosFixos')}
+                  title="Clique para ver breakdown"
                 />
               </div>
+              <p className="text-[10px] text-muted-foreground">Clique para detalhar</p>
             </div>
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">Marketing estrutural</label>
@@ -583,6 +596,14 @@ export function FinanceiroMode({
             </CardContent>
           </CollapsibleContent>
         </Card>
+      </Collapsible>
+
+      {/* ========== CUSTOS FIXOS DETALHADOS ========== */}
+      <Collapsible open={openSections.custosFixos} onOpenChange={() => toggleSection('custosFixos')}>
+        <CustosFixosCard
+          data={data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS}
+          onUpdate={(custosFixosDetalhados) => onUpdateFinanceiroData({ custosFixosDetalhados })}
+        />
       </Collapsible>
 
       {/* ========== CUSTOS DEFASADOS ========== */}
