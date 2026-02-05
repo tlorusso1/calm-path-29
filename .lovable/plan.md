@@ -1,254 +1,322 @@
 
-## Plano de Reorganização do Financeiro V3
+## Plano: Reestruturação Financeiro V3 — Painel de Avião CFO
 
-### Problemas Identificados
+### Resumo das Mudanças
 
-1. **UI Confusa** - Mistura de dados estimados e reais sem separação clara
-2. **Conciliação com Erros** - Importação falha, some dados, não permite editar
-3. **Aplicações classificadas como despesas** - APLICACAO TRUST DI, CDB são investimentos, não despesas
-4. **Falta tipo Intercompany na conciliação** - Não está sendo sugerido durante revisão
-5. **Pendências não são atualizadas** - Mesmo preenchendo, sistema não marca como resolvido
-6. **DRE com dados errados** - Puxa dados incorretos e não tem visão anual
-7. **Fluxo de caixa sem projeção diária** - Falta granularidade e previsão baseada em histórico
+O wireframe define uma nova estrutura visual com 8 seções lógicas distintas, separando claramente o que é **REAL** (já aconteceu), **CONTRATADO** (vendido, aguardando liquidação), **PROJEÇÃO** (hipóteses) e **PARÂMETROS** (configuração).
 
 ---
 
-### Solução 1: Reorganizar UI - Separar Estimado vs Real
+### 1. HEADER FIXO — Alertas Contextuais
 
-**Objetivo**: Criar hierarquia visual clara em 3 seções colapsáveis
+**O que é:** Alertas de pendências do Ritmo sempre visíveis no topo
 
-```text
-┌─────────────────────────────────────────────────────┐
-│ 📊 EXECUTIVE RESUME (sempre visível)                │
-│   Status • Caixa Livre • Queima/dia • Fôlego        │
-└─────────────────────────────────────────────────────┘
+**Mudança:**
+- Manter os `RitmoContextualAlert` existentes
+- Adicionar nova linha com o título do modo e frase âncora
+- Visual: destaque amarelo para pendências
 
-┌─────────────────────────────────────────────────────┐
-│ 💰 POSIÇÃO ATUAL (Real - O que temos hoje)         │
-│   ├─ Contas Bancárias [collapse]                    │
-│   ├─ Contas a Pagar/Receber [collapse]              │
-│   └─ Histórico 60d + Por Conta [collapse]           │
-└─────────────────────────────────────────────────────┘
+**Localização:** Primeiro elemento dentro do `FinanceiroMode`
 
-┌─────────────────────────────────────────────────────┐
-│ 🔮 PROJEÇÃO (Estimado - O que esperamos)           │
-│   ├─ Premissas (Faturamento esperado, Margem)       │
-│   ├─ Fluxo de Caixa 30d (gráfico)                   │
-│   ├─ Resultado Esperado 30d                         │
-│   └─ Projeção Diária (novo) [collapse]              │
-└─────────────────────────────────────────────────────┘
+---
 
-┌─────────────────────────────────────────────────────┐
-│ 📈 ANÁLISE (DRE + Relatórios)                      │
-│   ├─ DRE Mensal [collapse]                          │
-│   ├─ DRE Anual (novo) [collapse]                    │
-│   └─ Margem Real Estimada [collapse]                │
-└─────────────────────────────────────────────────────┘
+### 2. EXECUTIVE RESUME — Reformulação
 
-┌─────────────────────────────────────────────────────┐
-│ ⚙️ CONFIGURAÇÕES                                   │
-│   ├─ Custos Fixos Detalhados [collapse]             │
-│   ├─ Custos Defasados [collapse]                    │
-│   └─ Conciliação Bancária [collapse]                │
-└─────────────────────────────────────────────────────┘
+**O que é:** Painel soberano (sem inputs, só leitura)
+
+**Mudanças no `ExecutiveResume.tsx`:**
+
+| Campo Atual | Novo Campo | Descrição |
+|-------------|------------|-----------|
+| Caixa Livre Real | Caixa Livre REAL | Dinheiro disponível agora |
+| - | Caixa CONTRATADO | Vendas feitas aguardando liquidação (novo!) |
+| Queima/dia | Queima/dia | Mantém |
+| Fôlego | Fôlego | Mantém |
+| Resultado 30d | Resultado 30d | Mantém |
+| Ads Máx/mês | Ads Máx Permitido | Mantém |
+
+**Novo cálculo a adicionar:**
+```typescript
+caixaContratado = totalAReceber (de todos os gateways)
+// Já existe em totaisContas.aReceber no FinanceiroMode
 ```
 
----
-
-### Solução 2: Corrigir Conciliação Bancária
-
-**Problema raiz**: A edge function está processando mas os resultados somem porque a lógica de merge/update falha silenciosamente.
-
-**Correções**:
-1. **Adicionar debounce e feedback visual** ao processar
-2. **Garantir persistência imediata** após cada item adicionado
-3. **Melhorar tratamento de erro** com mensagens específicas
-4. **Adicionar retry automático** para falhas de rede
-
-**Código atualizado** no `ConciliacaoSection.tsx`:
-- Mostrar loading state por item
-- Salvar cada lançamento individualmente em vez de batch
-- Toast de sucesso/erro por item
+**Layout:** 2x3 grid com labels em CAPS e descrições curtas
 
 ---
 
-### Solução 3: Classificar Aplicações Separadamente
+### 3. POSIÇÃO ATUAL — REAL
 
-**Problema**: APLICACAO TRUST DI, APLICACAO CDB DI, APLICACAO IDSELICEMP INT estão indo para despesas.
+**O que é:** O que já aconteceu (bate com banco)
 
-**Solução**:
-1. Criar nova categoria `movimentacao_financeira` em ContaFluxo
-2. Atualizar edge function `extract-extrato` para detectar e classificar:
-   - Padrões: APLICACAO, RESGATE, REND PAGO → tipo `movimentacao_financeira`
-3. No DRE, excluir movimentações financeiras do cálculo de resultado operacional
-4. Exibir em seção separada "Movimentações Financeiras" no histórico
-
-**Novo campo no ContaFluxo**:
-```typescript
-tipo: 'pagar' | 'receber' | 'intercompany' | 'aplicacao' | 'resgate';
+**Estrutura:**
+```
+3.1 Caixa Atual (INPUT único) ← input principal
+3.2 Contas Bancárias [collapse]
+3.3 Contas a Pagar/Receber [collapse] ← ação diária
+3.4 Histórico 60d [collapse]
 ```
 
-**Regras de classificação automática**:
-- APLICACAO* → tipo `aplicacao` (saída de caixa, não é despesa)
-- RESGATE* → tipo `resgate` (entrada de caixa, não é receita operacional)
-- REND PAGO* → ignorar (já está no prompt)
+**Mudanças:**
+- Criar novo `Card` container com header "POSIÇÃO ATUAL — REAL"
+- Mover o input de Caixa Atual para dentro desta seção
+- Mover Contas Bancárias (já existe como collapse)
+- Mover ContasFluxoSection (já existe)
+- Mover o histórico que está dentro de ContasFluxoSection para uma seção própria
 
 ---
 
-### Solução 4: Adicionar Intercompany na Revisão de Conciliação
+### 4. CAIXA CONTRATADO — NOVA SEÇÃO
 
-**Problema**: O select de tipo na revisão não tem opção Intercompany.
+**O que é:** Vendas já feitas, aguardando liquidação
 
-**Correção** em `ConciliacaoSection.tsx`:
-- Adicionar campo de seleção de tipo no ReviewItem
-- Permitir mudar entre: A Pagar, A Receber, Intercompany, Aplicação
+**Novo componente:** `CaixaContratadoCard.tsx`
 
----
-
-### Solução 5: Corrigir Sistema de Pendências (Ritmo)
-
-**Problema**: Pendências não atualizam status após preenchimento.
-
-**Análise**: O `ritmoCalculator.ts` verifica timestamps que não são atualizados quando o usuário preenche os campos.
-
-**Correções**:
-1. **Caixa atualizado**: Chamar `onUpdateTimestamp('lastCaixaUpdate')` quando input de caixa mudar
-2. **Contas hoje revisadas**: Marcar quando usuário abre seção de contas
-3. **Conciliação**: Marcar timestamp após processar extrato
-
-**Implementação**:
-- Adicionar `useEffect` para detectar mudanças nos campos relevantes
-- Chamar `onUpdateTimestamp` automaticamente
-
----
-
-### Solução 6: Corrigir DRE + Adicionar Visão Anual
-
-**Problemas**:
-- Dados errados (puxa lançamentos incorretos)
-- Falta visão anual
-- Aplicações/resgates confundem resultado
-
-**Correções no DRESection**:
-1. **Filtrar por tipo**: Excluir `intercompany`, `aplicacao`, `resgate` do cálculo
-2. **Adicionar toggle Mensal/Anual**
-3. **Calcular DRE anual** agregando últimos 12 meses
-4. **Mostrar breakdown por mês** na visão anual
-
----
-
-### Solução 7: Projeção de Fluxo Diário (baseada em histórico 90d)
-
-**Novo componente**: `FluxoCaixaDiarioChart`
-
-**Lógica**:
-1. Pegar média de entradas e saídas diárias dos últimos 90 dias de lançamentos
-2. Projetar saldo dia a dia para os próximos 30 dias
-3. Marcar dias em que o saldo ficaria abaixo do caixa mínimo
-4. Mostrar curva com tooltip detalhado
-
-**Cálculo**:
 ```typescript
-// Média diária baseada nos últimos 90 dias
-const mediaEntradaDiaria = totalEntradas90d / 90;
-const mediaSaidaDiaria = totalSaidas90d / 90;
-
-// Projeção
-for (let dia = 1; dia <= 30; dia++) {
-  saldoProjetado = saldoAnterior + mediaEntradaDiaria - mediaSaidaDiaria;
-  // Aplicar contas conhecidas que vencem neste dia
-  ...
+interface CaixaContratadoData {
+  nuvemshop: { valor: string; prazo: string }; // D+14
+  shopee: { valor: string; prazo: string };    // D+30
+  assinaturas: { valor: string; prazo: string }; // D+7
+  outros?: { valor: string; prazo: string };
 }
 ```
 
----
+**Layout:**
+```
+┌─────────────────────────────────────────┐
+│ 💳 CAIXA CONTRATADO                     │
+│ (vendas feitas, aguardando liquidação)  │
+├─────────────────────────────────────────┤
+│ Nuvemshop      R$ ___      D+14        │
+│ Shopee         R$ ___      D+30        │
+│ Assinaturas    R$ ___      D+7         │
+├─────────────────────────────────────────┤
+│ TOTAL          R$ 53.000               │
+└─────────────────────────────────────────┘
+```
 
-### Arquivos a Modificar
-
-| Arquivo | Mudanças |
-|---------|----------|
-| `src/types/focus-mode.ts` | Adicionar tipos `aplicacao`, `resgate` ao ContaFluxo |
-| `src/components/modes/FinanceiroMode.tsx` | Reorganizar em seções lógicas, adicionar updateTimestamp nos inputs |
-| `src/components/financeiro/ConciliacaoSection.tsx` | Corrigir persistência, adicionar select de tipo no ReviewItem |
-| `src/components/financeiro/DRESection.tsx` | Filtrar tipos, adicionar toggle anual, mostrar breakdown mensal |
-| `src/components/financeiro/FluxoCaixaDiarioChart.tsx` | Novo componente para projeção diária |
-| `src/utils/fluxoCaixaCalculator.ts` | Adicionar função para calcular média 90d |
-| `supabase/functions/extract-extrato/index.ts` | Classificar APLICACAO/RESGATE como tipos especiais |
-| `src/utils/ritmoCalculator.ts` | Ajustar verificação de pendências |
-
----
-
-### Prioridade de Implementação
-
-1. **CRÍTICO**: Corrigir conciliação (dados somem) + classificação de aplicações
-2. **ALTO**: Corrigir sistema de pendências (ritmo)
-3. **MÉDIO**: Reorganizar UI em seções
-4. **MÉDIO**: DRE com visão anual
-5. **BAIXO**: Projeção diária de fluxo
+**Fonte dos dados:** Já existe em `contas.asaas.aReceber`, `contas.nuvem.aReceber`, etc.
 
 ---
 
-### Detalhes Técnicos
+### 5. PROJEÇÃO — ESTIMADO
 
-**Nova estrutura de tipos para ContaFluxo**:
+**O que é:** Hipóteses (depende de premissas)
+
+**Estrutura:**
+```
+5.1 Premissas [PARÂMETROS]
+    - Faturamento esperado 30d
+    - Margem operacional (40%)
+    - Ads base
+5.2 Fluxo de Caixa 30d [gráfico]
+5.3 Projeção Diária [novo collapse]
+```
+
+**Mudanças:**
+- Criar Card container "PROJEÇÃO — ESTIMADO"
+- Mover inputs de premissas para dentro
+- Mover FluxoCaixaChart para dentro
+- Mover FluxoCaixaDiarioChart para dentro
+
+---
+
+### 6. METAS — CONSEQUÊNCIA
+
+**O que é:** Metas calculadas (não opinião)
+
+**Estrutura:**
+```
+6.1 Meta Semanal (MetaVendasCard)
+6.2 Meta Mensal (MetaMensalCard)
+```
+
+**Mudanças:**
+- Criar Card container "METAS — CONSEQUÊNCIA"
+- Mover os dois cards existentes para dentro
+
+---
+
+### 7. ANÁLISE — DRE + RELATÓRIOS
+
+**O que é:** Entender, não agir
+
+**Estrutura:**
+```
+7.1 DRE Mensal/Anual [collapse]
+7.2 Margem Real Estimada [collapse]
+```
+
+**Mudanças:**
+- Criar Card container "ANÁLISE"
+- Mover DRESection
+- Mover MargemRealCard
+
+---
+
+### 8. PARÂMETROS DO SISTEMA
+
+**O que é:** Onde mexe para afetar tudo acima
+
+**Estrutura:**
+```
+8.1 Custos Fixos Detalhados [collapse]
+8.2 Custos Defasados (30d) [collapse]
+8.3 Conciliação Bancária [collapse]
+```
+
+**Mudanças:**
+- Criar Card container "PARÂMETROS DO SISTEMA"
+- Mover CustosFixosCard
+- Mover Custos Defasados
+- Mover ConciliacaoSection
+
+---
+
+### 9. CHECKLIST FINAL — RITMO
+
+**O que é:** Tarefas de governança
+
+**Layout simplificado:**
+```
+┌─────────────────────────────────────────┐
+│ CHECKLIST FINAL — RITMO                 │
+├─────────────────────────────────────────┤
+│ 📅 HOJE                                 │
+│   [ ] Atualizar caixa                   │
+│   [ ] Conferir vencimentos              │
+│                                         │
+│ 📆 SEMANA                               │
+│   [✓] Pedidos semana anterior           │
+│   [ ] Conciliação revisada              │
+│   [✓] Decisão da semana                 │
+│                                         │
+│ 📅 MÊS                                  │
+│   [✓] Premissas revisadas               │
+└─────────────────────────────────────────┘
+```
+
+**Mudanças:**
+- Unificar os 3 checklists em um único Card
+- Layout mais compacto
+
+---
+
+### Arquivos a Modificar/Criar
+
+| Arquivo | Tipo | Descrição |
+|---------|------|-----------|
+| `src/components/modes/FinanceiroMode.tsx` | MODIFICAR | Reorganizar estrutura em seções lógicas |
+| `src/components/financeiro/ExecutiveResume.tsx` | MODIFICAR | Adicionar Caixa Contratado, melhorar layout |
+| `src/components/financeiro/CaixaContratadoCard.tsx` | CRIAR | Novo card para vendas aguardando liquidação |
+| `src/components/financeiro/SectionHeader.tsx` | CRIAR | Componente reutilizável para headers de seção |
+| `src/components/financeiro/RitmoChecklist.tsx` | CRIAR | Checklist unificado e compacto |
+
+---
+
+### Detalhes de Implementação
+
+**Novo componente SectionHeader:**
 ```typescript
-export interface ContaFluxo {
-  id: string;
-  tipo: 'pagar' | 'receber' | 'intercompany' | 'aplicacao' | 'resgate';
-  subtipo?: 'cdb' | 'trust' | 'renda_fixa' | 'outro';
-  descricao: string;
-  valor: string;
-  dataVencimento: string;
-  pago?: boolean;
-  agendado?: boolean;
-  fornecedorId?: string;
-  categoria?: string;
-  conciliado?: boolean;
+interface SectionHeaderProps {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  badge?: React.ReactNode;
 }
+
+// Exemplo de uso:
+<SectionHeader 
+  icon="💰" 
+  title="POSIÇÃO ATUAL — REAL" 
+  subtitle="(bate com banco. não é projeção.)"
+/>
 ```
 
-**Regras de classificação automática na edge function**:
-```typescript
-// Detectar aplicações
-const isAplicacao = /APLICACAO|APLIC\.|CDB|TRUST|LCI|LCA|TESOURO/i.test(descricao);
-const isResgate = /RESGATE|RESG\./i.test(descricao);
-const isIntercompany = /TED.*NICE|PIX.*NICE|TRANSF.*NICE/i.test(descricao);
-
-if (isAplicacao) return { tipo: 'aplicacao', ...resto };
-if (isResgate) return { tipo: 'resgate', ...resto };
-if (isIntercompany) return { tipo: 'intercompany', ...resto };
+**Estrutura final do FinanceiroMode:**
+```
+<div>
+  {/* HEADER FIXO */}
+  <FinanceiroHeader pendencias={...} />
+  
+  {/* 1. EXECUTIVE RESUME */}
+  <ExecutiveResume exports={exports} aReceber={totaisContas.aReceber} />
+  
+  {/* 2. POSIÇÃO ATUAL — REAL */}
+  <SectionContainer icon="💰" title="POSIÇÃO ATUAL — REAL">
+    <CaixaAtualInput ... />
+    <ContasBancariasCollapse ... />
+    <ContasFluxoSection ... />
+    <HistoricoCollapse ... />
+  </SectionContainer>
+  
+  {/* 3. CAIXA CONTRATADO */}
+  <CaixaContratadoCard aReceber={...} />
+  
+  {/* 4. PROJEÇÃO — ESTIMADO */}
+  <SectionContainer icon="🔮" title="PROJEÇÃO — ESTIMADO">
+    <PremissasCard ... />
+    <FluxoCaixaChart ... />
+    <FluxoCaixaDiarioChart ... />
+  </SectionContainer>
+  
+  {/* 5. METAS — CONSEQUÊNCIA */}
+  <SectionContainer icon="🎯" title="METAS — CONSEQUÊNCIA">
+    <MetaVendasCard ... />
+    <MetaMensalCard ... />
+  </SectionContainer>
+  
+  {/* 6. ANÁLISE */}
+  <SectionContainer icon="📈" title="ANÁLISE">
+    <DRESection ... />
+    <MargemRealCard ... />
+  </SectionContainer>
+  
+  {/* 7. PARÂMETROS DO SISTEMA */}
+  <SectionContainer icon="⚙️" title="PARÂMETROS DO SISTEMA">
+    <CustosFixosCard ... />
+    <CustosDefasadosCard ... />
+    <ConciliacaoSection ... />
+  </SectionContainer>
+  
+  {/* 8. CHECKLIST FINAL */}
+  <RitmoChecklist ... />
+</div>
 ```
 
-**Seções colapsáveis no FinanceiroMode**:
-```typescript
-const [openSections, setOpenSections] = useState({
-  // Real
-  contas: false,
-  fluxoContas: false,
-  historico: false,
-  // Projeção
-  premissas: true,
-  fluxoGrafico: true,
-  fluxoDiario: false,
-  // Análise
-  dre: false,
-  dreAnual: false,
-  margem: false,
-  // Config
-  custosFixos: false,
-  defasados: false,
-  conciliacao: false,
-});
+---
+
+### Elementos a Remover
+
+Para evitar redundância:
+- Card duplicado de "Caixa Livre Real" (já está no Executive Resume)
+- Card duplicado de "Queima Operacional + Limite Ads" (simplificar)
+- Card "Resultado Esperado + Fôlego" (mover para Executive Resume)
+- Card "Legenda Anti-Confusão" (estrutura nova já é clara)
+- Card "Ads Máximo Permitido" duplicado
+- Card "Projeção de Risco 30/60/90" (manter apenas alerta)
+
+---
+
+### Regra de Ouro (Footer)
+
+Texto âncora final:
+```
+🔒 Caixa Real decide
+💳 Caixa Contratado tranquiliza
+🔮 Projeção orienta
+⚙️ Parâmetros controlam
+📊 Análise ensina
 ```
 
-**Atualização automática de timestamps**:
-```typescript
-// Em FinanceiroMode, detectar mudança no caixa
-const prevCaixaRef = useRef(data.caixaAtual);
-useEffect(() => {
-  if (data.caixaAtual !== prevCaixaRef.current && data.caixaAtual) {
-    prevCaixaRef.current = data.caixaAtual;
-    onUpdateTimestamp?.('lastCaixaUpdate');
-  }
-}, [data.caixaAtual, onUpdateTimestamp]);
-```
+---
+
+### Ordem de Execução
+
+1. Criar `SectionHeader.tsx` (componente reutilizável)
+2. Criar `CaixaContratadoCard.tsx`
+3. Criar `RitmoChecklist.tsx` (unificado)
+4. Modificar `ExecutiveResume.tsx` (adicionar aReceber)
+5. Reescrever `FinanceiroMode.tsx` com nova estrutura
+6. Remover cards duplicados
+7. Testar navegação e visibilidade
