@@ -6,24 +6,31 @@ const corsHeaders = {
 };
 
 const systemPrompt = `Você é um especialista em extração de dados de documentos financeiros brasileiros.
-Analise a imagem e extraia as informações de pagamento.
+Analise a imagem e extraia TODAS as informações de pagamento que encontrar.
+
+IMPORTANTE: Se a imagem contiver MÚLTIPLOS documentos, boletos, lançamentos ou transações,
+você DEVE chamar a função extract_conta UMA VEZ PARA CADA lançamento encontrado.
+NÃO agrupe múltiplos lançamentos em uma única chamada - extraia cada um separadamente.
 
 Tipos de documentos comuns:
 - Boleto bancário: procure linha digitável, beneficiário, valor, data de vencimento
 - Nota Fiscal (NF-e/NFS-e): procure fornecedor/prestador, valor total, data de emissão, prazo de pagamento
 - DDA (Débito Direto Autorizado): procure sacado/pagador, valor, vencimento
 - Fatura/Invoice: procure empresa, valor devido, data de vencimento
+- Print de tela bancária: pode ter MÚLTIPLOS lançamentos listados - extraia CADA UM
+- Lista de pagamentos: extraia TODOS os itens visíveis
 
 Regras de extração:
 1. Descrição: Use o nome do beneficiário, fornecedor ou sacado (quem vai receber o dinheiro)
 2. Valor: Extraia o valor total em formato numérico (ex: "1234.56" para R$ 1.234,56)
-3. Data: Converta para formato ISO (YYYY-MM-DD)
+3. Data: Converta para formato ISO (YYYY-MM-DD). Se aparecer apenas dia/mês, assuma o ano atual.
 4. Tipo: 
-   - "pagar" para boletos, faturas, NFs de fornecedores (você precisa pagar)
-   - "receber" para NFs emitidas por você, notas de serviço prestado
+   - "pagar" para boletos, faturas, NFs de fornecedores, PIX enviados (você precisa pagar)
+   - "receber" para NFs emitidas por você, notas de serviço prestado, PIX recebidos
 
 Se não conseguir extrair algum campo com certeza, retorne uma string vazia para esse campo.
-Use a função extract_conta para retornar os dados estruturados.`;
+Use a função extract_conta para retornar os dados estruturados.
+LEMBRE-SE: Chame extract_conta MÚLTIPLAS VEZES se houver múltiplos lançamentos na imagem!`;
 
 const tools = [
   {

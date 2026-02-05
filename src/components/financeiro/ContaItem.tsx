@@ -177,7 +177,14 @@ export function ContaItem({
           <span className="text-xs text-muted-foreground w-12 shrink-0">
             {format(parseISO(conta.dataVencimento), 'dd/MM', { locale: ptBR })}
           </span>
-          <span className="truncate">{conta.descricao}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="truncate max-w-[250px] cursor-default">{conta.descricao}</span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[350px] text-xs">
+              {conta.descricao}
+            </TooltipContent>
+          </Tooltip>
           
           {/* Badges de status */}
           {conta.pago && (
