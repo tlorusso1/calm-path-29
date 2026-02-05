@@ -14,9 +14,10 @@ import {
   Megaphone, 
   Wrench, 
   Package,
-  Scissors
+  Scissors,
+  Landmark
 } from 'lucide-react';
-import { CustosFixosDetalhados, CustoFixoItem, CustoFixoCategoriaId, CustoFixoTipo } from '@/types/focus-mode';
+import { CustosFixosDetalhados, CustoFixoItem, CustoFixoTipo, Emprestimo } from '@/types/focus-mode';
 import { formatCurrency } from '@/utils/modeStatusCalculator';
 import { cn } from '@/lib/utils';
 
@@ -25,7 +26,10 @@ interface CustosFixosCardProps {
   onUpdate: (data: CustosFixosDetalhados) => void;
 }
 
-const CATEGORIA_CONFIG: Record<CustoFixoCategoriaId, { nome: string; icone: React.ReactNode }> = {
+// Categorias regulares (sem empréstimos)
+type CategoriaRegularId = 'pessoas' | 'software' | 'marketing' | 'servicos' | 'armazenagem';
+
+const CATEGORIA_CONFIG: Record<CategoriaRegularId, { nome: string; icone: React.ReactNode }> = {
   pessoas: { nome: 'Pessoas', icone: <Users className="h-4 w-4" /> },
   software: { nome: 'Software', icone: <Monitor className="h-4 w-4" /> },
   marketing: { nome: 'Marketing Estrutural', icone: <Megaphone className="h-4 w-4" /> },
@@ -33,18 +37,19 @@ const CATEGORIA_CONFIG: Record<CustoFixoCategoriaId, { nome: string; icone: Reac
   armazenagem: { nome: 'Armazenagem', icone: <Package className="h-4 w-4" /> },
 };
 
-const CATEGORIAS_ORDEM: CustoFixoCategoriaId[] = ['pessoas', 'software', 'marketing', 'servicos', 'armazenagem'];
+const CATEGORIAS_ORDEM: CategoriaRegularId[] = ['pessoas', 'software', 'marketing', 'servicos', 'armazenagem'];
 
 export function CustosFixosCard({ data, onUpdate }: CustosFixosCardProps) {
-  const [openCategories, setOpenCategories] = useState<Record<CustoFixoCategoriaId, boolean>>({
+  const [openCategories, setOpenCategories] = useState<Record<CategoriaRegularId | 'emprestimos', boolean>>({
     pessoas: false,
     software: false,
     marketing: false,
     servicos: false,
     armazenagem: false,
+    emprestimos: false,
   });
 
-  const [newItemName, setNewItemName] = useState<Record<CustoFixoCategoriaId, string>>({
+  const [newItemName, setNewItemName] = useState<Record<CategoriaRegularId, string>>({
     pessoas: '',
     software: '',
     marketing: '',
@@ -52,16 +57,21 @@ export function CustosFixosCard({ data, onUpdate }: CustosFixosCardProps) {
     armazenagem: '',
   });
 
-  const toggleCategory = (cat: CustoFixoCategoriaId) => {
+  const toggleCategory = (cat: CategoriaRegularId | 'emprestimos') => {
     setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
   };
 
-  const getCategoryTotal = (cat: CustoFixoCategoriaId) => {
+  const getCategoryTotal = (cat: CategoriaRegularId) => {
     return (data[cat] || []).reduce((sum, item) => sum + item.valor, 0);
   };
 
+  const getEmprestimosTotal = () => {
+    return (data.emprestimos || []).reduce((sum, emp) => sum + emp.parcelaMedia, 0);
+  };
+
   const getTotalGeral = () => {
-    return CATEGORIAS_ORDEM.reduce((sum, cat) => sum + getCategoryTotal(cat), 0);
+    const totalCategorias = CATEGORIAS_ORDEM.reduce((sum, cat) => sum + getCategoryTotal(cat), 0);
+    return totalCategorias + getEmprestimosTotal();
   };
 
   const getTotalCortavel = () => {
@@ -72,7 +82,7 @@ export function CustosFixosCard({ data, onUpdate }: CustosFixosCardProps) {
     }, 0);
   };
 
-  const handleUpdateItem = (cat: CustoFixoCategoriaId, itemId: string, updates: Partial<CustoFixoItem>) => {
+  const handleUpdateItem = (cat: CategoriaRegularId, itemId: string, updates: Partial<CustoFixoItem>) => {
     const newData = { ...data };
     newData[cat] = (newData[cat] || []).map(item =>
       item.id === itemId ? { ...item, ...updates } : item
@@ -80,13 +90,13 @@ export function CustosFixosCard({ data, onUpdate }: CustosFixosCardProps) {
     onUpdate(newData);
   };
 
-  const handleRemoveItem = (cat: CustoFixoCategoriaId, itemId: string) => {
+  const handleRemoveItem = (cat: CategoriaRegularId, itemId: string) => {
     const newData = { ...data };
     newData[cat] = (newData[cat] || []).filter(item => item.id !== itemId);
     onUpdate(newData);
   };
 
-  const handleAddItem = (cat: CustoFixoCategoriaId) => {
+  const handleAddItem = (cat: CategoriaRegularId) => {
     const nome = newItemName[cat].trim();
     if (!nome) return;
 
@@ -101,6 +111,42 @@ export function CustosFixosCard({ data, onUpdate }: CustosFixosCardProps) {
     newData[cat] = [...(newData[cat] || []), newItem];
     onUpdate(newData);
     setNewItemName(prev => ({ ...prev, [cat]: '' }));
+  };
+
+  // === Empréstimos ===
+  const handleAddEmprestimo = () => {
+    const newEmp: Emprestimo = {
+      id: crypto.randomUUID(),
+      empresa: '',
+      banco: '',
+      produto: '',
+      valorContratado: 0,
+      saldoDevedor: 0,
+      taxaJurosAnual: 0,
+      taxaJurosMensal: 0,
+      parcelasRestantes: 0,
+      parcelasTotais: 0,
+      parcelaMedia: 0,
+      diaVencimento: 1,
+      vencimentoFinal: '',
+    };
+    const newData = { ...data };
+    newData.emprestimos = [...(newData.emprestimos || []), newEmp];
+    onUpdate(newData);
+  };
+
+  const handleUpdateEmprestimo = (empId: string, updates: Partial<Emprestimo>) => {
+    const newData = { ...data };
+    newData.emprestimos = (newData.emprestimos || []).map(emp =>
+      emp.id === empId ? { ...emp, ...updates } : emp
+    );
+    onUpdate(newData);
+  };
+
+  const handleRemoveEmprestimo = (empId: string) => {
+    const newData = { ...data };
+    newData.emprestimos = (newData.emprestimos || []).filter(emp => emp.id !== empId);
+    onUpdate(newData);
   };
 
   const cycleTipo = (tipo: CustoFixoTipo): CustoFixoTipo => {
@@ -119,6 +165,8 @@ export function CustosFixosCard({ data, onUpdate }: CustosFixosCardProps) {
         return <Badge variant="outline" className="text-[10px] px-1.5">Variável</Badge>;
     }
   };
+
+  const emprestimos = data.emprestimos || [];
 
   return (
     <Card>
@@ -140,6 +188,7 @@ export function CustosFixosCard({ data, onUpdate }: CustosFixosCardProps) {
         )}
       </CardHeader>
       <CardContent className="space-y-2">
+        {/* Categorias regulares */}
         {CATEGORIAS_ORDEM.map(cat => {
           const config = CATEGORIA_CONFIG[cat];
           const items = data[cat] || [];
@@ -238,7 +287,242 @@ export function CustosFixosCard({ data, onUpdate }: CustosFixosCardProps) {
             </Collapsible>
           );
         })}
+
+        {/* Seção de Empréstimos */}
+        <Collapsible 
+          open={openCategories.emprestimos} 
+          onOpenChange={() => toggleCategory('emprestimos')}
+        >
+          <CollapsibleTrigger asChild>
+            <div className={cn(
+              "flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors",
+              "bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800"
+            )}>
+              <div className="flex items-center gap-2">
+                <Landmark className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <span className="font-medium text-sm">Empréstimos</span>
+                <span className="text-xs text-muted-foreground">({emprestimos.length})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{formatCurrency(getEmprestimosTotal())}/mês</span>
+                {openCategories.emprestimos ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="mt-2 space-y-3 pl-2 border-l-2 border-blue-300 dark:border-blue-700 ml-3">
+              {emprestimos.map(emp => (
+                <EmprestimoItem 
+                  key={emp.id} 
+                  emprestimo={emp}
+                  onUpdate={(updates) => handleUpdateEmprestimo(emp.id, updates)}
+                  onRemove={() => handleRemoveEmprestimo(emp.id)}
+                />
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs w-full"
+                onClick={handleAddEmprestimo}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Adicionar Empréstimo
+              </Button>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </CardContent>
     </Card>
+  );
+}
+
+// Componente para editar um empréstimo
+function EmprestimoItem({
+  emprestimo,
+  onUpdate,
+  onRemove,
+}: {
+  emprestimo: Emprestimo;
+  onUpdate: (updates: Partial<Emprestimo>) => void;
+  onRemove: () => void;
+}) {
+  const [expanded, setExpanded] = useState(!emprestimo.produto);
+
+  return (
+    <div className="p-3 rounded-lg bg-background border space-y-2">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex-1 text-left"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm">
+              {emprestimo.produto || 'Novo empréstimo'}
+            </span>
+            {emprestimo.banco && (
+              <Badge variant="outline" className="text-[10px]">{emprestimo.banco}</Badge>
+            )}
+          </div>
+          {emprestimo.parcelaMedia > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {formatCurrency(emprestimo.parcelaMedia)}/mês • {emprestimo.parcelasRestantes}/{emprestimo.parcelasTotais} parcelas
+            </p>
+          )}
+        </button>
+        <div className="flex items-center gap-1">
+          {expanded ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            onClick={onRemove}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+          <div>
+            <label className="text-[10px] text-muted-foreground">Empresa</label>
+            <Input
+              value={emprestimo.empresa}
+              onChange={(e) => onUpdate({ empresa: e.target.value })}
+              className="h-7 text-xs"
+              placeholder="NICE FOODS LTDA"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Banco</label>
+            <Input
+              value={emprestimo.banco}
+              onChange={(e) => onUpdate({ banco: e.target.value })}
+              className="h-7 text-xs"
+              placeholder="Itaú"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="text-[10px] text-muted-foreground">Produto</label>
+            <Input
+              value={emprestimo.produto}
+              onChange={(e) => onUpdate({ produto: e.target.value })}
+              className="h-7 text-xs"
+              placeholder="PRONAMPE 2025, PEAC FGI, etc."
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Valor Contratado</label>
+            <Input
+              type="number"
+              value={emprestimo.valorContratado || ''}
+              onChange={(e) => onUpdate({ valorContratado: parseFloat(e.target.value) || 0 })}
+              className="h-7 text-xs"
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Saldo Devedor</label>
+            <Input
+              type="number"
+              value={emprestimo.saldoDevedor || ''}
+              onChange={(e) => onUpdate({ saldoDevedor: parseFloat(e.target.value) || 0 })}
+              className="h-7 text-xs"
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Taxa Anual (%)</label>
+            <Input
+              type="number"
+              step="0.01"
+              value={emprestimo.taxaJurosAnual || ''}
+              onChange={(e) => onUpdate({ taxaJurosAnual: parseFloat(e.target.value) || 0 })}
+              className="h-7 text-xs"
+              placeholder="20.88"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Taxa Mensal (%)</label>
+            <Input
+              type="number"
+              step="0.01"
+              value={emprestimo.taxaJurosMensal || ''}
+              onChange={(e) => onUpdate({ taxaJurosMensal: parseFloat(e.target.value) || 0 })}
+              className="h-7 text-xs"
+              placeholder="1.74"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Parcela Média (R$)</label>
+            <Input
+              type="number"
+              value={emprestimo.parcelaMedia || ''}
+              onChange={(e) => onUpdate({ parcelaMedia: parseFloat(e.target.value) || 0 })}
+              className="h-7 text-xs font-medium"
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Dia Vencimento</label>
+            <Input
+              type="number"
+              min={1}
+              max={31}
+              value={emprestimo.diaVencimento || ''}
+              onChange={(e) => onUpdate({ diaVencimento: parseInt(e.target.value) || 1 })}
+              className="h-7 text-xs"
+              placeholder="20"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Parcelas Restantes</label>
+            <Input
+              type="number"
+              value={emprestimo.parcelasRestantes || ''}
+              onChange={(e) => onUpdate({ parcelasRestantes: parseInt(e.target.value) || 0 })}
+              className="h-7 text-xs"
+              placeholder="36"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Parcelas Totais</label>
+            <Input
+              type="number"
+              value={emprestimo.parcelasTotais || ''}
+              onChange={(e) => onUpdate({ parcelasTotais: parseInt(e.target.value) || 0 })}
+              className="h-7 text-xs"
+              placeholder="48"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Vencimento Final</label>
+            <Input
+              value={emprestimo.vencimentoFinal}
+              onChange={(e) => onUpdate({ vencimentoFinal: e.target.value })}
+              className="h-7 text-xs"
+              placeholder="abr.2029"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Carência</label>
+            <Input
+              value={emprestimo.carencia || ''}
+              onChange={(e) => onUpdate({ carencia: e.target.value })}
+              className="h-7 text-xs"
+              placeholder="12 meses"
+            />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
