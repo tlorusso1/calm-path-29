@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Trash2, Check, X, Pencil, Calendar, CalendarCheck, CheckCircle } from 'lucide-react';
 import { ContaFluxo, ContaFluxoTipo } from '@/types/focus-mode';
 import { format, parseISO, isBefore, isToday, differenceInDays } from 'date-fns';
@@ -89,6 +90,7 @@ export function ContaItem({
   const [editDescricao, setEditDescricao] = useState(conta.descricao);
   const [editValor, setEditValor] = useState(conta.valor);
   const [editData, setEditData] = useState(conta.dataVencimento);
+  const [editTipo, setEditTipo] = useState(conta.tipo);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const status = getStatusConta(conta);
@@ -106,6 +108,7 @@ export function ContaItem({
       descricao: editDescricao.trim() || conta.descricao,
       valor: editValor || conta.valor,
       dataVencimento: editData || conta.dataVencimento,
+      tipo: editTipo,
     });
     setIsEditing(false);
   };
@@ -114,6 +117,7 @@ export function ContaItem({
     setEditDescricao(conta.descricao);
     setEditValor(conta.valor);
     setEditData(conta.dataVencimento);
+    setEditTipo(conta.tipo);
     setIsEditing(false);
   };
 
@@ -135,6 +139,18 @@ export function ContaItem({
   if (isEditing) {
     return (
       <div className={`flex items-center gap-2 p-2 rounded border ${styles.bg}`}>
+        <Select value={editTipo} onValueChange={(val) => setEditTipo(val as ContaFluxoTipo)}>
+          <SelectTrigger className="h-7 w-28 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pagar">💸 Pagar</SelectItem>
+            <SelectItem value="receber">💰 Receber</SelectItem>
+            <SelectItem value="intercompany">🔁 Intercompany</SelectItem>
+            <SelectItem value="aplicacao">📈 Aplicação</SelectItem>
+            <SelectItem value="resgate">📉 Resgate</SelectItem>
+          </SelectContent>
+        </Select>
         <Input
           ref={inputRef}
           value={editData}
