@@ -1,264 +1,234 @@
 
-# Plano: Melhorias UI + Criar Fornecedor + DRE + Faturamento por Canal
+# Plano: Mês na Conciliação + Meta Mensal com Sugestões IA
 
 ## Problemas Identificados
 
-### 1. Campos do Contas a Pagar Muito Pequenos
-O `ContaItem.tsx` usa `truncate` para descrições, cortando nomes longos sem permitir visualização completa.
+### 1. Data da Conciliação Incorreta
+O sistema assume automaticamente o mês atual (`new Date()`), mas o extrato colado pode ser de outro mês (ex: janeiro quando estamos em fevereiro).
 
-### 2. Conciliação: Precisa Criar Novo Fornecedor + Selecionar Categoria
-Atualmente o `FornecedorSelect` só permite selecionar fornecedores existentes. Falta:
-- Opção de criar novo fornecedor inline
-- Seletor de categoria separado para quando não há fornecedor
+### 2. Meta de 30 Dias com Cálculo Completo
+O MetaVendasCard atual mostra apenas 7 dias. Precisa de uma versão expandida que considere:
+- Contas a pagar nos próximos 30 dias
+- Custos fixos + marketing estrutural + margem
+- Meta de faturamento para cobrir tudo
 
-### 3. OCR: Às Vezes Só Puxa Primeira Linha
-O `extract-documento` extrai múltiplos lançamentos (`toolCalls.filter`), mas pode estar limitado pela IA. Precisa reforçar o prompt para múltiplas linhas.
-
-### 4. Conferir Categorias (Planilha Anexa)
-A planilha anexada é a estrutura de DRE com hierarquia: `Tipo > Modalidade > Grupo > Categoria`. Precisa atualizar o sistema para usar essa estrutura.
-
-### 5. DRE (Demonstrativo de Resultado)
-Criar um componente que agrupe lançamentos por categoria DRE usando os dados do histórico conciliado.
-
-### 6. Verificar Saídas R$ 49.937
-Pode ser problema de parsing de valores ou filtro incorreto no histórico.
-
-### 7. Faturamento por Canal (B2B, Ecom-Nuvem, Shopee, Assinaturas)
-Adicionar campos de entrada para faturamento separado por canal, com projeção mensal baseada no ritmo atual.
+### 3. Sugestões com IA
+Gerar recomendações semanais baseadas na situação financeira atual (ex: "reduzir custo fixo", "fazer ação de vendas levanta-caixa").
 
 ---
 
-## Arquitetura das Soluções
+## Solução 1: Seletor de Mês/Ano na Conciliação
+
+### Interface
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│  PROBLEMA 1: Campos pequenos no ContaItem                       │
-│  → Aumentar largura, permitir hover tooltip com texto completo  │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ 📊 Conciliação Bancária                                         │
+├──────────────────────────────────────────────────────────────────┤
+│  Mês do extrato: [Janeiro ▼] [2026 ▼]                           │
+│                                                                  │
+│  Cole seu extrato bancário...                                    │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                                                           │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  💡 Datas sem ano usarão o mês/ano selecionado acima            │
+│                              [Processar Extrato]                 │
+└──────────────────────────────────────────────────────────────────┘
+```
 
-┌─────────────────────────────────────────────────────────────────┐
-│  PROBLEMA 2: Criar fornecedor + selecionar categoria            │
-│  → FornecedorSelect: botão "Criar novo" + seletor de categoria  │
-│  → CategoriaSelect: dropdown com hierarquia DRE                 │
-└─────────────────────────────────────────────────────────────────┘
+### Mudanças no Código
 
-┌─────────────────────────────────────────────────────────────────┐
-│  PROBLEMA 3: OCR só puxa primeira linha                         │
-│  → Melhorar prompt para detectar múltiplos lançamentos          │
-│  → Retornar array sempre, mesmo com 1 item                      │
-└─────────────────────────────────────────────────────────────────┘
+**ConciliacaoSection.tsx:**
+```typescript
+// Novo state
+const [mesExtrato, setMesExtrato] = useState(new Date().getMonth() + 1);
+const [anoExtrato, setAnoExtrato] = useState(new Date().getFullYear());
 
-┌─────────────────────────────────────────────────────────────────┐
-│  PROBLEMA 4: Categorias DRE                                     │
-│  → Importar planilha como estrutura de categorias               │
-│  → Criar arquivo categorias-dre.ts com hierarquia               │
-└─────────────────────────────────────────────────────────────────┘
+// Usar no envio
+const mesAno = `${mesExtrato}/${anoExtrato}`;
+```
 
-┌─────────────────────────────────────────────────────────────────┐
-│  PROBLEMA 5: DRE                                                │
-│  → DRESection.tsx: agrupa lançamentos por Modalidade > Grupo    │
-│  → Mostra totais por categoria e resultado final                │
-└─────────────────────────────────────────────────────────────────┘
+**Adicionar selects de mês e ano antes do textarea.**
 
-┌─────────────────────────────────────────────────────────────────┐
-│  PROBLEMA 6: Verificar totais                                   │
-│  → Auditar parseValorFlexivel no cálculo do histórico           │
-│  → Adicionar logs de debug temporários                          │
-└─────────────────────────────────────────────────────────────────┘
+---
 
-┌─────────────────────────────────────────────────────────────────┐
-│  PROBLEMA 7: Faturamento por Canal                              │
-│  → FaturamentoCanaisCard.tsx: B2B, Nuvem, Shopee, Assinaturas   │
-│  → Projeção mensal: (valor atual / dias passados) × 30          │
-└─────────────────────────────────────────────────────────────────┘
+## Solução 2: Card de Meta Mensal (30 dias)
+
+### Novo Componente: MetaMensalCard.tsx
+
+Diferente do MetaVendasCard (7 dias), este mostra o cenário completo mensal.
+
+### Cálculo
+
+```text
+CONTAS A PAGAR (próx. 30d)
++ Custos Fixos Mensais
++ Marketing Estrutural
++ Ads Base
+─────────────────────────
+= SAÍDA MENSAL TOTAL
+
+FATURAMENTO NECESSÁRIO = SAÍDA MENSAL ÷ MARGEM (40%)
+
+Exemplo:
+  Contas a pagar 30d: R$ 45.000
+  Custo fixo: R$ 25.000
+  Marketing estrut.: R$ 8.000
+  Ads base: R$ 5.000
+  ─────────────────────
+  Saída total: R$ 83.000
+  
+  Faturamento necessário: R$ 83.000 ÷ 0.40 = R$ 207.500
+```
+
+### Interface Visual
+
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│ 🎯 Meta Mensal de Faturamento                    [Pressão Alta]  │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  SAÍDAS PREVISTAS (próx. 30d)                                    │
+│  ├── Contas a pagar                   R$ 45.000,00              │
+│  ├── Custo fixo                       R$ 25.000,00              │
+│  ├── Marketing estrutural             R$ 8.000,00               │
+│  └── Ads base                         R$ 5.000,00               │
+│  ──────────────────────────────────────────────────────         │
+│  TOTAL SAÍDAS                         R$ 83.000,00              │
+│                                                                  │
+│  Margem operacional                   ÷ 40%                      │
+│  ──────────────────────────────────────────────────────         │
+│  FATURAMENTO NECESSÁRIO               R$ 207.500,00   ← META    │
+│                                                                  │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 65%                      │
+│  Faturado até agora: R$ 135.000 (via FaturamentoCanais)         │
+│                                                                  │
+│  Meta diária restante: R$ 4.833/dia (15 dias restantes)         │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Dados Necessários
+
+```typescript
+interface MetaMensalData {
+  // Saídas
+  contasPagar30d: number;
+  custoFixo: number;
+  marketingEstrutural: number;
+  adsBase: number;
+  totalSaidas: number;
+  
+  // Meta
+  faturamentoNecessario: number;
+  faturadoAtual: number;  // soma dos canais
+  progressoPercent: number;
+  
+  // Projeção
+  diasRestantes: number;
+  metaDiariaRestante: number;
+}
 ```
 
 ---
 
-## Mudanças Detalhadas
+## Solução 3: Sugestões com IA Semanal
 
-### 1. ContaItem.tsx - Campos Maiores
+### Novo Componente: SugestoesIACard.tsx
 
-**Problema:** Descrição truncada sem visibilidade
+Gera sugestões baseadas na análise da situação financeira atual.
 
-**Solução:**
-- Aumentar a largura mínima do campo descrição
-- Adicionar Tooltip no hover para mostrar texto completo
-- Modo edição com Input de largura maior
+### Interface Visual
 
-```typescript
-// Antes: truncate simples
-<span className="truncate">{conta.descricao}</span>
-
-// Depois: com Tooltip
-<Tooltip>
-  <TooltipTrigger asChild>
-    <span className="truncate max-w-[200px]">{conta.descricao}</span>
-  </TooltipTrigger>
-  <TooltipContent side="top" className="max-w-[300px]">
-    {conta.descricao}
-  </TooltipContent>
-</Tooltip>
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│ 💡 Sugestões da Semana                     [Atualizar com IA]    │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Baseado na sua situação atual:                                  │
+│  • Caixa Livre: R$ 12.500 (Atenção)                             │
+│  • Fôlego: 8 dias                                                │
+│  • Meta vs Realizado: 65%                                        │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ 🔥 PRIORIDADE ALTA                                          │ │
+│  │ Fazer ação de vendas "levanta caixa" - promoção relâmpago   │ │
+│  │ de 24-48h com desconto agressivo para gerar entrada rápida  │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ 📉 CUSTO FIXO                                               │ │
+│  │ Revisar assinaturas SaaS - cancelar ferramentas pouco       │ │
+│  │ utilizadas. Potencial economia: R$ 500-1.500/mês            │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ 📦 ESTOQUE                                                  │ │
+│  │ Verificar produtos parados há +60 dias. Criar kit combo     │ │
+│  │ para desovar estoque e liberar capital de giro.             │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│  Última atualização: há 2 dias                                  │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. FornecedorSelect - Criar Novo + Categoria
+### Lógica de Geração
 
-**Novo fluxo:**
-1. Usuário digita nome no campo
-2. Se não encontrar, aparece botão "Criar [nome]"
-3. Ao clicar, abre formulário inline:
-   - Nome (preenchido)
-   - Seletor de Modalidade
-   - Seletor de Grupo (filtrado por modalidade)
-   - Seletor de Categoria (filtrado por grupo)
-4. Salva novo fornecedor e seleciona automaticamente
+**Edge Function: generate-sugestoes**
 
-**Novo componente: CategoriaSelect**
-```typescript
-// Hierarquia de categorias para seleção
-interface CategoriaSelectProps {
-  value?: { modalidade?: string; grupo?: string; categoria?: string };
-  onChange: (value: { modalidade: string; grupo: string; categoria: string }) => void;
-}
-```
-
-### 3. OCR com Múltiplas Linhas
-
-**Problema:** Prompt não enfatiza buscar múltiplos lançamentos
-
-**Solução - extract-documento:**
-```typescript
-const systemPrompt = `...
-IMPORTANTE: Se a imagem contiver MÚLTIPLOS documentos ou lançamentos,
-chame a função extract_conta UMA VEZ PARA CADA lançamento encontrado.
-Não agrupe lançamentos - extraia cada um separadamente.
-...`;
-```
-
-### 4. Estrutura de Categorias DRE
-
-**Novo arquivo: `src/data/categorias-dre.ts`**
+Recebe o contexto financeiro e gera sugestões personalizadas:
 
 ```typescript
-export interface CategoriaDRE {
-  tipo: 'RECEITAS' | 'DESPESAS';
-  modalidade: string;
-  grupo: string;
-  categoria: string;
-}
-
-export const CATEGORIAS_DRE: CategoriaDRE[] = [
-  // RECEITAS
-  { tipo: 'RECEITAS', modalidade: 'RECEITAS', grupo: 'Receitas Diretas', categoria: 'Clientes Nacionais (B2B)' },
-  { tipo: 'RECEITAS', modalidade: 'RECEITAS', grupo: 'Receitas Diretas', categoria: 'Clientes Nacionais (B2C)' },
-  // ... todas as categorias da planilha
-  
-  // DESPESAS - DEDUÇÕES
-  { tipo: 'DESPESAS', modalidade: 'DEDUÇÕES', grupo: 'Deduções da receita', categoria: 'Devoluções de vendas' },
-  { tipo: 'DESPESAS', modalidade: 'DEDUÇÕES', grupo: 'Deduções da receita', categoria: 'ICMS' },
-  // ... etc
-];
-
-// Helpers para navegação hierárquica
-export function getModalidades(tipo?: 'RECEITAS' | 'DESPESAS'): string[];
-export function getGrupos(modalidade: string): string[];
-export function getCategorias(grupo: string): string[];
-```
-
-### 5. DRE Section
-
-**Novo componente: `DRESection.tsx`**
-
-```typescript
-interface DRESectionProps {
-  lancamentos: ContaFluxo[];  // Histórico de lançamentos pagos
-  mesAno?: string;            // Filtro por período
-}
-
-// Estrutura do DRE:
-// ┌─────────────────────────────────────────────────────────────┐
-// │ 📊 DRE - Resultado do Mês (Janeiro/2026)                    │
-// ├─────────────────────────────────────────────────────────────┤
-// │ RECEITAS                                                    │
-// │   Receitas Diretas                                          │
-// │     Clientes Nacionais (B2B)           R$ 45.000,00         │
-// │     Clientes Nacionais (B2C)           R$ 62.000,00         │
-// │   TOTAL RECEITAS                       R$ 107.000,00        │
-// │                                                             │
-// │ DEDUÇÕES                                                    │
-// │   Deduções da receita                                       │
-// │     ICMS                               R$ -5.000,00         │
-// │     Simples Nacional                   R$ -8.000,00         │
-// │   TOTAL DEDUÇÕES                       R$ -13.000,00        │
-// │                                                             │
-// │ RECEITA LÍQUIDA                        R$ 94.000,00         │
-// │                                                             │
-// │ CUSTOS DE PRODUTO VENDIDO                                   │
-// │   Estoque/Custos                                            │
-// │     Compra de Matéria Prima            R$ -25.000,00        │
-// │     Embalagens                         R$ -3.000,00         │
-// │   TOTAL CPV                            R$ -28.000,00        │
-// │                                                             │
-// │ LUCRO BRUTO                            R$ 66.000,00         │
-// │ ...                                                         │
-// │ RESULTADO OPERACIONAL                  R$ 12.500,00         │
-// └─────────────────────────────────────────────────────────────┘
-```
-
-### 6. Auditoria de Totais
-
-**Verificar em ContasFluxoSection:**
-```typescript
-// Adicionar log para debug
-console.log('Contas pagas:', contasPagas.map(c => ({
-  desc: c.descricao.substring(0, 30),
-  valor: c.valor,
-  parsed: parseValorFlexivel(c.valor),
-  tipo: c.tipo
-})));
-console.log('Total saídas calculado:', totalSaidas);
-```
-
-**Possível problema:** Lançamentos sendo duplicados ou parsing incorreto
-
-### 7. Faturamento por Canal
-
-**Novo componente: `FaturamentoCanaisCard.tsx`**
-
-```typescript
-interface FaturamentoCanais {
-  b2b: string;
-  ecomNuvem: string;
-  ecomShopee: string;
-  ecomAssinaturas: string;
-  diaDoMes: number;  // Para projeção
-}
-
-// Interface Visual:
-// ┌─────────────────────────────────────────────────────────────┐
-// │ 📈 Faturamento por Canal                                    │
-// ├─────────────────────────────────────────────────────────────┤
-// │                     Atual        Projeção Mês   % Meta      │
-// │ B2B                R$ 25.000    R$ 150.000     75%   ████── │
-// │ Nuvem              R$ 12.000    R$ 72.000      60%   ███─── │
-// │ Shopee             R$ 5.000     R$ 30.000      50%   ██──── │
-// │ Assinaturas (Rits) R$ 3.500     R$ 21.000      70%   ███─── │
-// │ ─────────────────────────────────────────────────────────── │
-// │ TOTAL              R$ 45.500    R$ 273.000                  │
-// └─────────────────────────────────────────────────────────────┘
-
-// Fórmula de projeção:
-// projecaoMes = (valorAtual / diaAtual) × diasNoMes
-```
-
-**Campos adicionais em FinanceiroStage:**
-```typescript
-faturamentoCanais?: {
-  b2b: string;
-  ecomNuvem: string;
-  ecomShopee: string;
-  ecomAssinaturas: string;
+const contexto = {
+  caixaLivre: 12500,
+  folegoDias: 8,
+  statusRisco: 'amarelo',
+  faturamentoMes: 135000,
+  metaMensal: 207500,
+  progressoMeta: 0.65,
+  custoFixo: 25000,
+  marketingEstrutural: 8000,
+  contasPagar30d: 45000,
+  topCategoriasDespesa: ['Pessoal', 'Marketing', 'Ocupação'],
 };
+
+// Prompt para IA
+const systemPrompt = `Você é um consultor financeiro para pequenas empresas.
+Analise a situação e dê 3-5 sugestões práticas e acionáveis para melhorar o caixa.
+
+Foque em:
+1. Ações de curto prazo para levantar caixa (24-72h)
+2. Redução de custos fixos
+3. Otimização de marketing
+4. Gestão de estoque
+5. Renegociação de prazos
+
+Cada sugestão deve ser:
+- Específica e acionável
+- Com potencial impacto estimado
+- Priorizada por urgência`;
+```
+
+### Armazenamento
+
+Salvar sugestões no state para não regenerar toda hora:
+
+```typescript
+interface SugestoesIA {
+  sugestoes: {
+    tipo: 'urgente' | 'custo' | 'vendas' | 'estoque' | 'marketing';
+    titulo: string;
+    descricao: string;
+    impactoEstimado?: string;
+  }[];
+  geradoEm: string;  // ISO date
+  contextoHash: string;  // Para detectar se precisa atualizar
+}
+
+// Adicionar ao FinanceiroStage
+sugestoesIA?: SugestoesIA;
 ```
 
 ---
@@ -267,125 +237,52 @@ faturamentoCanais?: {
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/financeiro/ContaItem.tsx` | Tooltip no hover, campo maior |
-| `src/components/financeiro/FornecedorSelect.tsx` | Botão criar novo, formulário inline |
-| `src/components/financeiro/CategoriaSelect.tsx` | **NOVO** - Seletor hierárquico de categoria |
-| `src/data/categorias-dre.ts` | **NOVO** - Estrutura de categorias DRE |
-| `src/components/financeiro/DRESection.tsx` | **NOVO** - Componente de DRE |
-| `src/components/financeiro/FaturamentoCanaisCard.tsx` | **NOVO** - Faturamento por canal |
-| `src/types/focus-mode.ts` | Adicionar `faturamentoCanais` em FinanceiroStage |
-| `supabase/functions/extract-documento/index.ts` | Melhorar prompt para múltiplas linhas |
-| `src/components/financeiro/ConciliacaoSection.tsx` | Integrar CategoriaSelect no ReviewItem |
-| `src/components/modes/FinanceiroMode.tsx` | Integrar DRE e FaturamentoCanais |
+| `src/components/financeiro/ConciliacaoSection.tsx` | Adicionar seletores de mês/ano |
+| `src/components/financeiro/MetaMensalCard.tsx` | **NOVO** - Card de meta mensal completa |
+| `src/components/financeiro/SugestoesIACard.tsx` | **NOVO** - Card de sugestões com IA |
+| `supabase/functions/generate-sugestoes/index.ts` | **NOVO** - Edge function para gerar sugestões |
+| `src/types/focus-mode.ts` | Adicionar SugestoesIA ao FinanceiroStage |
+| `src/components/modes/FinanceiroMode.tsx` | Integrar novos cards |
 
 ---
 
-## Fluxo de Criação de Novo Fornecedor
+## Fluxo de Atualização das Sugestões
 
 ```text
-1. Usuário na Conciliação vê item sem fornecedor
-2. Digita nome no FornecedorSelect
-3. Não encontra match
-4. Clica em "Criar [nome digitado]"
-5. Abre formulário inline:
-   ┌────────────────────────────────────────┐
-   │ Novo Fornecedor                        │
-   │ Nome: [PIX FULANO SILVA]               │
-   │ Modalidade: [▼ DESPESAS COMERCIAIS]    │
-   │ Grupo: [▼ Despesas de Marketing]       │
-   │ Categoria: [▼ Influencers]             │
-   │ [Cancelar]  [Salvar e Selecionar]      │
-   └────────────────────────────────────────┘
-6. Salva fornecedor no state (financeiroData.fornecedores)
-7. Seleciona automaticamente o novo fornecedor
-8. Lançamento fica classificado
+1. Usuário abre Financeiro
+2. Sistema verifica sugestões existentes:
+   - Se < 7 dias e contexto similar → mostra cached
+   - Se > 7 dias ou contexto mudou → oferece "Atualizar"
+3. Ao clicar "Atualizar":
+   - Monta contexto atual
+   - Chama Edge Function
+   - Salva no state
+   - Exibe novas sugestões
 ```
 
 ---
 
-## Estrutura Completa do DRE
+## Sobre o CPV (Custo de Produto Vendido)
 
-Baseado na planilha anexada:
+O modelo atual usa **fluxo de caixa** - soma das compras pagas no período. É mais simples e adequado para gestão diária.
 
-```text
-RECEITAS
-├── Receitas Diretas
-│   ├── Clientes Nacionais (B2B)
-│   ├── Receita Inter Company
-│   └── Clientes Nacionais (B2C)
-└── Receitas Financeiras
-    ├── Rendimentos de Aplicações
-    └── Estornos de pagamentos
+**Prós do modelo atual:**
+- Reflete o que realmente saiu do caixa
+- Não precisa de controle de estoque
+- Bom para decisões de liquidez
 
-DEDUÇÕES
-└── Deduções da receita
-    ├── Devoluções de vendas
-    ├── ICMS
-    ├── Simples Nacional (DAS)
-    ├── PIS E COFINS
-    └── Taxas sobre vendas
+**Contras:**
+- Pode distorcer lucro mensal (compra grande em um mês afeta resultado)
+- Não mostra margem real por produto
 
-CUSTOS DE PRODUTO VENDIDO
-└── Estoque/Custos
-    ├── Compra de Matéria Prima
-    ├── Frete Compra
-    ├── Industrialização
-    ├── Embalagens
-    └── Mercadoria para Revenda
-
-DESPESAS DE PESSOAL
-└── Despesas com Pessoal
-    ├── Colaboradores PJ
-    ├── Salários CLT
-    ├── INSS, FGTS, IRRF
-    └── Vale Refeição/Alimentação
-
-DESPESAS ADMINISTRATIVAS
-├── Despesa com Materiais
-├── Despesas com Ocupação e Utilidades
-├── Despesas com Tecnologia
-├── Despesas Operacionais
-├── Obrigações Tributárias
-├── Serviços de Consultoria Operacional
-└── Despesas com Viagens
-
-DESPESAS COMERCIAIS
-├── Despesas de Marketing
-│   ├── Influencers
-│   ├── Criadores de Conteúdo
-│   ├── Anuncios Online
-│   └── Materiais Impressos
-└── Despesas de Vendas
-    ├── Frete Venda
-    ├── Brindes
-    └── Fullfilment
-
-DESPESAS FINANCEIRAS
-└── Despesas Financeiras / Bancos
-    ├── Tarifas Bancárias
-    ├── Taxas de Cartão
-    └── Juros sobre Empréstimo
-
-ATIVIDADES NÃO OPERACIONAIS
-├── Pesquisa e Desenvolvimento
-├── Distribuição de Lucros
-├── Bens Móveis
-└── Emprestimos e Financiamentos
-
-IMPOSTOS
-└── Impostos sobre o lucro
-```
+**Sugestão futura (opcional):**
+Adicionar campo "CMV Estimado" ou "Margem Média %" para cálculo mais preciso de lucro bruto, sem necessidade de controle de estoque item a item.
 
 ---
 
 ## Ordem de Implementação
 
-1. **Categorias DRE** - Base para todo o resto
-2. **ContaItem maior** - Correção visual rápida
-3. **CategoriaSelect** - Componente reutilizável
-4. **FornecedorSelect atualizado** - Criar novo fornecedor
-5. **ConciliacaoSection** - Integrar categoria quando não tem fornecedor
-6. **DRESection** - Relatório completo
-7. **FaturamentoCanaisCard** - Faturamento por canal
-8. **OCR melhorado** - Múltiplas linhas
-9. **Auditoria de totais** - Debug dos R$ 49.937
+1. **ConciliacaoSection** - Seletores de mês/ano (correção imediata)
+2. **MetaMensalCard** - Card de meta mensal completa
+3. **SugestoesIACard + Edge Function** - Sugestões com IA
+4. **Integração** - Adicionar cards no FinanceiroMode
