@@ -1,5 +1,4 @@
 import { FinanceiroStage, ContaFluxo, MARGEM_OPERACIONAL } from '@/types/focus-mode';
-import { parseCurrency } from './modeStatusCalculator';
 import { addDays, parseISO, isAfter, isBefore, format, startOfDay } from 'date-fns';
 import type { WeeklySnapshot } from '@/types/focus-mode';
 
@@ -8,6 +7,32 @@ export interface FluxoCaixaDataPoint {
   saldo: number;
   cor: 'verde' | 'amarelo' | 'vermelho';
 }
+
+// Parser flexível que aceita formato brasileiro (1.234,56) e americano (1234.56)
+export function parseValorFlexivel(valor: string): number {
+  if (!valor || valor === '') return 0;
+  
+  let str = String(valor).trim();
+  str = str.replace(/[R$\s]/g, '');
+  
+  // Detectar formato pelo último separador
+  const lastComma = str.lastIndexOf(',');
+  const lastDot = str.lastIndexOf('.');
+  
+  if (lastComma > lastDot) {
+    // Brasileiro: 1.234,56
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else if (lastDot > lastComma) {
+    // Americano: 1,234.56 ou número puro
+    str = str.replace(/,/g, '');
+  }
+  // Senão: número puro
+  
+  return parseFloat(str) || 0;
+}
+
+// Re-export parseCurrency para compatibilidade
+export const parseCurrency = parseValorFlexivel;
 
 export interface FluxoCaixaResult {
   dados: FluxoCaixaDataPoint[];
@@ -58,8 +83,8 @@ function calcularFluxoProjecaoComHistorico(
   data: FinanceiroStage,
   historico: WeeklySnapshot[]
 ): { dados: FluxoCaixaDataPoint[]; usouHistorico: boolean; semanasUsadas: number } {
-  const caixa = parseCurrency(data.caixaAtual || '');
-  const caixaMinimo = parseCurrency(data.caixaMinimo || '');
+  const caixa = parseValorFlexivel(data.caixaAtual || '');
+  const caixaMinimo = parseValorFlexivel(data.caixaMinimo || '');
   
   // Tentar usar histórico (últimas 4 semanas com resultado válido)
   const semanasValidas = historico
