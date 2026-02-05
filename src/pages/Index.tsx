@@ -139,7 +139,7 @@ const Index = () => {
         </div>
       </div>
 
-      <RitmoStatusBar ritmo={ritmoExpectativa} />
+      <RitmoStatusBar ritmo={ritmoExpectativa} onNavigateTo={setActiveMode} />
 
       <ModeSelector
         activeMode={activeMode}
