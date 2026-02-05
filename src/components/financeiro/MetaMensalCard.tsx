@@ -18,6 +18,7 @@ interface MetaMensalCardProps {
     ecomShopee: string;
     ecomAssinaturas: string;
   };
+  faturamentoMes?: string; // NOVO: Fallback para quando canais não preenchidos
 }
 
 interface MetaMensalData {
@@ -40,6 +41,7 @@ export function MetaMensalCard({
   marketingEstrutural,
   adsBase,
   faturamentoCanais,
+  faturamentoMes,
 }: MetaMensalCardProps) {
   const data = useMemo<MetaMensalData>(() => {
     const hoje = new Date();
@@ -67,13 +69,16 @@ export function MetaMensalCard({
     // 4. Faturamento necessário (considerando margem 40%)
     const faturamentoNecessario = totalSaidas / MARGEM_OPERACIONAL;
     
-    // 5. Faturamento atual (soma dos canais)
-    const faturadoAtual = faturamentoCanais
+    // 5. Faturamento atual (soma dos canais OU fallback para faturamentoMes)
+    const faturadoCanais = faturamentoCanais
       ? parseValorFlexivel(faturamentoCanais.b2b) +
         parseValorFlexivel(faturamentoCanais.ecomNuvem) +
         parseValorFlexivel(faturamentoCanais.ecomShopee) +
         parseValorFlexivel(faturamentoCanais.ecomAssinaturas)
       : 0;
+    
+    // Usar canais se tiver valor, senão usar faturamentoMes como fallback
+    const faturadoAtual = faturadoCanais > 0 ? faturadoCanais : parseValorFlexivel(faturamentoMes || '0');
     
     // 6. Progresso
     const progressoPercent = faturamentoNecessario > 0
@@ -107,7 +112,7 @@ export function MetaMensalCard({
       metaDiariaRestante,
       pressao,
     };
-  }, [contasFluxo, custoFixoMensal, marketingEstrutural, adsBase, faturamentoCanais]);
+  }, [contasFluxo, custoFixoMensal, marketingEstrutural, adsBase, faturamentoCanais, faturamentoMes]);
 
   const formatCurrency = (value: number) =>
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

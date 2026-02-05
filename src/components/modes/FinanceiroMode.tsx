@@ -18,6 +18,9 @@ import { SugestoesIACard, SugestoesIAState } from '@/components/financeiro/Suges
 import { DRESection } from '@/components/financeiro/DRESection';
 import { FaturamentoCanaisCard } from '@/components/financeiro/FaturamentoCanaisCard';
 import { CustosFixosCard } from '@/components/financeiro/CustosFixosCard';
+import { ExecutiveResume } from '@/components/financeiro/ExecutiveResume';
+import { MargemRealCard } from '@/components/financeiro/MargemRealCard';
+import { GargaloIdentifier } from '@/components/GargaloIdentifier';
 import { RitmoContextualAlert } from '@/components/RitmoContextualAlert';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
@@ -257,6 +260,12 @@ export function FinanceiroMode({
       {/* Ritmo Contextual Alerts */}
       <RitmoContextualAlert taskId="caixa" status={getCaixaStatus()} />
       <RitmoContextualAlert taskId="contas-hoje" status={getContasHojeStatus()} />
+      
+      {/* ========== EXECUTIVE RESUME (NOVO) ========== */}
+      <ExecutiveResume exports={exports} />
+      
+      {/* ========== GARGALO DA SEMANA (LEITURA AUTOMÁTICA) ========== */}
+      <GargaloIdentifier financeiroExports={exports} compact />
       
       {/* ========== INPUTS BÁSICOS ========== */}
       <Card>
@@ -921,10 +930,17 @@ export function FinanceiroMode({
       {/* ========== META MENSAL DE FATURAMENTO ========== */}
       <MetaMensalCard
         contasFluxo={data.contasFluxo || []}
-        custoFixoMensal={data.custoFixoMensal}
+        custoFixoMensal={formatCurrency(totalCustosFixos).replace('R$', '').trim()}
         marketingEstrutural={data.marketingEstrutural || data.marketingBase || ''}
         adsBase={data.adsBase}
         faturamentoCanais={data.faturamentoCanais}
+        faturamentoMes={data.faturamentoMes}
+      />
+      
+      {/* ========== MARGEM REAL ESTIMADA (LEITURA) ========== */}
+      <MargemRealCard
+        contasFluxo={data.contasFluxo || []}
+        faturamentoMes={data.faturamentoMes}
       />
       
       {/* ========== SUGESTÕES COM IA ========== */}
