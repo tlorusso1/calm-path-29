@@ -148,7 +148,7 @@ const Index = () => {
         canAccess={canAccess}
       />
 
-      <main className="flex-1 flex flex-col max-w-lg mx-auto w-full">
+      <main className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4">
         {activeMode ? (
           <ModeContent
             mode={modes[activeMode]}
