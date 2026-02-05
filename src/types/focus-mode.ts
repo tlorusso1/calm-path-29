@@ -148,6 +148,18 @@ export interface FinanceiroStage {
     ecomShopee: string;
     ecomAssinaturas: string;
   };
+  
+  // NOVO: Sugestões geradas por IA
+  sugestoesIA?: {
+    sugestoes: {
+      tipo: 'urgente' | 'custo' | 'vendas' | 'estoque' | 'marketing';
+      titulo: string;
+      descricao: string;
+      impactoEstimado?: string;
+    }[];
+    geradoEm: string;
+    contextoHash: string;
+  };
 }
 
 // Interface de Exports do Financeiro (para outros modos)

@@ -13,6 +13,8 @@ import { FluxoCaixaChart } from '@/components/financeiro/FluxoCaixaChart';
 import { ContasFluxoSection } from '@/components/financeiro/ContasFluxoSection';
 import { ConciliacaoSection } from '@/components/financeiro/ConciliacaoSection';
 import { MetaVendasCard } from '@/components/financeiro/MetaVendasCard';
+import { MetaMensalCard } from '@/components/financeiro/MetaMensalCard';
+import { SugestoesIACard, SugestoesIAState } from '@/components/financeiro/SugestoesIACard';
 import { DRESection } from '@/components/financeiro/DRESection';
 import { FaturamentoCanaisCard } from '@/components/financeiro/FaturamentoCanaisCard';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
@@ -879,6 +881,29 @@ export function FinanceiroMode({
       
       {/* ========== META DE VENDAS SEMANAL ========== */}
       <MetaVendasCard contas={data.contasFluxo || []} />
+      
+      {/* ========== META MENSAL DE FATURAMENTO ========== */}
+      <MetaMensalCard
+        contasFluxo={data.contasFluxo || []}
+        custoFixoMensal={data.custoFixoMensal}
+        marketingEstrutural={data.marketingEstrutural || data.marketingBase || ''}
+        adsBase={data.adsBase}
+        faturamentoCanais={data.faturamentoCanais}
+      />
+      
+      {/* ========== SUGESTÕES COM IA ========== */}
+      <SugestoesIACard
+        contasFluxo={data.contasFluxo || []}
+        caixaLivre={exports.caixaLivreReal}
+        folegoEmDias={exports.folegoEmDias}
+        statusRisco={exports.alertaRisco30d}
+        faturamentoMes={data.faturamentoMes}
+        custoFixo={data.custoFixoMensal}
+        marketingEstrutural={data.marketingEstrutural || data.marketingBase || ''}
+        faturamentoCanais={data.faturamentoCanais}
+        sugestoesState={data.sugestoesIA as SugestoesIAState | undefined}
+        onUpdateSugestoes={(sugestoes) => onUpdateFinanceiroData({ sugestoesIA: sugestoes })}
+      />
       
       {/* ========== FATURAMENTO POR CANAL ========== */}
       <FaturamentoCanaisCard

@@ -4,7 +4,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronUp, FileSpreadsheet, Loader2, CheckCircle2, Link2, AlertCircle, Plus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ChevronDown, ChevronUp, FileSpreadsheet, Loader2, CheckCircle2, Link2, AlertCircle, Plus, Calendar } from 'lucide-react';
 import { ContaFluxo, Fornecedor } from '@/types/focus-mode';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -89,6 +90,27 @@ export function ConciliacaoSection({
   const [lastResult, setLastResult] = useState<{ conciliados: number; novos: number; ignorados: number } | null>(null);
   const [lancamentosParaRevisar, setLancamentosParaRevisar] = useState<ExtractedLancamento[]>([]);
   const [showReviewPanel, setShowReviewPanel] = useState(false);
+  
+  // Seletores de mês/ano do extrato
+  const [mesExtrato, setMesExtrato] = useState(new Date().getMonth() + 1);
+  const [anoExtrato, setAnoExtrato] = useState(new Date().getFullYear());
+  
+  const meses = [
+    { value: 1, label: 'Janeiro' },
+    { value: 2, label: 'Fevereiro' },
+    { value: 3, label: 'Março' },
+    { value: 4, label: 'Abril' },
+    { value: 5, label: 'Maio' },
+    { value: 6, label: 'Junho' },
+    { value: 7, label: 'Julho' },
+    { value: 8, label: 'Agosto' },
+    { value: 9, label: 'Setembro' },
+    { value: 10, label: 'Outubro' },
+    { value: 11, label: 'Novembro' },
+    { value: 12, label: 'Dezembro' },
+  ];
+  
+  const anosDisponiveis = [2024, 2025, 2026, 2027];
 
   const handleProcessar = async () => {
     if (!texto.trim()) {
@@ -102,9 +124,8 @@ export function ConciliacaoSection({
     setShowReviewPanel(false);
 
     try {
-      // Detecta mês/ano do extrato se possível
-      const hoje = new Date();
-      const mesAno = `${hoje.getMonth() + 1}/${hoje.getFullYear()}`;
+      // Usa mês/ano selecionado pelo usuário
+      const mesAno = `${mesExtrato}/${anoExtrato}`;
 
       const { data, error } = await supabase.functions.invoke('extract-extrato', {
         body: { texto, mesAno }
@@ -276,9 +297,45 @@ export function ConciliacaoSection({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0">
+            {/* Seletores de Mês/Ano */}
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Mês do extrato:</span>
+              <Select
+                value={String(mesExtrato)}
+                onValueChange={(v) => setMesExtrato(Number(v))}
+              >
+                <SelectTrigger className="w-[130px] h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {meses.map((m) => (
+                    <SelectItem key={m.value} value={String(m.value)}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={String(anoExtrato)}
+                onValueChange={(v) => setAnoExtrato(Number(v))}
+              >
+                <SelectTrigger className="w-[90px] h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {anosDisponiveis.map((a) => (
+                    <SelectItem key={a} value={String(a)}>
+                      {a}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Cole seu extrato bancário. O sistema faz match automático com contas existentes (± R$0,01, ± 1 dia).
+                Cole seu extrato bancário. Datas sem ano usarão o mês/ano selecionado acima.
               </p>
               
               <Textarea
