@@ -553,7 +553,7 @@ export function ReuniaoAdsMode({
       </Card>
 
       {/* ========== DECISÃO DA SEMANA ========== */}
-      <Card className="border-2 border-primary/30">
+      <Card id="ritmo-decisao" className="border-2 border-primary/30 scroll-mt-20">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Target className="h-4 w-4" />
