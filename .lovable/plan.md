@@ -1,54 +1,57 @@
 
 
-## Problema Identificado: extract-extrato não está no config.toml
+## Plano: Correções Financeiro V3
 
-### Causa do Erro
+### Problema 1: Prazos de Liquidação Incorretos
 
-O erro "Failed to send a request to the Edge Function" ocorre porque a função `extract-extrato` **não está configurada** no arquivo `supabase/config.toml`. 
+**Arquivo:** `src/components/financeiro/CaixaContratadoCard.tsx`
 
-Atualmente o config.toml tem:
-```toml
-[functions.extract-documento]
-verify_jwt = false
-
-[functions.create-user]
-verify_jwt = false
+**Valores Atuais (ERRADOS):**
+```typescript
+const PRAZOS = {
+  nuvemshop: 'D+14',  // ERRADO
+  asaas: 'D+7',       // ERRADO
+  pagarMe: 'D+14',    // OK
+  mercadoPago: 'D+14',
+};
 ```
 
-Falta:
-```toml
-[functions.extract-extrato]
-verify_jwt = false
-
-[functions.generate-sugestoes]
-verify_jwt = false
+**Valores Corretos:**
+```typescript
+const PRAZOS = {
+  nuvemshop: 'D+2',   // CORRIGIR
+  asaas: 'D+30',      // CORRIGIR
+  pagarMe: 'D+14',    // OK
+  mercadoPago: 'D+14',
+};
 ```
 
 ---
 
-### Solução
+### Problema 2: Edição Inline não permite alterar Tipo
 
-1. **Adicionar configuração de TODAS as edge functions no config.toml**
-2. **Redeployar a função extract-extrato**
+**Arquivo:** `src/components/financeiro/ContaItem.tsx`
 
----
+**Situação Atual:**
+O modo de edição (isEditing) só exibe:
+- Input de data
+- Input de descrição  
+- Input de valor
+- Botões Salvar/Cancelar
 
-### Mudança no config.toml
+**Falta:** Select para alterar o tipo (pagar/receber/intercompany/aplicacao/resgate)
 
-```toml
-project_id = "ibxzyodvtmagnetpyyfz"
+**Solução:**
+Adicionar um Select no modo de edição para permitir alterar o tipo da conta
 
-[functions.extract-documento]
-verify_jwt = false
+**Mudança no código:**
+1. Adicionar estado `editTipo` inicializado com `conta.tipo`
+2. Adicionar Select no formulário de edição
+3. Incluir `tipo` no `handleSave()`
 
-[functions.extract-extrato]
-verify_jwt = false
-
-[functions.generate-sugestoes]
-verify_jwt = false
-
-[functions.create-user]
-verify_jwt = false
+**Layout do formulário de edição atualizado:**
+```
+[Select Tipo] [Data] [Descrição] [Valor] [✓] [✗]
 ```
 
 ---
@@ -57,13 +60,16 @@ verify_jwt = false
 
 | Arquivo | Mudança |
 |---------|---------|
-| `supabase/config.toml` | Adicionar `[functions.extract-extrato]` e `[functions.generate-sugestoes]` com `verify_jwt = false` |
+| `src/components/financeiro/CaixaContratadoCard.tsx` | Corrigir prazos: Nuvemshop D+2, Asaas D+30 |
+| `src/components/financeiro/ContaItem.tsx` | Adicionar Select de tipo no modo de edição inline |
 
 ---
 
-### Após a Correção
+### Detalhes da Implementação ContaItem
 
-1. Aplicar a mudança no config.toml
-2. Deploy automático das funções
-3. Testar importação de extrato bancário
+1. **Import adicional:** `Select, SelectContent, SelectItem, SelectTrigger, SelectValue` do shadcn
+2. **Novo estado:** `const [editTipo, setEditTipo] = useState(conta.tipo)`
+3. **Novo campo no formulário:** Select com opções pagar/receber/intercompany/aplicacao/resgate
+4. **handleSave atualizado:** incluir `tipo: editTipo` no objeto de updates
+5. **handleCancel atualizado:** resetar `editTipo` para `conta.tipo`
 
