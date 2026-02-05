@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const MAX_LINHAS_POR_CHUNK = 30;
+
 const systemPrompt = `Você é um especialista em processar extratos bancários brasileiros.
 Analise o texto do extrato e extraia cada lançamento como uma conta paga ou recebida.
 
@@ -20,6 +22,7 @@ Regras de extração:
    - Se houver dia/mês no início da linha (ex: "30"), assuma mês/ano atual
    - Se não houver data clara, use a data de hoje
    - Formato ISO: YYYY-MM-DD
+   - IMPORTANTE: Valide datas (fev max 28/29, meses 30/31 dias). Use último dia válido se inválido.
 6. Ignore: rendimentos automáticos (REND PAGO), aplicações (CDB, TRUST), transferências entre contas próprias (SAME PERSON)
 7. IMPORTANTE: Marque pago=true pois são lançamentos já realizados
 
@@ -63,6 +66,76 @@ const tools = [
   }
 ];
 
+// Valida e corrige datas inválidas (ex: 30/02 -> 28/02)
+function validarData(dataStr: string): string {
+  try {
+    const [ano, mes, dia] = dataStr.split('-').map(Number);
+    if (!ano || !mes || !dia) return new Date().toISOString().split('T')[0];
+    
+    // Encontrar último dia válido do mês
+    const ultimoDia = new Date(ano, mes, 0).getDate();
+    const diaValido = Math.min(dia, ultimoDia);
+    
+    return `${ano}-${String(mes).padStart(2, '0')}-${String(diaValido).padStart(2, '0')}`;
+  } catch {
+    return new Date().toISOString().split('T')[0];
+  }
+}
+
+// Processa um chunk do extrato
+async function processarChunk(texto: string, mesAno: string, apiKey: string): Promise<any[]> {
+  const contextoData = mesAno ? `\n\nContexto: Os lançamentos são do mês/ano ${mesAno}.` : '';
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        { role: "system", content: systemPrompt + contextoData },
+        {
+          role: "user",
+          content: `Analise este extrato bancário e extraia cada lançamento relevante:\n\n${texto}`
+        }
+      ],
+      tools,
+      tool_choice: "auto",
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error("RATE_LIMIT");
+    }
+    if (response.status === 402) {
+      throw new Error("NO_CREDITS");
+    }
+    throw new Error(`API_ERROR_${response.status}`);
+  }
+
+  const data = await response.json();
+  
+  const toolCalls = data.choices?.[0]?.message?.tool_calls || [];
+  return toolCalls
+    .filter((tc: any) => tc.function?.name === "extract_lancamento")
+    .map((tc: any) => {
+      try {
+        const parsed = JSON.parse(tc.function.arguments);
+        return {
+          ...parsed,
+          dataVencimento: validarData(parsed.dataVencimento),
+          pago: true,
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -87,67 +160,48 @@ serve(async (req) => {
       );
     }
 
-    // Adiciona contexto de mês/ano se fornecido
-    const contextoData = mesAno ? `\n\nContexto: Os lançamentos são do mês/ano ${mesAno}.` : '';
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt + contextoData },
-          {
-            role: "user",
-            content: `Analise este extrato bancário e extraia cada lançamento relevante:\n\n${texto}`
-          }
-        ],
-        tools,
-        tool_choice: "auto",
-      }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Créditos insuficientes." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: "Erro ao processar extrato" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Dividir texto em chunks para evitar truncamento
+    const linhas = texto.split('\n').filter((l: string) => l.trim());
+    const chunks: string[] = [];
+    
+    for (let i = 0; i < linhas.length; i += MAX_LINHAS_POR_CHUNK) {
+      chunks.push(linhas.slice(i, i + MAX_LINHAS_POR_CHUNK).join('\n'));
     }
 
-    const data = await response.json();
-    console.log("AI response:", JSON.stringify(data, null, 2));
+    console.log(`Processing ${linhas.length} lines in ${chunks.length} chunk(s)`);
 
-    // Extract ALL tool calls
-    const toolCalls = data.choices?.[0]?.message?.tool_calls || [];
-    const lancamentos = toolCalls
-      .filter((tc: any) => tc.function?.name === "extract_lancamento")
-      .map((tc: any) => {
-        const parsed = JSON.parse(tc.function.arguments);
-        return {
-          ...parsed,
-          pago: true, // Lançamentos de extrato já foram realizados
-        };
-      });
+    // Processar cada chunk
+    const todosLancamentos: any[] = [];
+    
+    for (let i = 0; i < chunks.length; i++) {
+      try {
+        console.log(`Processing chunk ${i + 1}/${chunks.length}`);
+        const lancamentos = await processarChunk(chunks[i], mesAno || '', LOVABLE_API_KEY);
+        todosLancamentos.push(...lancamentos);
+        console.log(`Chunk ${i + 1}: ${lancamentos.length} items extracted`);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : 'Unknown error';
+        console.error(`Error processing chunk ${i + 1}:`, errMsg);
+        
+        if (errMsg === "RATE_LIMIT") {
+          return new Response(
+            JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (errMsg === "NO_CREDITS") {
+          return new Response(
+            JSON.stringify({ error: "Créditos insuficientes." }),
+            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        // Continue com próximos chunks mesmo se um falhar
+      }
+    }
 
-    if (lancamentos.length === 0) {
+    console.log(`Total extracted: ${todosLancamentos.length} items`);
+
+    if (todosLancamentos.length === 0) {
       return new Response(
         JSON.stringify({ error: "Nenhum lançamento encontrado no extrato", contas: [] }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -155,7 +209,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ contas: lancamentos }),
+      JSON.stringify({ contas: todosLancamentos }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 

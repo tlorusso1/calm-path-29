@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria, ContaFluxo, WeeklySnapshot } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria, ContaFluxo, WeeklySnapshot, Fornecedor } from '@/types/focus-mode';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -880,7 +880,28 @@ export function FinanceiroMode({
       
       {/* ========== CONCILIAÇÃO BANCÁRIA ========== */}
       <ConciliacaoSection
-        onAddContas={handleAddMultipleContas}
+        contasExistentes={data.contasFluxo || []}
+        fornecedores={data.fornecedores || []}
+        onConciliar={(result) => {
+          // Marcar contas conciliadas como pagas
+          const contasAtualizadas = (data.contasFluxo || []).map(c => {
+            const conciliado = result.conciliados.find(cc => cc.id === c.id);
+            if (conciliado) {
+              return { ...c, pago: true, conciliado: true };
+            }
+            return c;
+          });
+          
+          // Adicionar novos lançamentos
+          const novasContas: ContaFluxo[] = result.novos.map(n => ({
+            ...n,
+            id: crypto.randomUUID(),
+          }));
+          
+          onUpdateFinanceiroData({
+            contasFluxo: [...contasAtualizadas, ...novasContas],
+          });
+        }}
         isOpen={openSections.conciliacao || false}
         onToggle={() => toggleSection('conciliacao')}
       />

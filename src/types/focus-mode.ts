@@ -40,6 +40,18 @@ export interface FinanceiroContas {
   mercadoPagoEcom: ContaBancaria;
 }
 
+// ============= Fornecedores para DRE =============
+export interface Fornecedor {
+  id: string;
+  nome: string;
+  modalidade: string;       // Ex: "DESPESAS ADMINISTRATIVAS"
+  grupo: string;            // Ex: "Serviços de Consultoria Operacional"
+  categoria: string;        // Ex: "Assessoria Contábil"
+  cnpj?: string;
+  chavePix?: string;
+  aliases?: string[];       // Nomes alternativos (para match)
+}
+
 // ============= Contas a Pagar/Receber (Fluxo de Caixa) =============
 export interface ContaFluxo {
   id: string;
@@ -49,6 +61,10 @@ export interface ContaFluxo {
   dataVencimento: string;  // ISO date (YYYY-MM-DD)
   pago?: boolean;
   agendado?: boolean;  // Indica se foi agendado no banco (auto-baixa no vencimento)
+  // Novos campos para DRE/Conciliação
+  fornecedorId?: string;    // Referência ao fornecedor
+  categoria?: string;       // Categoria para DRE
+  conciliado?: boolean;     // Flag: veio de conciliação bancária
 }
 
 // ============= Financeiro V2 =============
@@ -121,6 +137,9 @@ export interface FinanceiroStage {
   
   // NOVO: Contas a Pagar/Receber para fluxo de caixa preciso
   contasFluxo?: ContaFluxo[];
+  
+  // NOVO: Lista de fornecedores para DRE/classificação
+  fornecedores?: Fornecedor[];
 }
 
 // Interface de Exports do Financeiro (para outros modos)
