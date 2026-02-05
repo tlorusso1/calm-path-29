@@ -133,7 +133,11 @@ export function ConciliacaoSection({
 
       if (error) {
         console.error('Error extracting extrato:', error);
-        toast.error('Erro ao processar extrato. Tente novamente.');
+        if (error.message?.includes('Load failed') || error.message?.includes('timeout')) {
+          toast.error('Falha na conexão. Tente novamente ou cole menos linhas de cada vez.');
+        } else {
+          toast.error('Erro ao processar extrato. Tente novamente.');
+        }
         return;
       }
 

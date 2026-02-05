@@ -60,8 +60,14 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
   const faturamentoEsperado = parseCurrency(d.faturamentoEsperado30d || '') || faturamento; // Fallback para faturamento atual
   
   // NOVO: Separação Marketing Estrutural vs Ads Base
-  // Migração: se novos campos não existem, usar marketingBase como fallback
-  const marketingEstrutural = parseCurrency(d.marketingEstrutural || d.marketingBase || '');
+  // Prioridade: puxar do breakdown de custos fixos (categoria marketing)
+  // Fallback: campo manual marketingEstrutural ou marketingBase
+  let marketingEstrutural: number;
+  if (d.custosFixosDetalhados?.marketing && d.custosFixosDetalhados.marketing.length > 0) {
+    marketingEstrutural = d.custosFixosDetalhados.marketing.reduce((s, i) => s + i.valor, 0);
+  } else {
+    marketingEstrutural = parseCurrency(d.marketingEstrutural || d.marketingBase || '');
+  }
   const adsBase = parseCurrency(d.adsBase || '');
   
   // Impostos configuráveis (default 16%)

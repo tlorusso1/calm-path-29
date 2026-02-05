@@ -278,7 +278,13 @@ export function FinanceiroMode({
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Faturamento/mês</label>
+              <label className="text-xs text-muted-foreground flex items-center gap-1">
+                Faturamento mês atual
+                <span className="text-[10px] text-muted-foreground/70">(acumulado)</span>
+              </label>
+              <p className="text-[10px] text-muted-foreground leading-tight">
+                Total faturado até hoje no mês corrente
+              </p>
               <div className="relative">
                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
                 <Input
@@ -303,21 +309,6 @@ export function FinanceiroMode({
                 />
               </div>
               <p className="text-[10px] text-muted-foreground">Clique para detalhar</p>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Marketing estrutural</label>
-              <p className="text-[10px] text-muted-foreground leading-tight">
-                Agência, influencers, conteúdo, ferramentas
-              </p>
-              <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                <Input
-                  placeholder="0,00"
-                  value={data.marketingEstrutural || data.marketingBase}
-                  onChange={(e) => onUpdateFinanceiroData({ marketingEstrutural: e.target.value })}
-                  className="h-9 text-sm pl-8 text-right"
-                />
-              </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">Ads base</label>

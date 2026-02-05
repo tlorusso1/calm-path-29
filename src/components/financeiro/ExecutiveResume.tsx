@@ -133,7 +133,7 @@ export function ExecutiveResume({ exports }: ExecutiveResumeProps) {
 
           {/* Ads Máximo */}
           <div className="space-y-1">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Ads Máx/semana</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Ads Máx/mês</p>
             <p className="text-lg font-semibold text-primary">
               {formatCurrency(adsMaximoPermitido)}
             </p>
