@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Trash2, Check, X, Pencil, Calendar, CalendarCheck, CheckCircle, Package } from 'lucide-react';
-import { ContaFluxo, ContaFluxoTipo, Fornecedor } from '@/types/focus-mode';
+import { ContaFluxo, ContaFluxoTipo, ContaFluxoNatureza, Fornecedor } from '@/types/focus-mode';
 import { format, parseISO, isBefore, isToday, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -94,6 +94,7 @@ export function ContaItem({
   const [editValor, setEditValor] = useState(conta.valor);
   const [editData, setEditData] = useState(conta.dataVencimento);
   const [editTipo, setEditTipo] = useState(conta.tipo);
+  const [editNatureza, setEditNatureza] = useState<ContaFluxoNatureza | undefined>(conta.natureza);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const status = getStatusConta(conta);
@@ -113,6 +114,7 @@ export function ContaItem({
       valor: editValor || conta.valor,
       dataVencimento: editData || conta.dataVencimento,
       tipo: editTipo,
+      natureza: editNatureza,
     });
     setIsEditing(false);
   };
@@ -122,6 +124,7 @@ export function ContaItem({
     setEditValor(conta.valor);
     setEditData(conta.dataVencimento);
     setEditTipo(conta.tipo);
+    setEditNatureza(conta.natureza);
     setIsEditing(false);
   };
 
@@ -142,7 +145,7 @@ export function ContaItem({
 
   if (isEditing) {
     return (
-      <div className={`flex items-center gap-2 p-2 rounded border ${styles.bg}`}>
+      <div className={`flex flex-wrap items-center gap-2 p-2 rounded border ${styles.bg}`}>
         <Select value={editTipo} onValueChange={(val) => setEditTipo(val as ContaFluxoTipo)}>
           <SelectTrigger className="h-7 w-28 text-xs">
             <SelectValue />
@@ -155,6 +158,23 @@ export function ContaItem({
             <SelectItem value="resgate">📉 Resgate</SelectItem>
           </SelectContent>
         </Select>
+        
+        {/* Seletor de Natureza (somente para tipo "pagar") */}
+        {editTipo === 'pagar' && (
+          <Select 
+            value={editNatureza || 'operacional'} 
+            onValueChange={(val) => setEditNatureza(val as ContaFluxoNatureza)}
+          >
+            <SelectTrigger className="h-7 w-32 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="operacional">⚙️ Operacional</SelectItem>
+              <SelectItem value="capitalGiro">📦 Estoque</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        
         <Input
           ref={inputRef}
           value={editData}
@@ -167,7 +187,7 @@ export function ContaItem({
           value={editDescricao}
           onChange={(e) => setEditDescricao(e.target.value)}
           placeholder="Descrição"
-          className="h-7 flex-1 text-xs"
+          className="h-7 flex-1 min-w-[120px] text-xs"
           onKeyDown={handleKeyDown}
         />
         <div className="relative w-24">

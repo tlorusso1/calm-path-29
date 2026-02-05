@@ -4,13 +4,21 @@ import type { WeeklySnapshot } from '@/types/focus-mode';
 
 /**
  * Verifica se uma conta é Capital de Giro (não impacta meta de faturamento)
- * Usa a modalidade do fornecedor atrelado para determinar
+ * 
+ * Prioridade:
+ * 1. Campo `natureza` explícito na conta (se definido)
+ * 2. Modalidade do fornecedor atrelado (fallback automático)
+ * 3. Se nenhum dos dois: considera despesa operacional
  */
 export function isCapitalGiro(
   conta: ContaFluxo,
   fornecedores: Fornecedor[]
 ): boolean {
-  // Se não tem fornecedor atrelado, considera despesa operacional
+  // 1. Se natureza está explícita, usa ela
+  if (conta.natureza === 'capitalGiro') return true;
+  if (conta.natureza === 'operacional') return false;
+  
+  // 2. Fallback: verifica modalidade do fornecedor
   if (!conta.fornecedorId) return false;
   
   const fornecedor = fornecedores.find(f => f.id === conta.fornecedorId);
