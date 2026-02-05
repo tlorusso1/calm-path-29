@@ -253,18 +253,97 @@ export function MetaMensalCard({
           </div>
         )}
 
-        {/* Necessidade total de caixa (inclui capital de giro) */}
-        {data.capitalGiro30d > 0 && (
-          <div className="pt-2 border-t">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-muted-foreground">Necessidade de Caixa 30d</span>
-              <span className="font-medium">{formatCurrency(data.necessidadeCaixa30d)}</span>
+        {/* Breakdown Visual: Proporção de saídas */}
+        <div className="space-y-3 pt-3 border-t">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Composição das Saídas (próx. 30d)
+          </p>
+          
+          {/* Stacked bar visual */}
+          <div className="space-y-2">
+            <div className="flex h-8 rounded-lg overflow-hidden bg-muted border">
+              {/* Operacionais */}
+              {data.totalSaidasOperacionais > 0 && (
+                <div
+                  className="bg-primary transition-all"
+                  style={{
+                    width: `${
+                      (data.totalSaidasOperacionais /
+                        (data.totalSaidasOperacionais + data.capitalGiro30d)) *
+                      100
+                    }%`,
+                  }}
+                  title="Saídas Operacionais"
+                />
+              )}
+              
+              {/* Capital de Giro */}
+              {data.capitalGiro30d > 0 && (
+                <div
+                  className="bg-orange-500 transition-all"
+                  style={{
+                    width: `${
+                      (data.capitalGiro30d /
+                        (data.totalSaidasOperacionais + data.capitalGiro30d)) *
+                      100
+                    }%`,
+                  }}
+                  title="Capital de Giro"
+                />
+              )}
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1">
-              Inclui capital de giro para stress test de caixa
-            </p>
+            
+            {/* Legenda */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded bg-primary" />
+                <span className="text-muted-foreground">Operacionais</span>
+                <span className="font-medium ml-auto">
+                  {(
+                    ((data.totalSaidasOperacionais /
+                      (data.totalSaidasOperacionais + data.capitalGiro30d)) ||
+                      0) * 100
+                  ).toFixed(0)}
+                  %
+                </span>
+              </div>
+              {data.capitalGiro30d > 0 && (
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 rounded bg-orange-500" />
+                  <span className="text-muted-foreground">Estoque</span>
+                  <span className="font-medium ml-auto">
+                    {(
+                      ((data.capitalGiro30d /
+                        (data.totalSaidasOperacionais + data.capitalGiro30d)) ||
+                        0) * 100
+                    ).toFixed(0)}
+                    %
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
-        )}
+          
+          {/* Resumo dos valores */}
+          <div className="space-y-1.5 pt-2 text-xs">
+            <div className="flex justify-between p-2 rounded-lg bg-muted/30">
+              <span className="text-muted-foreground">Saídas Operacionais</span>
+              <span className="font-medium">{formatCurrency(data.totalSaidasOperacionais)}</span>
+            </div>
+            {data.capitalGiro30d > 0 && (
+              <div className="flex justify-between p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20">
+                <span className="text-muted-foreground">Capital de Giro</span>
+                <span className="font-medium text-orange-700 dark:text-orange-400">
+                  {formatCurrency(data.capitalGiro30d)}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between p-2 rounded-lg bg-primary/10 border border-primary/20 font-medium">
+              <span>NECESSIDADE TOTAL</span>
+              <span className="text-primary">{formatCurrency(data.necessidadeCaixa30d)}</span>
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
