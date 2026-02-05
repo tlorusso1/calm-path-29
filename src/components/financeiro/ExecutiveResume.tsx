@@ -2,14 +2,15 @@ import { FinanceiroExports } from '@/types/focus-mode';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, CheckCircle2, Clock, Flame, Timer, TrendingUp } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, CreditCard, Flame, Lock, Timer, TrendingUp } from 'lucide-react';
 import { formatCurrency } from '@/utils/modeStatusCalculator';
 
 interface ExecutiveResumeProps {
   exports: FinanceiroExports;
+  caixaContratado?: number;
 }
 
-export function ExecutiveResume({ exports }: ExecutiveResumeProps) {
+export function ExecutiveResume({ exports, caixaContratado = 0 }: ExecutiveResumeProps) {
   const {
     caixaLivreReal,
     statusFinanceiro,
@@ -80,14 +81,30 @@ export function ExecutiveResume({ exports }: ExecutiveResumeProps) {
           </span>
         </div>
 
-        {/* Grid de métricas */}
+        {/* Grid de métricas 2x3 */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {/* Caixa Livre Real */}
+          {/* Caixa Livre REAL */}
           <div className="space-y-1">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Caixa Livre Real</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+              <Lock className="h-3 w-3" />
+              Caixa Livre REAL
+            </p>
             <p className={cn('text-xl font-bold', caixaLivreReal >= 0 ? 'text-foreground' : 'text-destructive')}>
               {formatCurrency(caixaLivreReal)}
             </p>
+            <p className="text-[10px] text-muted-foreground">(dinheiro disponível agora)</p>
+          </div>
+
+          {/* Caixa CONTRATADO - NOVO */}
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+              <CreditCard className="h-3 w-3" />
+              Caixa CONTRATADO
+            </p>
+            <p className="text-xl font-bold text-blue-600">
+              {formatCurrency(caixaContratado)}
+            </p>
+            <p className="text-[10px] text-muted-foreground">(vendas já feitas)</p>
           </div>
 
           {/* Queima/dia */}
@@ -96,7 +113,7 @@ export function ExecutiveResume({ exports }: ExecutiveResumeProps) {
               <Flame className="h-3 w-3" />
               Queima/dia
             </p>
-            <p className="text-lg font-semibold text-muted-foreground">
+            <p className="text-lg font-semibold text-orange-600">
               {formatCurrency(queimaDiaria)}
             </p>
           </div>
@@ -131,9 +148,9 @@ export function ExecutiveResume({ exports }: ExecutiveResumeProps) {
             </p>
           </div>
 
-          {/* Ads Máximo */}
+          {/* Ads Máx Permitido */}
           <div className="space-y-1">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Ads Máx/mês</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Ads Máx Permitido</p>
             <p className="text-lg font-semibold text-primary">
               {formatCurrency(adsMaximoPermitido)}
             </p>
