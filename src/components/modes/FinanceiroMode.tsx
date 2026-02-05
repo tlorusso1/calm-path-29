@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria, ContaFluxo, WeeklySnapshot, Fornecedor, UserRitmoExpectativa, RitmoTimestamps, CustosFixosDetalhados } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria, ContaFluxo, WeeklySnapshot, Fornecedor, UserRitmoExpectativa, RitmoTimestamps, CustosFixosDetalhados, MapeamentoDescricaoFornecedor } from '@/types/focus-mode';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -981,6 +981,12 @@ export function FinanceiroMode({
         <ConciliacaoSection
         contasExistentes={data.contasFluxo || []}
         fornecedores={data.fornecedores || []}
+        mapeamentos={data.mapeamentosDescricao || []}
+        onAddMapeamento={(novoMapeamento: MapeamentoDescricaoFornecedor) => {
+          onUpdateFinanceiroData({
+            mapeamentosDescricao: [...(data.mapeamentosDescricao || []), novoMapeamento],
+          });
+        }}
         onConciliar={(result) => {
           // Marcar contas conciliadas como pagas
           const contasAtualizadas = (data.contasFluxo || []).map(c => {

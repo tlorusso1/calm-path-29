@@ -208,6 +208,42 @@ export interface FinanceiroStage {
     geradoEm: string;
     contextoHash: string;
   };
+  
+  // NOVO: Mapeamentos descrição→fornecedor para conciliação automática
+  mapeamentosDescricao?: MapeamentoDescricaoFornecedor[];
+}
+
+// Mapeamento de descrições bancárias para fornecedores
+export interface MapeamentoDescricaoFornecedor {
+  padrao: string;        // Padrão normalizado da descrição (ex: "BOLETO PAGO RNX FIDC")
+  fornecedorId: string;  // ID do fornecedor associado
+  criadoEm: string;      // ISO date
+}
+
+// Helpers para mapeamento de descrições
+export function extrairPadraoDescricao(descricao: string): string {
+  return descricao
+    .replace(/\d{2}\/\d{2}(\/\d{2,4})?/g, '')  // Remove datas
+    .replace(/R\$[\s\d.,]+/g, '')               // Remove valores
+    .replace(/\d{5,}/g, '')                     // Remove IDs longos
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase()
+    .slice(0, 50); // Limita tamanho
+}
+
+export function encontrarMapeamento(
+  descricao: string, 
+  mapeamentos: MapeamentoDescricaoFornecedor[]
+): string | null {
+  if (!mapeamentos?.length) return null;
+  const padrao = extrairPadraoDescricao(descricao);
+  if (padrao.length < 5) return null;
+  
+  const match = mapeamentos.find(m => 
+    padrao.includes(m.padrao) || m.padrao.includes(padrao)
+  );
+  return match?.fornecedorId || null;
 }
 
 // Interface de Exports do Financeiro (para outros modos)

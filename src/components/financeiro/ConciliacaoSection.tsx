@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronDown, ChevronUp, FileSpreadsheet, Loader2, CheckCircle2, Link2, AlertCircle, Plus, Calendar } from 'lucide-react';
-import { ContaFluxo, Fornecedor } from '@/types/focus-mode';
+import { ContaFluxo, Fornecedor, MapeamentoDescricaoFornecedor, extrairPadraoDescricao, encontrarMapeamento } from '@/types/focus-mode';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
@@ -44,6 +44,9 @@ interface ConciliacaoSectionProps {
   onCreateFornecedor?: (fornecedor: Omit<Fornecedor, 'id'>) => void;
   isOpen: boolean;
   onToggle: () => void;
+  // Mapeamentos descrição→fornecedor
+  mapeamentos?: MapeamentoDescricaoFornecedor[];
+  onAddMapeamento?: (mapeamento: MapeamentoDescricaoFornecedor) => void;
 }
 
 // Match inteligente: valor ± R$0.01 E data ± 1 dia
@@ -87,6 +90,8 @@ export function ConciliacaoSection({
   onCreateFornecedor,
   isOpen,
   onToggle,
+  mapeamentos = [],
+  onAddMapeamento,
 }: ConciliacaoSectionProps) {
   const [texto, setTexto] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -235,28 +240,41 @@ export function ConciliacaoSection({
           if (idx >= 0) contasNaoPagas.splice(idx, 1);
         } else {
           // Sem match - tentar identificar fornecedor
-          const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
+          // 1. Primeiro: verificar mapeamentos salvos pelo usuário
+          const fornecedorIdMapeado = encontrarMapeamento(lanc.descricao, mapeamentos);
           
-          if (fornecedorMatch) {
-            // Adicionar como novo com fornecedor identificado
+          if (fornecedorIdMapeado) {
+            const fornecedorMapeado = fornecedores.find(f => f.id === fornecedorIdMapeado);
             novos.push({
               ...lanc,
-              fornecedorId: fornecedorMatch.id,
-              categoria: fornecedorMatch.categoria,
+              fornecedorId: fornecedorIdMapeado,
+              categoria: fornecedorMapeado?.categoria,
               conciliado: true,
-            });
-          } else if (lanc.tipo === 'pagar') {
-            // Conta a pagar sem fornecedor - precisa de revisão
-            paraRevisar.push({
-              ...lanc,
-              needsReview: true,
             });
           } else {
-            // Recebimento - adicionar direto
-            novos.push({
-              ...lanc,
-              conciliado: true,
-            });
+            // 2. Segundo: tentar match automático por nome/alias
+            const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
+          
+            if (fornecedorMatch) {
+              novos.push({
+                ...lanc,
+                fornecedorId: fornecedorMatch.id,
+                categoria: fornecedorMatch.categoria,
+                conciliado: true,
+              });
+            } else if (lanc.tipo === 'pagar') {
+              // Conta a pagar sem fornecedor - precisa de revisão
+              paraRevisar.push({
+                ...lanc,
+                needsReview: true,
+              });
+            } else {
+              // Recebimento - adicionar direto
+              novos.push({
+                ...lanc,
+                conciliado: true,
+              });
+            }
           }
         }
       }
@@ -317,6 +335,22 @@ export function ConciliacaoSection({
       ignorados: 0,
       paraRevisar: [],
     });
+
+    // Salvar mapeamento para uso futuro
+    if (fornecedorId && onAddMapeamento) {
+      const padrao = extrairPadraoDescricao(lanc.descricao);
+      if (padrao.length >= 5) {
+        // Verificar se já existe mapeamento para esse padrão
+        const jaExiste = mapeamentos.some(m => m.padrao === padrao);
+        if (!jaExiste) {
+          onAddMapeamento({
+            padrao,
+            fornecedorId,
+            criadoEm: new Date().toISOString(),
+          });
+        }
+      }
+    }
 
     // Remover da lista de revisão
     setLancamentosParaRevisar(prev => prev.filter(l => l !== lanc));
@@ -503,43 +537,44 @@ function ReviewItem({
   }, [lancamento.dataVencimento]);
 
   return (
-    <div className="flex flex-col gap-2 p-2 bg-background rounded border">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium truncate">{lancamento.descricao}</p>
-          <p className="text-[10px] text-muted-foreground">
-            {dataFormatada} • {valorFormatado}
-          </p>
-        </div>
+    <div className="p-2 bg-background rounded border overflow-visible">
+      {/* Linha 1: Descrição + Valor */}
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <p className="text-xs font-medium leading-tight flex-1 min-w-0">{lancamento.descricao}</p>
+        <p className="text-xs font-medium shrink-0">{valorFormatado}</p>
       </div>
       
+      {/* Linha 2: Data + Fornecedor + Ações (tudo horizontal) */}
       <div className="flex items-center gap-2">
-        <div className="flex-1">
+        <span className="text-[10px] text-muted-foreground shrink-0">{dataFormatada}</span>
+        
+        <div className="flex-1 min-w-0 relative z-50">
           <FornecedorSelect
             fornecedores={fornecedores}
             value={selectedFornecedor}
             onChange={(id) => setSelectedFornecedor(id)}
-            placeholder="Selecionar fornecedor..."
+            placeholder="Fornecedor..."
             descricaoSugerida={lancamento.descricao}
             onCreateNew={onCreateFornecedor}
           />
         </div>
+        
         <Button
           size="sm"
           variant="outline"
-          className="h-8 gap-1"
+          className="h-7 px-2 gap-1 shrink-0"
           onClick={() => onAdd(lancamento, selectedFornecedor)}
         >
           <Plus className="h-3 w-3" />
-          Adicionar
+          <span className="hidden sm:inline">Add</span>
         </Button>
         <Button
           size="sm"
           variant="ghost"
-          className="h-8 text-xs text-muted-foreground"
+          className="h-7 px-2 text-xs text-muted-foreground shrink-0"
           onClick={() => onIgnore(lancamento)}
         >
-          Ignorar
+          ✕
         </Button>
       </div>
     </div>
