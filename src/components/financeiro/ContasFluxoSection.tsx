@@ -5,17 +5,18 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronUp, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2 } from 'lucide-react';
 import { ContaFluxo } from '@/types/focus-mode';
 import { format, parseISO, isAfter, addDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { ContaItem } from './ContaItem';
 
 interface ContasFluxoSectionProps {
   contas: ContaFluxo[];
   onAddConta: (conta: Omit<ContaFluxo, 'id'>) => void;
   onAddMultipleContas?: (contas: Omit<ContaFluxo, 'id'>[]) => void;
+  onUpdateConta?: (id: string, updates: Partial<ContaFluxo>) => void;
   onRemoveConta: (id: string) => void;
   onTogglePago: (id: string) => void;
   isOpen: boolean;
@@ -26,6 +27,7 @@ export function ContasFluxoSection({
   contas,
   onAddConta,
   onAddMultipleContas,
+  onUpdateConta,
   onRemoveConta,
   onTogglePago,
   isOpen,
@@ -312,30 +314,14 @@ export function ContasFluxoSection({
                 </p>
                 <div className="space-y-1">
                   {contasPagar.map((conta) => (
-                    <div
+                    <ContaItem
                       key={conta.id}
-                      className="flex items-center justify-between p-2 rounded border bg-destructive/5 text-sm"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground w-12">
-                          {format(parseISO(conta.dataVencimento), 'dd/MM', { locale: ptBR })}
-                        </span>
-                        <span className="truncate max-w-[120px]">{conta.descricao}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-destructive">
-                          {formatCurrency(conta.valor)}
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => onRemoveConta(conta.id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
+                      conta={conta}
+                      variant="pagar"
+                      onUpdate={onUpdateConta || (() => {})}
+                      onRemove={onRemoveConta}
+                      formatCurrency={formatCurrency}
+                    />
                   ))}
                 </div>
               </div>
@@ -345,35 +331,19 @@ export function ContasFluxoSection({
             {contasReceber.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                  <ArrowDownCircle className="h-3 w-3 text-green-600" />
+                  <ArrowDownCircle className="h-3 w-3 text-primary" />
                   A Receber (próx. 30d)
                 </p>
                 <div className="space-y-1">
                   {contasReceber.map((conta) => (
-                    <div
+                    <ContaItem
                       key={conta.id}
-                      className="flex items-center justify-between p-2 rounded border bg-green-500/5 text-sm"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground w-12">
-                          {format(parseISO(conta.dataVencimento), 'dd/MM', { locale: ptBR })}
-                        </span>
-                        <span className="truncate max-w-[120px]">{conta.descricao}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-green-600">
-                          {formatCurrency(conta.valor)}
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => onRemoveConta(conta.id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
+                      conta={conta}
+                      variant="receber"
+                      onUpdate={onUpdateConta || (() => {})}
+                      onRemove={onRemoveConta}
+                      formatCurrency={formatCurrency}
+                    />
                   ))}
                 </div>
               </div>

@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/modeStatusCalculator';
 import { FluxoCaixaChart } from '@/components/financeiro/FluxoCaixaChart';
 import { ContasFluxoSection } from '@/components/financeiro/ContasFluxoSection';
+import { ConciliacaoSection } from '@/components/financeiro/ConciliacaoSection';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 
@@ -64,6 +65,7 @@ export function FinanceiroMode({
     contas: true,
     defasados: false,
     fluxoContas: false,
+    conciliacao: false,
     diario: true,
     semanal: false,
     mensal: false,
@@ -161,6 +163,14 @@ export function FinanceiroMode({
   const handleRemoveConta = (id: string) => {
     onUpdateFinanceiroData({
       contasFluxo: (data.contasFluxo || []).filter(c => c.id !== id),
+    });
+  };
+  
+  const handleUpdateConta = (id: string, updates: Partial<ContaFluxo>) => {
+    onUpdateFinanceiroData({
+      contasFluxo: (data.contasFluxo || []).map(c => 
+        c.id === id ? { ...c, ...updates } : c
+      ),
     });
   };
   
@@ -825,10 +835,18 @@ export function FinanceiroMode({
         contas={data.contasFluxo || []}
         onAddConta={handleAddConta}
         onAddMultipleContas={handleAddMultipleContas}
+        onUpdateConta={handleUpdateConta}
         onRemoveConta={handleRemoveConta}
         onTogglePago={handleTogglePago}
         isOpen={openSections.fluxoContas}
         onToggle={() => toggleSection('fluxoContas')}
+      />
+      
+      {/* ========== CONCILIAÇÃO BANCÁRIA ========== */}
+      <ConciliacaoSection
+        onAddContas={handleAddMultipleContas}
+        isOpen={openSections.conciliacao || false}
+        onToggle={() => toggleSection('conciliacao')}
       />
 
       {/* ========== CHECKLIST DIÁRIO ========== */}
