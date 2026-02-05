@@ -140,6 +140,14 @@ export interface FinanceiroStage {
   
   // NOVO: Lista de fornecedores para DRE/classificação
   fornecedores?: Fornecedor[];
+  
+  // NOVO: Faturamento por Canal (B2B, Nuvem, Shopee, Assinaturas)
+  faturamentoCanais?: {
+    b2b: string;
+    ecomNuvem: string;
+    ecomShopee: string;
+    ecomAssinaturas: string;
+  };
 }
 
 // Interface de Exports do Financeiro (para outros modos)

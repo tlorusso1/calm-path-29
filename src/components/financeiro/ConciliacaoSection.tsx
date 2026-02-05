@@ -37,6 +37,7 @@ interface ConciliacaoSectionProps {
   contasExistentes: ContaFluxo[];
   fornecedores: Fornecedor[];
   onConciliar: (result: ConciliacaoResult) => void;
+  onCreateFornecedor?: (fornecedor: Omit<Fornecedor, 'id'>) => void;
   isOpen: boolean;
   onToggle: () => void;
 }
@@ -79,6 +80,7 @@ export function ConciliacaoSection({
   contasExistentes,
   fornecedores,
   onConciliar,
+  onCreateFornecedor,
   isOpen,
   onToggle,
 }: ConciliacaoSectionProps) {
@@ -329,6 +331,7 @@ export function ConciliacaoSection({
                       fornecedores={fornecedores}
                       onAdd={handleAddRevisado}
                       onIgnore={handleIgnorar}
+                      onCreateFornecedor={onCreateFornecedor}
                     />
                   ))}
                 </div>
@@ -347,11 +350,13 @@ function ReviewItem({
   fornecedores,
   onAdd,
   onIgnore,
+  onCreateFornecedor,
 }: {
   lancamento: ExtractedLancamento;
   fornecedores: Fornecedor[];
   onAdd: (lanc: ExtractedLancamento, fornecedorId?: string) => void;
   onIgnore: (lanc: ExtractedLancamento) => void;
+  onCreateFornecedor?: (fornecedor: Omit<Fornecedor, 'id'>) => void;
 }) {
   const [selectedFornecedor, setSelectedFornecedor] = useState<string | undefined>();
 
@@ -387,6 +392,7 @@ function ReviewItem({
             onChange={(id) => setSelectedFornecedor(id)}
             placeholder="Selecionar fornecedor..."
             descricaoSugerida={lancamento.descricao}
+            onCreateNew={onCreateFornecedor}
           />
         </div>
         <Button

@@ -3,10 +3,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Fornecedor } from '@/types/focus-mode';
-import { ChevronDown, X, Plus } from 'lucide-react';
+import { ChevronDown, X, Plus, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { buscarFornecedores } from '@/utils/loadFornecedores';
 import { extrairBeneficiarioFinal } from '@/utils/fornecedoresParser';
+import { CategoriaSelect, CategoriaValue } from './CategoriaSelect';
 
 interface FornecedorSelectProps {
   fornecedores: Fornecedor[];
@@ -14,7 +15,7 @@ interface FornecedorSelectProps {
   onChange: (fornecedorId: string | undefined) => void;
   placeholder?: string;
   descricaoSugerida?: string; // Para tentar match automático
-  onCreateNew?: (nome: string) => void;
+  onCreateNew?: (fornecedor: Omit<Fornecedor, 'id'>) => void;
   className?: string;
 }
 
@@ -29,6 +30,8 @@ export function FornecedorSelect({
 }: FornecedorSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newFornecedorCategoria, setNewFornecedorCategoria] = useState<CategoriaValue | undefined>();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -55,6 +58,7 @@ export function FornecedorSelect({
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
+        setShowCreateForm(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -65,11 +69,13 @@ export function FornecedorSelect({
     onChange(fornecedor.id);
     setSearch('');
     setOpen(false);
+    setShowCreateForm(false);
   };
 
   const handleClear = () => {
     onChange(undefined);
     setSearch('');
+    setShowCreateForm(false);
   };
 
   const handleInputFocus = () => {
@@ -78,6 +84,32 @@ export function FornecedorSelect({
     if (beneficiarioSugerido && !search && !value) {
       setSearch(beneficiarioSugerido);
     }
+  };
+
+  const handleStartCreate = () => {
+    setShowCreateForm(true);
+  };
+
+  const handleCancelCreate = () => {
+    setShowCreateForm(false);
+    setNewFornecedorCategoria(undefined);
+  };
+
+  const handleConfirmCreate = () => {
+    if (!newFornecedorCategoria || !search.trim()) return;
+    
+    const novoFornecedor: Omit<Fornecedor, 'id'> = {
+      nome: search.trim(),
+      modalidade: newFornecedorCategoria.modalidade,
+      grupo: newFornecedorCategoria.grupo,
+      categoria: newFornecedorCategoria.categoria,
+    };
+    
+    onCreateNew?.(novoFornecedor);
+    setSearch('');
+    setOpen(false);
+    setShowCreateForm(false);
+    setNewFornecedorCategoria(undefined);
   };
 
   return (
@@ -121,62 +153,97 @@ export function FornecedorSelect({
 
       {/* Dropdown */}
       {open && !selectedFornecedor && (
-        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
-          {/* Sugestão de beneficiário */}
-          {beneficiarioSugerido && !search && (
-            <div className="p-2 border-b bg-muted/50">
-              <p className="text-[10px] text-muted-foreground mb-1">Beneficiário extraído:</p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="w-full h-7 justify-start text-xs gap-1"
-                onClick={() => setSearch(beneficiarioSugerido)}
-              >
-                🔍 {beneficiarioSugerido}
-              </Button>
-            </div>
-          )}
-
-          {/* Lista de resultados */}
-          {fornecedoresFiltrados.length > 0 ? (
-            <div className="py-1">
-              {fornecedoresFiltrados.map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  className="w-full px-2 py-1.5 text-left hover:bg-accent flex items-center justify-between gap-2"
-                  onClick={() => handleSelect(f)}
-                >
-                  <span className="text-xs truncate">{f.nome}</span>
-                  <Badge variant="outline" className="text-[9px] h-4 px-1 shrink-0">
-                    {f.categoria}
-                  </Badge>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="p-3 text-center">
-              <p className="text-xs text-muted-foreground mb-2">
-                Nenhum fornecedor encontrado
-              </p>
-              {onCreateNew && search.length >= 3 && (
+        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-80 overflow-y-auto">
+          {/* Formulário de criação */}
+          {showCreateForm ? (
+            <div className="p-3 space-y-3">
+              <p className="text-xs font-medium">Novo fornecedor: "{search}"</p>
+              <CategoriaSelect
+                value={newFornecedorCategoria}
+                onChange={setNewFornecedorCategoria}
+                tipo="DESPESAS"
+              />
+              <div className="flex items-center gap-2">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  className="gap-1 h-7 text-xs"
-                  onClick={() => {
-                    onCreateNew(search);
-                    setOpen(false);
-                    setSearch('');
-                  }}
+                  className="h-7 text-xs"
+                  onClick={handleCancelCreate}
                 >
-                  <Plus className="h-3 w-3" />
-                  Criar "{search}"
+                  Cancelar
                 </Button>
-              )}
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 text-xs gap-1 flex-1"
+                  onClick={handleConfirmCreate}
+                  disabled={!newFornecedorCategoria}
+                >
+                  <Check className="h-3 w-3" />
+                  Salvar e Selecionar
+                </Button>
+              </div>
             </div>
+          ) : (
+            <>
+              {/* Sugestão de beneficiário */}
+              {beneficiarioSugerido && !search && (
+                <div className="p-2 border-b bg-muted/50">
+                  <p className="text-[10px] text-muted-foreground mb-1">Beneficiário extraído:</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full h-7 justify-start text-xs gap-1"
+                    onClick={() => setSearch(beneficiarioSugerido)}
+                  >
+                    🔍 {beneficiarioSugerido}
+                  </Button>
+                </div>
+              )}
+
+              {/* Lista de resultados */}
+              {fornecedoresFiltrados.length > 0 ? (
+                <div className="py-1">
+                  {fornecedoresFiltrados.map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      className="w-full px-2 py-1.5 text-left hover:bg-accent flex items-center justify-between gap-2"
+                      onClick={() => handleSelect(f)}
+                    >
+                      <span className="text-xs truncate">{f.nome}</span>
+                      <Badge variant="outline" className="text-[9px] h-4 px-1 shrink-0">
+                        {f.categoria}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3 text-center">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Nenhum fornecedor encontrado
+                  </p>
+                </div>
+              )}
+              
+              {/* Botão criar novo */}
+              {onCreateNew && search.length >= 2 && (
+                <div className="p-2 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-1 h-7 text-xs"
+                    onClick={handleStartCreate}
+                  >
+                    <Plus className="h-3 w-3" />
+                    Criar "{search}"
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

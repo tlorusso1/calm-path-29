@@ -13,6 +13,8 @@ import { FluxoCaixaChart } from '@/components/financeiro/FluxoCaixaChart';
 import { ContasFluxoSection } from '@/components/financeiro/ContasFluxoSection';
 import { ConciliacaoSection } from '@/components/financeiro/ConciliacaoSection';
 import { MetaVendasCard } from '@/components/financeiro/MetaVendasCard';
+import { DRESection } from '@/components/financeiro/DRESection';
+import { FaturamentoCanaisCard } from '@/components/financeiro/FaturamentoCanaisCard';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 import { format } from 'date-fns';
@@ -70,6 +72,7 @@ export function FinanceiroMode({
     defasados: false,
     fluxoContas: false,
     conciliacao: false,
+    dre: false,
     diario: true,
     semanal: false,
     mensal: false,
@@ -877,6 +880,12 @@ export function FinanceiroMode({
       {/* ========== META DE VENDAS SEMANAL ========== */}
       <MetaVendasCard contas={data.contasFluxo || []} />
       
+      {/* ========== FATURAMENTO POR CANAL ========== */}
+      <FaturamentoCanaisCard
+        faturamentoCanais={data.faturamentoCanais || { b2b: '', ecomNuvem: '', ecomShopee: '', ecomAssinaturas: '' }}
+        onUpdate={(canais) => onUpdateFinanceiroData({ faturamentoCanais: canais })}
+      />
+      
       {/* ========== CONTAS A PAGAR/RECEBER ========== */}
       <ContasFluxoSection
         contas={data.contasFluxo || []}
@@ -914,8 +923,26 @@ export function FinanceiroMode({
             contasFluxo: [...contasAtualizadas, ...novasContas],
           });
         }}
+        onCreateFornecedor={(novoFornecedor) => {
+          const fornecedorComId: Fornecedor = {
+            ...novoFornecedor,
+            id: crypto.randomUUID(),
+          };
+          onUpdateFinanceiroData({
+            fornecedores: [...(data.fornecedores || []), fornecedorComId],
+          });
+          toast.success(`Fornecedor "${novoFornecedor.nome}" criado!`);
+        }}
         isOpen={openSections.conciliacao || false}
         onToggle={() => toggleSection('conciliacao')}
+      />
+      
+      {/* ========== DRE - RESULTADO DO EXERCÍCIO ========== */}
+      <DRESection
+        lancamentos={data.contasFluxo || []}
+        fornecedores={data.fornecedores || []}
+        isOpen={openSections.dre || false}
+        onToggle={() => toggleSection('dre')}
       />
 
       {/* ========== CHECKLIST DIÁRIO ========== */}
