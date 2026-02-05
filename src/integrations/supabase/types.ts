@@ -110,6 +110,7 @@ export type Database = {
           decisao_ads: string | null
           gasto_ads: number | null
           id: string
+          modes_full_backup: Json | null
           pedidos_semana: number | null
           prioridade_semana: string | null
           registro_decisao: string | null
@@ -136,6 +137,7 @@ export type Database = {
           decisao_ads?: string | null
           gasto_ads?: number | null
           id?: string
+          modes_full_backup?: Json | null
           pedidos_semana?: number | null
           prioridade_semana?: string | null
           registro_decisao?: string | null
@@ -162,6 +164,7 @@ export type Database = {
           decisao_ads?: string | null
           gasto_ads?: number | null
           id?: string
+          modes_full_backup?: Json | null
           pedidos_semana?: number | null
           prioridade_semana?: string | null
           registro_decisao?: string | null

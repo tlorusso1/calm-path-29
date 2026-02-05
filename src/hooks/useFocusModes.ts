@@ -125,17 +125,76 @@ interface ProcessResult {
   prevWeekStart: string | null;
 }
 
+interface ProcessResult {
+  state: FocusModeState;
+  shouldSaveSnapshot: boolean;
+  prevWeekStart: string | null;
+  hadRealData: boolean; // Track if loaded state had meaningful data
+}
+
+// Check if modes contain real user data (not just defaults)
+function hasRealData(modes: FocusModeState['modes']): boolean {
+  const finData = modes.financeiro?.financeiroData;
+  const tasksData = modes.tasks?.backlogData;
+  const supplyData = modes.supplychain?.supplyChainData;
+  const marketingData = modes.marketing?.marketingData;
+  
+  // Check for any substantial data
+  const hasFinanceiroBasico = !!(
+    finData?.caixaAtual ||
+    finData?.faturamentoMes ||
+    finData?.contasFluxo?.length
+  );
+  
+  // Check custos fixos (object with categories)
+  const hasCustosFixos = !!(finData?.custosFixosDetalhados && (
+    finData.custosFixosDetalhados.pessoas?.length ||
+    finData.custosFixosDetalhados.software?.length ||
+    finData.custosFixosDetalhados.marketing?.length ||
+    finData.custosFixosDetalhados.servicos?.length ||
+    finData.custosFixosDetalhados.armazenagem?.length
+  ));
+  
+  // Check contas bancárias (contas, not contasBancarias)
+  const hasContas = !!(finData?.contas && (
+    finData.contas.itauNiceFoods?.saldo ||
+    finData.contas.itauNiceEcom?.saldo ||
+    finData.contas.asaas?.saldo ||
+    finData.contas.mercadoPagoEcom?.saldo
+  ));
+  
+  const hasFinanceiro = hasFinanceiroBasico || hasCustosFixos || hasContas;
+  
+  const hasTarefas = !!(
+    tasksData?.tarefas?.length ||
+    tasksData?.ideias?.length
+  );
+  
+  const hasSupply = !!(
+    supplyData?.itens?.length
+  );
+  
+  const hasMarketing = !!(
+    marketingData?.organico?.sessoesSemana ||
+    marketingData?.organico?.pedidosSemana
+  );
+  
+  return hasFinanceiro || hasTarefas || hasSupply || hasMarketing;
+}
+
 function processLoadedState(state: FocusModeState | null): ProcessResult {
   if (!state) {
     return {
       state: createDefaultState(),
       shouldSaveSnapshot: false,
       prevWeekStart: null,
+      hadRealData: false,
     };
   }
 
   const today = getTodayDate();
   const currentWeekStart = getWeekStart();
+  const hadRealData = hasRealData(state.modes);
   
   let needsUpdate = false;
   let shouldSaveSnapshot = false;
@@ -166,19 +225,39 @@ function processLoadedState(state: FocusModeState | null): ProcessResult {
             },
           };
         } else if (id === 'financeiro') {
-          // FINANCEIRO: Preservar dados estruturais, resetar apenas checklist diário
+          // FINANCEIRO: Preservar TODOS os dados estruturais, resetar apenas checklist diário
           const existingFinanceiro = state.modes.financeiro?.financeiroData;
-          updatedModes[id] = {
-            ...createDefaultMode(id),
-            financeiroData: {
-              ...existingFinanceiro,
-              checklistDiario: {
-                atualizouCaixa: false,
-                olhouResultado: false,
-                decidiu: false,
+          
+          // PROTEÇÃO CRÍTICA: Se tinha dados, preservar tudo
+          if (existingFinanceiro?.contasFluxo?.length || 
+              existingFinanceiro?.caixaAtual || 
+              existingFinanceiro?.contas) {
+            console.log('🔒 Preservando dados financeiros existentes no reset diário');
+            updatedModes[id] = {
+              ...updatedModes[id],
+              financeiroData: {
+                ...existingFinanceiro,
+                // Apenas reset do checklist diário
+                checklistDiario: {
+                  atualizouCaixa: false,
+                  olhouResultado: false,
+                  decidiu: false,
+                },
               },
-            },
-          };
+            };
+          } else {
+            updatedModes[id] = {
+              ...createDefaultMode(id),
+              financeiroData: {
+                ...existingFinanceiro,
+                checklistDiario: {
+                  atualizouCaixa: false,
+                  olhouResultado: false,
+                  decidiu: false,
+                },
+              },
+            };
+          }
         } else {
           updatedModes[id] = createDefaultMode(id);
         }
@@ -188,11 +267,14 @@ function processLoadedState(state: FocusModeState | null): ProcessResult {
   }
 
   // Reset weekly modes if new week - SAVE SNAPSHOT FIRST
+  // PROTEÇÃO: Verificar se realmente é uma nova semana E se tinha dados
   if (state.weekStart !== currentWeekStart) {
-    shouldSaveSnapshot = true; // Flag to save before reset
+    shouldSaveSnapshot = hadRealData; // Only save snapshot if we had real data
     
     (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
       if (MODE_CONFIGS[id].frequency === 'weekly') {
+        // PROTEÇÃO ADICIONAL: Log detalhado de reset semanal
+        console.log(`📅 Reset semanal do modo ${id} - semana ${state.weekStart} -> ${currentWeekStart}`);
         updatedModes[id] = createDefaultMode(id);
         needsUpdate = true;
       }
@@ -217,6 +299,7 @@ function processLoadedState(state: FocusModeState | null): ProcessResult {
       },
       shouldSaveSnapshot,
       prevWeekStart,
+      hadRealData,
     };
   }
   
@@ -227,17 +310,18 @@ function processLoadedState(state: FocusModeState | null): ProcessResult {
     },
     shouldSaveSnapshot: false,
     prevWeekStart: null,
+    hadRealData,
   };
 }
 
-// Helper function to save weekly snapshot
+// Helper function to save weekly snapshot with FULL BACKUP
 async function saveWeeklySnapshot(
   userId: string,
   weekStart: string,
   modes: FocusModeState['modes']
 ) {
   const finExports = calculateFinanceiroV2(modes.financeiro.financeiroData);
-  const preAds = modes['pre-reuniao-ads'].preReuniaoAdsData;
+  const preAds = (modes as any)['pre-reuniao-ads']?.preReuniaoAdsData;
   const preGeral = modes['pre-reuniao-geral'].preReuniaoGeralData;
   const marketing = modes.marketing.marketingData;
   const organico = calculateMarketingOrganico(marketing?.organico);
@@ -264,6 +348,8 @@ async function saveWeeklySnapshot(
     status_organico: organico.statusOrganico,
     prioridade_semana: preGeral?.decisaoSemana ?? null,
     registro_decisao: preGeral?.registroDecisao ?? null,
+    // NOVO: Backup completo de todos os modos para recuperação
+    modes_full_backup: JSON.parse(JSON.stringify(modes)),
   };
   
   const { error } = await supabase.from('weekly_snapshots').upsert([snapshot], {
@@ -273,7 +359,7 @@ async function saveWeeklySnapshot(
   if (error) {
     console.error('Error saving weekly snapshot:', error);
   } else {
-    console.log('Weekly snapshot saved for week:', weekStart);
+    console.log('📸 Weekly snapshot saved with FULL BACKUP for week:', weekStart);
   }
 }
 
@@ -283,6 +369,7 @@ export function useFocusModes() {
   const [isLoading, setIsLoading] = useState(true);
   const debounceRef = React.useRef<NodeJS.Timeout | null>(null);
   const initialLoadDone = React.useRef(false);
+  const wasLoadedWithData = React.useRef(false); // Track if we loaded with real data
 
   // Load from Supabase when user is available
   useEffect(() => {
@@ -331,6 +418,9 @@ export function useFocusModes() {
           
           const result = processLoadedState(loadedState);
           
+          // Track if we loaded with real data for save protection
+          wasLoadedWithData.current = result.hadRealData;
+          
           // Save snapshot before resetting weekly data
           if (result.shouldSaveSnapshot && result.prevWeekStart) {
             await saveWeeklySnapshot(user.id, result.prevWeekStart, loadedState.modes);
@@ -358,6 +448,21 @@ export function useFocusModes() {
   const saveToSupabase = useCallback(async () => {
     if (!user || !initialLoadDone.current) return;
     
+    // 🔒 PROTEÇÃO ANTI-PERDA: Verificar se estamos tentando salvar dados vazios
+    const currentHasData = hasRealData(state.modes);
+    
+    if (!currentHasData && wasLoadedWithData.current) {
+      console.warn('⚠️ BLOQUEADO: Tentativa de salvar dados vazios quando havia dados carregados!');
+      console.warn('Estado atual sem dados, mas wasLoadedWithData =', wasLoadedWithData.current);
+      // NÃO SALVAR - isso protege contra resets acidentais
+      return;
+    }
+    
+    // Se agora temos dados, atualizar o flag
+    if (currentHasData) {
+      wasLoadedWithData.current = true;
+    }
+    
     const payload = {
       user_id: user.id,
       date: state.date,
@@ -374,6 +479,8 @@ export function useFocusModes() {
 
     if (error) {
       console.error('Error saving focus modes:', error);
+    } else {
+      console.log('✅ Dados salvos com sucesso');
     }
   }, [user, state]);
 
@@ -398,6 +505,13 @@ export function useFocusModes() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (user && initialLoadDone.current) {
+        // 🔒 PROTEÇÃO: Não salvar dados vazios via beacon também
+        const currentHasData = hasRealData(state.modes);
+        if (!currentHasData && wasLoadedWithData.current) {
+          console.warn('⚠️ BEACON BLOQUEADO: Tentativa de salvar dados vazios');
+          return;
+        }
+        
         // Cancel pending debounce
         if (debounceRef.current) {
           clearTimeout(debounceRef.current);
@@ -424,6 +538,7 @@ export function useFocusModes() {
         
         const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
         navigator.sendBeacon(url, blob);
+        console.log('📤 Dados salvos via beacon no unload');
       }
     };
     
