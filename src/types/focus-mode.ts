@@ -75,7 +75,7 @@ export interface CustosFixosDetalhados {
 // ============= Contas a Pagar/Receber (Fluxo de Caixa) =============
 export interface ContaFluxo {
   id: string;
-  tipo: 'pagar' | 'receber';
+  tipo: 'pagar' | 'receber' | 'intercompany';  // Intercompany para transferências entre CNPJs
   descricao: string;
   valor: string;
   dataVencimento: string;  // ISO date (YYYY-MM-DD)
@@ -113,6 +113,10 @@ export interface FinanceiroStage {
     comprasEstoqueComprometidas: string;
     outrosCompromissos: string;
   };
+  
+  // NOVO: Impostos configuráveis
+  impostoPercentual?: number;  // default 0.16 (16%)
+  impostoOverrideMotivo?: string;
   
   // DEPRECATED: mantido para compatibilidade com dados existentes
   marketingBase?: string;

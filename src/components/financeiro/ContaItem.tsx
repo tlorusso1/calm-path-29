@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 
 interface ContaItemProps {
   conta: ContaFluxo;
-  variant: 'pagar' | 'receber';
+  variant: 'pagar' | 'receber' | 'intercompany';
   onUpdate: (id: string, updates: Partial<ContaFluxo>) => void;
   onRemove: (id: string) => void;
   onTogglePago?: (id: string) => void;
@@ -34,7 +34,10 @@ function getStatusConta(conta: ContaFluxo): StatusConta {
   return 'normal';
 }
 
-function getStatusStyles(status: StatusConta, variant: 'pagar' | 'receber') {
+function getStatusStyles(status: StatusConta, variant: 'pagar' | 'receber' | 'intercompany') {
+  // Intercompany tratado como neutro
+  const effectiveVariant = variant === 'intercompany' ? 'pagar' : variant;
+  
   switch (status) {
     case 'atrasada':
       return {
@@ -49,12 +52,12 @@ function getStatusStyles(status: StatusConta, variant: 'pagar' | 'receber') {
     case 'agendada':
       return {
         bg: 'bg-blue-50 dark:bg-blue-900/20 border-blue-300',
-        text: variant === 'pagar' ? 'text-destructive' : 'text-green-600',
+        text: effectiveVariant === 'pagar' ? 'text-destructive' : 'text-green-600',
       };
     default:
       return {
-        bg: variant === 'pagar' ? 'bg-destructive/5' : 'bg-green-500/5',
-        text: variant === 'pagar' ? 'text-destructive' : 'text-green-600',
+        bg: effectiveVariant === 'pagar' ? 'bg-destructive/5' : 'bg-green-500/5',
+        text: effectiveVariant === 'pagar' ? 'text-destructive' : 'text-green-600',
       };
   }
 }

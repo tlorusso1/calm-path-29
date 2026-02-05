@@ -64,8 +64,9 @@ export function calculateFinanceiroV2(data?: FinanceiroStage): FinanceiroExports
   const marketingEstrutural = parseCurrency(d.marketingEstrutural || d.marketingBase || '');
   const adsBase = parseCurrency(d.adsBase || '');
   
-  // Impostos automáticos: 16% do faturamento do mês
-  const impostosCalculados = faturamento * 0.16;
+  // Impostos configuráveis (default 16%)
+  const impostoPercent = d.impostoPercentual ?? 0.16;
+  const impostosCalculados = faturamento * impostoPercent;
   
   // Total defasados (impostos automáticos + outros inputs manuais)
   const defasados = d.custosDefasados;

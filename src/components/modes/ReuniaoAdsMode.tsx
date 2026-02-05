@@ -153,8 +153,30 @@ export function ReuniaoAdsMode({
     ? gastoAtual * 0.7
     : gastoAtual;
 
+  // Verificar se tela está bloqueada (prioridade não definida)
+  const telaBloqueada = !prioridadeSemana;
+  
   return (
     <div className="space-y-6">
+      {/* ========== ALERTA DE BLOQUEIO DE CONTEXTO ========== */}
+      {telaBloqueada && (
+        <Card className="bg-destructive/5 border-destructive/30">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+              <div>
+                <p className="font-medium text-destructive">Decisão da Semana não definida</p>
+                <p className="text-xs text-muted-foreground">
+                  Defina a prioridade na Pré-Reunião Geral para liberar esta tela.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* ========== CONTEÚDO PRINCIPAL (pode ficar opaco se bloqueado) ========== */}
+      <div className={cn(telaBloqueada && 'opacity-50 pointer-events-none')}>
       {/* ========== SCORE SEMANAL DO NEGÓCIO ========== */}
       {scoreNegocio && <ScoreNegocioCard score={scoreNegocio} compact financeiroExports={financeiroExports} />}
 
@@ -840,6 +862,7 @@ export function ReuniaoAdsMode({
           />
         </CardContent>
       </Card>
+      </div> {/* Fim do wrapper de bloqueio */}
     </div>
   );
 }

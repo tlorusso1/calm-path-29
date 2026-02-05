@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw } from 'lucide-react';
 import { ContaFluxo } from '@/types/focus-mode';
 import { format, parseISO, isAfter, isBefore, isToday, addDays, subDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,7 +37,7 @@ export function ContasFluxoSection({
   isOpen,
   onToggle,
 }: ContasFluxoSectionProps) {
-  const [tipo, setTipo] = useState<'pagar' | 'receber'>('pagar');
+  const [tipo, setTipo] = useState<'pagar' | 'receber' | 'intercompany'>('pagar');
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
   const [dataVencimento, setDataVencimento] = useState('');
@@ -311,13 +311,14 @@ export function ContasFluxoSection({
             {/* Form para adicionar */}
             <div className="grid grid-cols-12 gap-2 p-3 rounded-lg border bg-muted/30">
               <div className="col-span-3">
-                <Select value={tipo} onValueChange={(v) => setTipo(v as 'pagar' | 'receber')}>
+                <Select value={tipo} onValueChange={(v) => setTipo(v as 'pagar' | 'receber' | 'intercompany')}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pagar">A Pagar</SelectItem>
                     <SelectItem value="receber">A Receber</SelectItem>
+                    <SelectItem value="intercompany">🔁 Intercompany</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -526,12 +527,32 @@ export function ContasFluxoSection({
                                   {conta.descricao}
                                 </span>
                                 {getBadgeTipoBaixa(conta)}
+                                {conta.tipo === 'intercompany' && (
+                                  <Badge variant="outline" className="text-[10px] h-4 px-1 bg-purple-50 text-purple-700 border-purple-200">
+                                    <RefreshCw className="h-2 w-2 mr-0.5" />
+                                    inter
+                                  </Badge>
+                                )}
                               </div>
-                              <span className={`font-medium shrink-0 ml-2 ${
-                                conta.tipo === 'receber' ? 'text-green-600' : 'text-muted-foreground'
-                              }`}>
-                                {conta.tipo === 'receber' ? '+' : '-'} {formatCurrency(conta.valor)}
-                              </span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <span className={`font-medium ml-2 ${
+                                  conta.tipo === 'receber' ? 'text-green-600' : 
+                                  conta.tipo === 'intercompany' ? 'text-purple-600' : 
+                                  'text-muted-foreground'
+                                }`}>
+                                  {conta.tipo === 'receber' ? '+' : conta.tipo === 'intercompany' ? '↔' : '-'} {formatCurrency(conta.valor)}
+                                </span>
+                                {/* Botão de excluir do histórico */}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive ml-1"
+                                  onClick={() => onRemoveConta(conta.id)}
+                                  title="Excluir do histórico"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
                           ))}
                         </div>
