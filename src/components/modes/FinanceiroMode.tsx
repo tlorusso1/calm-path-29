@@ -25,7 +25,7 @@ import { GargaloIdentifier } from '@/components/GargaloIdentifier';
 import { RitmoContextualAlert } from '@/components/RitmoContextualAlert';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
-import { DEFAULT_CUSTOS_FIXOS, calcularTotalCustosFixos } from '@/data/custos-fixos-default';
+import { DEFAULT_CUSTOS_FIXOS, calcularTotalCustosFixos, DEFAULT_EMPRESTIMOS } from '@/data/custos-fixos-default';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { loadFornecedores } from '@/utils/loadFornecedores';
@@ -119,8 +119,16 @@ export function FinanceiroMode({
       ...DEFAULT_FINANCEIRO_DATA.checklistMensal,
       ...mode.financeiroData?.checklistMensal,
     },
-    // Custos Fixos Detalhados - usar defaults se não existir
-    custosFixosDetalhados: mode.financeiroData?.custosFixosDetalhados ?? DEFAULT_CUSTOS_FIXOS,
+    // Custos Fixos Detalhados - merge inteligente
+    custosFixosDetalhados: (() => {
+      const existing = mode.financeiroData?.custosFixosDetalhados;
+      if (!existing) return DEFAULT_CUSTOS_FIXOS;
+      // Se emprestimos está vazio ou undefined, usar defaults
+      return {
+        ...existing,
+        emprestimos: existing.emprestimos?.length ? existing.emprestimos : DEFAULT_EMPRESTIMOS,
+      };
+    })(),
     // Usar fornecedores do CSV se não tiver customizados
     fornecedores: mode.financeiroData?.fornecedores?.length 
       ? mode.financeiroData.fornecedores 
