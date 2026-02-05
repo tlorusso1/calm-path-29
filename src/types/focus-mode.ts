@@ -103,6 +103,9 @@ export interface CustosFixosDetalhados {
 export type ContaFluxoTipo = 'pagar' | 'receber' | 'intercompany' | 'aplicacao' | 'resgate';
 export type ContaFluxoSubtipo = 'cdb' | 'trust' | 'renda_fixa' | 'lci' | 'lca' | 'tesouro' | 'outro';
 
+// Natureza da saída: operacional (impacta meta) vs capitalGiro (não impacta meta)
+export type ContaFluxoNatureza = 'operacional' | 'capitalGiro';
+
 export interface ContaFluxo {
   id: string;
   tipo: ContaFluxoTipo;  
@@ -121,6 +124,8 @@ export interface ContaFluxo {
   fornecedorId?: string;    // Referência ao fornecedor
   categoria?: string;       // Categoria para DRE
   conciliado?: boolean;     // Flag: veio de conciliação bancária
+  // Natureza financeira - determina se impacta meta de faturamento
+  natureza?: ContaFluxoNatureza; // undefined = operacional (default)
 }
 
 // ============= Financeiro V2 =============
