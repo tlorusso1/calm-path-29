@@ -2,9 +2,9 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Target, TrendingUp, AlertTriangle, Calendar } from 'lucide-react';
-import { ContaFluxo, MARGEM_OPERACIONAL } from '@/types/focus-mode';
-import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
+import { Target, TrendingUp, AlertTriangle, Calendar, Package } from 'lucide-react';
+import { ContaFluxo, Fornecedor, MARGEM_OPERACIONAL } from '@/types/focus-mode';
+import { parseValorFlexivel, isCapitalGiro } from '@/utils/fluxoCaixaCalculator';
 import { parseISO, addDays, differenceInDays, getDaysInMonth } from 'date-fns';
 
 interface MetaMensalCardProps {
@@ -18,15 +18,21 @@ interface MetaMensalCardProps {
     ecomShopee: string;
     ecomAssinaturas: string;
   };
-  faturamentoMes?: string; // NOVO: Fallback para quando canais não preenchidos
+  faturamentoMes?: string;
+  fornecedores?: Fornecedor[]; // Para identificar Capital de Giro
 }
 
 interface MetaMensalData {
-  contasPagar30d: number;
+  // Contas separadas por natureza
+  contasOperacionais30d: number;  // Impactam meta
+  capitalGiro30d: number;         // NÃO impactam meta
+  // Custos fixos e marketing
   custoFixo: number;
   marketingEstrutural: number;
   adsBase: number;
-  totalSaidas: number;
+  // Totais
+  totalSaidasOperacionais: number;  // Para cálculo da meta
+  necessidadeCaixa30d: number;      // Para stress test (inclui tudo)
   faturamentoNecessario: number;
   faturadoAtual: number;
   progressoPercent: number;
@@ -42,6 +48,7 @@ export function MetaMensalCard({
   adsBase,
   faturamentoCanais,
   faturamentoMes,
+  fornecedores = [],
 }: MetaMensalCardProps) {
   const data = useMemo<MetaMensalData>(() => {
     const hoje = new Date();
@@ -49,27 +56,38 @@ export function MetaMensalCard({
     const hojeStr = hoje.toISOString().split('T')[0];
     const em30diasStr = em30dias.toISOString().split('T')[0];
     
-    // 1. Contas a pagar nos próximos 30 dias (não pagas ainda)
-    const contasPagar30d = contasFluxo
+    // 1. Separar contas a pagar: Operacionais vs Capital de Giro
+    const { contasOperacionais30d, capitalGiro30d } = contasFluxo
       .filter(c => {
         if (c.pago) return false;
         if (c.tipo !== 'pagar') return false;
         return c.dataVencimento >= hojeStr && c.dataVencimento <= em30diasStr;
       })
-      .reduce((sum, c) => sum + parseValorFlexivel(c.valor), 0);
+      .reduce((acc, c) => {
+        const valor = parseValorFlexivel(c.valor);
+        if (isCapitalGiro(c, fornecedores)) {
+          acc.capitalGiro30d += valor;
+        } else {
+          acc.contasOperacionais30d += valor;
+        }
+        return acc;
+      }, { contasOperacionais30d: 0, capitalGiro30d: 0 });
     
     // 2. Custos fixos mensais
     const custoFixo = parseValorFlexivel(custoFixoMensal);
     const mktEstrutural = parseValorFlexivel(marketingEstrutural);
     const ads = parseValorFlexivel(adsBase);
     
-    // 3. Total de saídas previstas
-    const totalSaidas = contasPagar30d + custoFixo + mktEstrutural + ads;
+    // 3. Total de saídas OPERACIONAIS (para cálculo da meta)
+    const totalSaidasOperacionais = contasOperacionais30d + custoFixo + mktEstrutural + ads;
     
-    // 4. Faturamento necessário (considerando margem 40%)
-    const faturamentoNecessario = totalSaidas / MARGEM_OPERACIONAL;
+    // 4. Necessidade de caixa total (inclui capital de giro - para stress test)
+    const necessidadeCaixa30d = totalSaidasOperacionais + capitalGiro30d;
     
-    // 5. Faturamento atual (soma dos canais OU fallback para faturamentoMes)
+    // 5. Faturamento necessário (usa APENAS saídas operacionais)
+    const faturamentoNecessario = totalSaidasOperacionais / MARGEM_OPERACIONAL;
+    
+    // 6. Faturamento atual (soma dos canais OU fallback para faturamentoMes)
     const faturadoCanais = faturamentoCanais
       ? parseValorFlexivel(faturamentoCanais.b2b) +
         parseValorFlexivel(faturamentoCanais.ecomNuvem) +
@@ -77,34 +95,35 @@ export function MetaMensalCard({
         parseValorFlexivel(faturamentoCanais.ecomAssinaturas)
       : 0;
     
-    // Usar canais se tiver valor, senão usar faturamentoMes como fallback
     const faturadoAtual = faturadoCanais > 0 ? faturadoCanais : parseValorFlexivel(faturamentoMes || '0');
     
-    // 6. Progresso
+    // 7. Progresso
     const progressoPercent = faturamentoNecessario > 0
       ? Math.min(100, (faturadoAtual / faturamentoNecessario) * 100)
       : 0;
     
-    // 7. Dias restantes no mês
+    // 8. Dias restantes no mês
     const diasNoMes = getDaysInMonth(hoje);
     const diaAtual = hoje.getDate();
     const diasRestantes = diasNoMes - diaAtual;
     
-    // 8. Meta diária restante
+    // 9. Meta diária restante
     const faltaFaturar = Math.max(0, faturamentoNecessario - faturadoAtual);
     const metaDiariaRestante = diasRestantes > 0 ? faltaFaturar / diasRestantes : faltaFaturar;
     
-    // 9. Pressão
+    // 10. Pressão (baseada no progresso da meta operacional)
     let pressao: 'baixa' | 'media' | 'alta' = 'baixa';
     if (progressoPercent < 50) pressao = 'alta';
     else if (progressoPercent < 80) pressao = 'media';
     
     return {
-      contasPagar30d,
+      contasOperacionais30d,
+      capitalGiro30d,
       custoFixo,
       marketingEstrutural: mktEstrutural,
       adsBase: ads,
-      totalSaidas,
+      totalSaidasOperacionais,
+      necessidadeCaixa30d,
       faturamentoNecessario,
       faturadoAtual,
       progressoPercent,
@@ -112,7 +131,7 @@ export function MetaMensalCard({
       metaDiariaRestante,
       pressao,
     };
-  }, [contasFluxo, custoFixoMensal, marketingEstrutural, adsBase, faturamentoCanais, faturamentoMes]);
+  }, [contasFluxo, custoFixoMensal, marketingEstrutural, adsBase, faturamentoCanais, faturamentoMes, fornecedores]);
 
   const formatCurrency = (value: number) =>
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -145,15 +164,15 @@ export function MetaMensalCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Saídas previstas */}
+        {/* Saídas Operacionais (impactam meta) */}
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Saídas Previstas (próx. 30d)
+            Saídas Operacionais (próx. 30d)
           </p>
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">├── Contas a pagar</span>
-              <span>{formatCurrency(data.contasPagar30d)}</span>
+              <span className="text-muted-foreground">├── Contas operacionais</span>
+              <span>{formatCurrency(data.contasOperacionais30d)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">├── Custo fixo</span>
@@ -168,11 +187,30 @@ export function MetaMensalCard({
               <span>{formatCurrency(data.adsBase)}</span>
             </div>
             <div className="flex justify-between pt-1 border-t font-medium">
-              <span>TOTAL SAÍDAS</span>
-              <span>{formatCurrency(data.totalSaidas)}</span>
+              <span>TOTAL OPERACIONAL</span>
+              <span>{formatCurrency(data.totalSaidasOperacionais)}</span>
             </div>
           </div>
         </div>
+
+        {/* Capital de Giro (não impacta meta) */}
+        {data.capitalGiro30d > 0 && (
+          <div className="space-y-2 p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-orange-600" />
+              <p className="text-xs font-medium text-orange-700 dark:text-orange-400 uppercase tracking-wide">
+                Capital de Giro (não impacta meta)
+              </p>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-orange-600 dark:text-orange-400">└── Estoque/Insumos</span>
+              <span className="font-medium text-orange-700 dark:text-orange-300">{formatCurrency(data.capitalGiro30d)}</span>
+            </div>
+            <p className="text-[10px] text-orange-600/70 dark:text-orange-400/70">
+              Compras de matéria-prima e embalagens não entram no cálculo da meta de faturamento
+            </p>
+          </div>
+        )}
 
         {/* Cálculo da meta */}
         <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
@@ -212,6 +250,19 @@ export function MetaMensalCard({
             <span className="text-sm font-medium">
               {formatCurrency(data.metaDiariaRestante)}/dia
             </span>
+          </div>
+        )}
+
+        {/* Necessidade total de caixa (inclui capital de giro) */}
+        {data.capitalGiro30d > 0 && (
+          <div className="pt-2 border-t">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">Necessidade de Caixa 30d</span>
+              <span className="font-medium">{formatCurrency(data.necessidadeCaixa30d)}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Inclui capital de giro para stress test de caixa
+            </p>
           </div>
         )}
       </CardContent>

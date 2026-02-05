@@ -508,6 +508,7 @@ export function FinanceiroMode({
           <div id="ritmo-contas-hoje" className="scroll-mt-20">
             <ContasFluxoSection
               contas={data.contasFluxo || []}
+              fornecedores={data.fornecedores || []}
               onAddConta={handleAddConta}
               onAddMultipleContas={handleAddMultipleContas}
               onUpdateConta={handleUpdateConta}
@@ -620,6 +621,7 @@ export function FinanceiroMode({
             adsBase={data.adsBase}
             faturamentoCanais={data.faturamentoCanais}
             faturamentoMes={data.faturamentoMes}
+            fornecedores={data.fornecedores || []}
           />
         </CardContent>
       </Card>
