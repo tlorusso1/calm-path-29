@@ -52,6 +52,26 @@ export interface Fornecedor {
   aliases?: string[];       // Nomes alternativos (para match)
 }
 
+// ============= Custos Fixos Detalhados =============
+export type CustoFixoTipo = 'fixo' | 'variavel' | 'cortavel';
+export type CustoFixoCategoriaId = 'pessoas' | 'software' | 'marketing' | 'servicos' | 'armazenagem';
+
+export interface CustoFixoItem {
+  id: string;
+  nome: string;
+  valor: number;
+  tipo: CustoFixoTipo;
+  notas?: string;
+}
+
+export interface CustosFixosDetalhados {
+  pessoas: CustoFixoItem[];
+  software: CustoFixoItem[];
+  marketing: CustoFixoItem[];  // Marketing ESTRUTURAL (não Ads)
+  servicos: CustoFixoItem[];
+  armazenagem: CustoFixoItem[];
+}
+
 // ============= Contas a Pagar/Receber (Fluxo de Caixa) =============
 export interface ContaFluxo {
   id: string;
@@ -137,6 +157,9 @@ export interface FinanceiroStage {
   
   // NOVO: Contas a Pagar/Receber para fluxo de caixa preciso
   contasFluxo?: ContaFluxo[];
+  
+  // NOVO: Custos Fixos Detalhados (breakdown por categoria)
+  custosFixosDetalhados?: CustosFixosDetalhados;
   
   // NOVO: Lista de fornecedores para DRE/classificação
   fornecedores?: Fornecedor[];
