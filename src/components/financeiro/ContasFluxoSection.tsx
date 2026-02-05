@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw, Building2, List } from 'lucide-react';
-import { ContaFluxo } from '@/types/focus-mode';
+import { ContaFluxo, Fornecedor } from '@/types/focus-mode';
 import { format, parseISO, isAfter, isBefore, isToday, addDays, subDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
@@ -16,6 +16,7 @@ import { ContaItem } from './ContaItem';
 
 interface ContasFluxoSectionProps {
   contas: ContaFluxo[];
+  fornecedores?: Fornecedor[]; // Para identificar Capital de Giro
   onAddConta: (conta: Omit<ContaFluxo, 'id'>) => void;
   onAddMultipleContas?: (contas: Omit<ContaFluxo, 'id'>[]) => void;
   onUpdateConta?: (id: string, updates: Partial<ContaFluxo>) => void;
@@ -28,6 +29,7 @@ interface ContasFluxoSectionProps {
 
 export function ContasFluxoSection({
   contas,
+  fornecedores = [],
   onAddConta,
   onAddMultipleContas,
   onUpdateConta,
@@ -429,6 +431,7 @@ export function ContasFluxoSection({
                       key={conta.id}
                       conta={conta}
                       variant={conta.tipo}
+                      fornecedores={fornecedores}
                       onUpdate={onUpdateConta || (() => {})}
                       onRemove={onRemoveConta}
                       onTogglePago={onTogglePago}
@@ -453,6 +456,7 @@ export function ContasFluxoSection({
                       key={conta.id}
                       conta={conta}
                       variant={conta.tipo}
+                      fornecedores={fornecedores}
                       onUpdate={onUpdateConta || (() => {})}
                       onRemove={onRemoveConta}
                       onTogglePago={onTogglePago}
@@ -477,6 +481,7 @@ export function ContasFluxoSection({
                       key={conta.id}
                       conta={conta}
                       variant="pagar"
+                      fornecedores={fornecedores}
                       onUpdate={onUpdateConta || (() => {})}
                       onRemove={onRemoveConta}
                       onTogglePago={onTogglePago}
@@ -501,6 +506,7 @@ export function ContasFluxoSection({
                       key={conta.id}
                       conta={conta}
                       variant="receber"
+                      fornecedores={fornecedores}
                       onUpdate={onUpdateConta || (() => {})}
                       onRemove={onRemoveConta}
                       onTogglePago={onTogglePago}

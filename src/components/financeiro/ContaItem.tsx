@@ -4,15 +4,17 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Check, X, Pencil, Calendar, CalendarCheck, CheckCircle } from 'lucide-react';
-import { ContaFluxo, ContaFluxoTipo } from '@/types/focus-mode';
+import { Trash2, Check, X, Pencil, Calendar, CalendarCheck, CheckCircle, Package } from 'lucide-react';
+import { ContaFluxo, ContaFluxoTipo, Fornecedor } from '@/types/focus-mode';
 import { format, parseISO, isBefore, isToday, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { isCapitalGiro } from '@/utils/fluxoCaixaCalculator';
 
 interface ContaItemProps {
   conta: ContaFluxo;
   variant: ContaFluxoTipo;
+  fornecedores?: Fornecedor[]; // Para verificar se é Capital de Giro
   onUpdate: (id: string, updates: Partial<ContaFluxo>) => void;
   onRemove: (id: string) => void;
   onTogglePago?: (id: string) => void;
@@ -80,6 +82,7 @@ function getStatusStyles(status: StatusConta, variant: ContaFluxoTipo) {
 export function ContaItem({ 
   conta, 
   variant, 
+  fornecedores = [],
   onUpdate, 
   onRemove, 
   onTogglePago,
@@ -95,6 +98,7 @@ export function ContaItem({
 
   const status = getStatusConta(conta);
   const styles = getStatusStyles(status, variant);
+  const ehCapitalGiro = isCapitalGiro(conta, fornecedores);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -246,6 +250,19 @@ export function ContaItem({
             <Badge variant="secondary" className="text-[10px] bg-yellow-100 text-yellow-700 shrink-0">
               vence hoje
             </Badge>
+          )}
+          {ehCapitalGiro && !conta.pago && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="outline" className="text-[10px] bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700 shrink-0 gap-1">
+                  <Package className="h-2.5 w-2.5" />
+                  Estoque
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs max-w-[200px]">
+                Capital de Giro — não impacta meta de faturamento
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
         

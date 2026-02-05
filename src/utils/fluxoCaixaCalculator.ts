@@ -1,6 +1,23 @@
-import { FinanceiroStage, ContaFluxo, MARGEM_OPERACIONAL } from '@/types/focus-mode';
+import { FinanceiroStage, ContaFluxo, Fornecedor, MARGEM_OPERACIONAL, MODALIDADES_CAPITAL_GIRO } from '@/types/focus-mode';
 import { addDays, parseISO, isAfter, isBefore, format, startOfDay } from 'date-fns';
 import type { WeeklySnapshot } from '@/types/focus-mode';
+
+/**
+ * Verifica se uma conta é Capital de Giro (não impacta meta de faturamento)
+ * Usa a modalidade do fornecedor atrelado para determinar
+ */
+export function isCapitalGiro(
+  conta: ContaFluxo,
+  fornecedores: Fornecedor[]
+): boolean {
+  // Se não tem fornecedor atrelado, considera despesa operacional
+  if (!conta.fornecedorId) return false;
+  
+  const fornecedor = fornecedores.find(f => f.id === conta.fornecedorId);
+  if (!fornecedor) return false;
+  
+  return MODALIDADES_CAPITAL_GIRO.includes(fornecedor.modalidade);
+}
 
 export interface FluxoCaixaDataPoint {
   semana: string;

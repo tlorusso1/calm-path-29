@@ -1,6 +1,12 @@
 // ============= Constantes Globais =============
 export const MARGEM_OPERACIONAL = 0.40; // 40% - premissa fixa do negócio
 
+// Modalidades que representam Capital de Giro (não impactam meta de faturamento)
+// Contas atreladas a fornecedores dessas modalidades não entram no cálculo da meta
+export const MODALIDADES_CAPITAL_GIRO = [
+  'CUSTOS DE PRODUTO VENDIDO', // Compra matéria-prima, embalagens, estoque
+];
+
 // ============= Tipos Base =============
 export type FocusModeId = 
   | 'financeiro'
