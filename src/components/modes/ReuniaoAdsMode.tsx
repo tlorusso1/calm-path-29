@@ -1,4 +1,4 @@
-import { FocusMode, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, DEFAULT_REUNIAO_ADS_DATA, ScoreNegocio, MARGEM_OPERACIONAL } from '@/types/focus-mode';
+import { FocusMode, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, DEFAULT_REUNIAO_ADS_DATA, ScoreNegocio, MARGEM_OPERACIONAL, WeeklySnapshot } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,10 +9,11 @@ import { Slider } from '@/components/ui/slider';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { BarChart3, Plus, Trash2, Target, Zap, Lock, TrendingUp, Leaf, AlertTriangle } from 'lucide-react';
+import { BarChart3, Plus, Trash2, Target, Zap, Lock, TrendingUp, Leaf, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
 import { formatCurrency, parseCurrency, getRoasStatus, getCpaStatus, getLeituraCombinada } from '@/utils/modeStatusCalculator';
 import { ScoreNegocioCard } from '@/components/ScoreNegocioCard';
+import { LoopAprendizado } from '@/components/financeiro/LoopAprendizado';
 
 interface ReuniaoAdsModeProps {
   mode: FocusMode;
@@ -20,6 +21,7 @@ interface ReuniaoAdsModeProps {
   prioridadeSemana: string | null;
   marketingExports: MarketingExports;
   scoreNegocio?: ScoreNegocio;
+  historicoSemanas?: WeeklySnapshot[];
   onUpdateReuniaoAdsData: (data: Partial<ReuniaoAdsStage>) => void;
   onAddAcao: (acao: Omit<ReuniaoAdsAcao, 'id'>) => ReuniaoAdsAcao;
   onRemoveAcao: (id: string) => void;
@@ -54,6 +56,7 @@ export function ReuniaoAdsMode({
   prioridadeSemana,
   marketingExports,
   scoreNegocio,
+  historicoSemanas = [],
   onUpdateReuniaoAdsData,
   onAddAcao,
   onRemoveAcao,
@@ -95,20 +98,35 @@ export function ReuniaoAdsMode({
     'organico'
   );
 
-  // Verificar se escalar está bloqueado
+  // Verificar se escalar está bloqueado (REGRAS DE GOVERNANÇA RÍGIDAS)
   const organicoFraco = marketingExports.statusOrganico === 'fraco';
   const financeiroAtencao = financeiroExports.statusFinanceiro === 'atencao';
   const financeiroSobrevivencia = financeiroExports.statusFinanceiro === 'sobrevivencia';
   
+  // REGRA 1: Preservar Caixa = BLOQUEIO TOTAL de aumento
+  const bloqueioPreservarCaixa = prioridadeSemana === 'preservar_caixa';
+  
+  // REGRA 2: Repor Estoque = Ads limitado ao Ads Base (sem incremental)
+  const limitadoReporEstoque = prioridadeSemana === 'repor_estoque';
+  
+  // REGRA 3: Escalar bloqueado se sobrevivência ou (orgânico fraco + atenção)
   const escalarBloqueado = 
-    prioridadeSemana === 'preservar_caixa' ||
+    bloqueioPreservarCaixa ||
+    limitadoReporEstoque ||
     financeiroSobrevivencia ||
     (organicoFraco && financeiroAtencao);
   
+  // Calcular Ads máximo efetivo baseado nas regras
+  const adsMaximoEfetivo = limitadoReporEstoque 
+    ? financeiroExports.adsBase 
+    : financeiroExports.adsMaximoPermitido;
+  
   const motivoBloqueio = financeiroSobrevivencia 
     ? 'Bloqueado: financeiro em sobrevivência'
-    : prioridadeSemana === 'preservar_caixa'
-    ? 'Bloqueado: prioridade é preservar caixa'
+    : bloqueioPreservarCaixa
+    ? '🔴 BLOQUEIO: Prioridade "Preservar Caixa" ativa'
+    : limitadoReporEstoque
+    ? '🟡 LIMITADO: Ads apenas no base (prioridade é Repor Estoque)'
     : (organicoFraco && financeiroAtencao)
     ? 'Bloqueado: orgânico fraco + financeiro em atenção'
     : null;
@@ -177,6 +195,48 @@ export function ReuniaoAdsMode({
       
       {/* ========== CONTEÚDO PRINCIPAL (pode ficar opaco se bloqueado) ========== */}
       <div className={cn(telaBloqueada && 'opacity-50 pointer-events-none')}>
+      
+      {/* ========== LOOP DE APRENDIZADO ========== */}
+      {historicoSemanas.length > 0 && (
+        <LoopAprendizado 
+          historicoSemanas={historicoSemanas}
+          roasAtual={parseFloat(data.roasMedio7d) || undefined}
+          caixaAtual={financeiroExports.caixaLivreReal}
+        />
+      )}
+      
+      {/* ========== ALERTA DE GOVERNANÇA ATIVA ========== */}
+      {(bloqueioPreservarCaixa || limitadoReporEstoque) && (
+        <Card className={cn(
+          'border-2',
+          bloqueioPreservarCaixa ? 'bg-destructive/5 border-destructive/30' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300'
+        )}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <ShieldAlert className={cn(
+                'h-5 w-5 shrink-0',
+                bloqueioPreservarCaixa ? 'text-destructive' : 'text-yellow-600'
+              )} />
+              <div>
+                <p className={cn(
+                  'font-medium',
+                  bloqueioPreservarCaixa ? 'text-destructive' : 'text-yellow-700 dark:text-yellow-400'
+                )}>
+                  {bloqueioPreservarCaixa 
+                    ? '🔴 Governança: PRESERVAR CAIXA ativa'
+                    : '🟡 Governança: REPOR ESTOQUE ativa'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {bloqueioPreservarCaixa 
+                    ? 'Qualquer aumento de Ads está BLOQUEADO esta semana.'
+                    : 'Ads limitado ao BASE. Incrementos bloqueados para preservar caixa para compras.'}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
       {/* ========== SCORE SEMANAL DO NEGÓCIO ========== */}
       {scoreNegocio && <ScoreNegocioCard score={scoreNegocio} compact financeiroExports={financeiroExports} />}
 
@@ -196,14 +256,23 @@ export function ReuniaoAdsMode({
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Incremento permitido</span>
-              <span className={financeiroExports.adsIncremental > 0 ? "text-green-600" : "text-muted-foreground"}>
+              <span className={cn(
+                limitadoReporEstoque ? "text-muted-foreground line-through" :
+                financeiroExports.adsIncremental > 0 ? "text-green-600" : "text-muted-foreground"
+              )}>
                 +{formatCurrency(financeiroExports.adsIncremental)}
+                {limitadoReporEstoque && <span className="ml-1 text-yellow-600 no-underline">(bloqueado)</span>}
               </span>
             </div>
             <Separator />
             <div className="flex justify-between text-sm font-bold">
               <span>Ads máximo esta semana</span>
-              <span className="text-primary">{formatCurrency(financeiroExports.adsMaximoPermitido)}</span>
+              <span className={cn(
+                limitadoReporEstoque ? 'text-yellow-600' : 'text-primary'
+              )}>
+                {formatCurrency(adsMaximoEfetivo)}
+                {limitadoReporEstoque && <span className="text-xs font-normal ml-1">(limitado)</span>}
+              </span>
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Teto absoluto (10% fat. esperado)</span>
@@ -211,10 +280,10 @@ export function ReuniaoAdsMode({
             </div>
           </div>
           
-          {financeiroExports.motivoBloqueioAds && (
+          {(financeiroExports.motivoBloqueioAds || motivoBloqueio) && (
             <div className="p-2 bg-destructive/10 rounded text-xs text-destructive flex items-center gap-2">
               <AlertTriangle className="h-3 w-3" />
-              {financeiroExports.motivoBloqueioAds}
+              {motivoBloqueio || financeiroExports.motivoBloqueioAds}
             </div>
           )}
           
