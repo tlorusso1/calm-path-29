@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock } from 'lucide-react';
 import { ContaFluxo } from '@/types/focus-mode';
-import { format, parseISO, isAfter, addDays } from 'date-fns';
+import { format, parseISO, isAfter, isBefore, isToday, addDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ContaItem } from './ContaItem';
@@ -19,6 +19,7 @@ interface ContasFluxoSectionProps {
   onUpdateConta?: (id: string, updates: Partial<ContaFluxo>) => void;
   onRemoveConta: (id: string) => void;
   onTogglePago: (id: string) => void;
+  onToggleAgendado?: (id: string) => void;
   isOpen: boolean;
   onToggle: () => void;
 }
@@ -30,6 +31,7 @@ export function ContasFluxoSection({
   onUpdateConta,
   onRemoveConta,
   onTogglePago,
+  onToggleAgendado,
   isOpen,
   onToggle,
 }: ContasFluxoSectionProps) {
@@ -42,24 +44,33 @@ export function ContasFluxoSection({
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
   const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
   const limite30d = addDays(hoje, 30);
 
-  // Filtrar contas dos próximos 30 dias e não pagas
-  const contasPagar = contas
-    .filter(c => c.tipo === 'pagar' && !c.pago)
+  // Separar contas por status
+  const contasAtrasadas = contas
+    .filter(c => !c.pago && isBefore(parseISO(c.dataVencimento), hoje) && !isToday(parseISO(c.dataVencimento)))
+    .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento));
+
+  const contasHoje = contas
+    .filter(c => !c.pago && isToday(parseISO(c.dataVencimento)))
+    .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento));
+
+  // Contas futuras (próximos 30 dias, não pagas)
+  const contasFuturas = contas
+    .filter(c => !c.pago)
     .filter(c => {
       const data = parseISO(c.dataVencimento);
-      return isAfter(data, hoje) || format(data, 'yyyy-MM-dd') === format(hoje, 'yyyy-MM-dd');
+      return isAfter(data, hoje) && !isToday(data);
     })
     .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento));
 
-  const contasReceber = contas
-    .filter(c => c.tipo === 'receber' && !c.pago)
-    .filter(c => {
-      const data = parseISO(c.dataVencimento);
-      return isAfter(data, hoje) || format(data, 'yyyy-MM-dd') === format(hoje, 'yyyy-MM-dd');
-    })
-    .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento));
+  const contasPagarAtrasadas = contasAtrasadas.filter(c => c.tipo === 'pagar');
+  const contasReceberAtrasadas = contasAtrasadas.filter(c => c.tipo === 'receber');
+  const contasPagarHoje = contasHoje.filter(c => c.tipo === 'pagar');
+  const contasReceberHoje = contasHoje.filter(c => c.tipo === 'receber');
+  const contasPagar = contasFuturas.filter(c => c.tipo === 'pagar');
+  const contasReceber = contasFuturas.filter(c => c.tipo === 'receber');
 
   // File to base64
   const fileToBase64 = (file: File): Promise<string> => {
@@ -305,7 +316,55 @@ export function ContasFluxoSection({
               </div>
             </div>
 
-            {/* Lista A Pagar */}
+            {/* ⚠️ Atrasadas */}
+            {(contasPagarAtrasadas.length > 0 || contasReceberAtrasadas.length > 0) && (
+              <div className="space-y-2 p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+                <p className="text-xs font-semibold text-destructive flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Atrasadas ({contasPagarAtrasadas.length + contasReceberAtrasadas.length})
+                </p>
+                <div className="space-y-1">
+                  {[...contasPagarAtrasadas, ...contasReceberAtrasadas].map((conta) => (
+                    <ContaItem
+                      key={conta.id}
+                      conta={conta}
+                      variant={conta.tipo}
+                      onUpdate={onUpdateConta || (() => {})}
+                      onRemove={onRemoveConta}
+                      onTogglePago={onTogglePago}
+                      onToggleAgendado={onToggleAgendado}
+                      formatCurrency={formatCurrency}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 📅 Vence Hoje */}
+            {(contasPagarHoje.length > 0 || contasReceberHoje.length > 0) && (
+              <div className="space-y-2 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-300 dark:border-yellow-700">
+                <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Vence Hoje ({contasPagarHoje.length + contasReceberHoje.length})
+                </p>
+                <div className="space-y-1">
+                  {[...contasPagarHoje, ...contasReceberHoje].map((conta) => (
+                    <ContaItem
+                      key={conta.id}
+                      conta={conta}
+                      variant={conta.tipo}
+                      onUpdate={onUpdateConta || (() => {})}
+                      onRemove={onRemoveConta}
+                      onTogglePago={onTogglePago}
+                      onToggleAgendado={onToggleAgendado}
+                      formatCurrency={formatCurrency}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Lista A Pagar - Futuras */}
             {contasPagar.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
@@ -320,6 +379,8 @@ export function ContasFluxoSection({
                       variant="pagar"
                       onUpdate={onUpdateConta || (() => {})}
                       onRemove={onRemoveConta}
+                      onTogglePago={onTogglePago}
+                      onToggleAgendado={onToggleAgendado}
                       formatCurrency={formatCurrency}
                     />
                   ))}
@@ -327,7 +388,7 @@ export function ContasFluxoSection({
               </div>
             )}
 
-            {/* Lista A Receber */}
+            {/* Lista A Receber - Futuras */}
             {contasReceber.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
@@ -342,6 +403,8 @@ export function ContasFluxoSection({
                       variant="receber"
                       onUpdate={onUpdateConta || (() => {})}
                       onRemove={onRemoveConta}
+                      onTogglePago={onTogglePago}
+                      onToggleAgendado={onToggleAgendado}
                       formatCurrency={formatCurrency}
                     />
                   ))}
@@ -349,9 +412,9 @@ export function ContasFluxoSection({
               </div>
             )}
 
-            {contas.length === 0 && (
+            {contas.filter(c => !c.pago).length === 0 && (
               <p className="text-xs text-muted-foreground text-center py-4">
-                Nenhuma conta lançada. O gráfico usa projeção baseada em médias.
+                Nenhuma conta pendente. O gráfico usa projeção baseada em médias.
               </p>
             )}
           </CardContent>
