@@ -20,6 +20,7 @@ import { FaturamentoCanaisCard } from '@/components/financeiro/FaturamentoCanais
 import { CustosFixosCard } from '@/components/financeiro/CustosFixosCard';
 import { ExecutiveResume } from '@/components/financeiro/ExecutiveResume';
 import { MargemRealCard } from '@/components/financeiro/MargemRealCard';
+import { FaturamentoInconsistenciaAlert } from '@/components/financeiro/FaturamentoInconsistenciaAlert';
 import { GargaloIdentifier } from '@/components/GargaloIdentifier';
 import { RitmoContextualAlert } from '@/components/RitmoContextualAlert';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
@@ -263,6 +264,12 @@ export function FinanceiroMode({
       
       {/* ========== EXECUTIVE RESUME (NOVO) ========== */}
       <ExecutiveResume exports={exports} />
+      
+      {/* ========== ALERTA DE INCONSISTÊNCIA DE FATURAMENTO ========== */}
+      <FaturamentoInconsistenciaAlert 
+        faturamentoEsperado30d={data.faturamentoEsperado30d}
+        faturamentoCanais={data.faturamentoCanais}
+      />
       
       {/* ========== GARGALO DA SEMANA (LEITURA AUTOMÁTICA) ========== */}
       <GargaloIdentifier financeiroExports={exports} compact />

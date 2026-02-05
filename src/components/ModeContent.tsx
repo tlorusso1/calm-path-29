@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, ScoreNegocio, ItemEstoque, UserRitmoExpectativa, RitmoTimestamps } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, ScoreNegocio, ItemEstoque, UserRitmoExpectativa, RitmoTimestamps, WeeklySnapshot } from '@/types/focus-mode';
 import { Button } from '@/components/ui/button';
 import { FinanceiroMode } from '@/components/modes/FinanceiroMode';
 import { MarketingMode } from '@/components/modes/MarketingMode';
@@ -7,6 +7,7 @@ import { PreReuniaoGeralMode } from '@/components/modes/PreReuniaoGeralMode';
 import { PreReuniaoVerterMode } from '@/components/modes/PreReuniaoVerterMode';
 import { ReuniaoAdsMode } from '@/components/modes/ReuniaoAdsMode';
 import { TasksMode } from '@/components/modes/TasksMode';
+import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 
 export interface ModeContentProps {
   mode: FocusMode;
@@ -92,6 +93,9 @@ export function ModeContent({
   onRemoveBacklogIdeia,
   onSetBacklogTarefaEmFoco,
 }: ModeContentProps) {
+  // Fetch weekly history for Reunião Ads
+  const { history: historicoSemanas } = useWeeklyHistory(8);
+  
   const renderModeContent = () => {
     switch (mode.id) {
       case 'financeiro':
@@ -138,6 +142,7 @@ export function ModeContent({
             prioridadeSemana={prioridadeSemana ?? null}
             marketingExports={marketingExports!}
             scoreNegocio={scoreNegocio}
+            historicoSemanas={historicoSemanas}
             onUpdateReuniaoAdsData={onUpdateReuniaoAdsData!}
             onAddAcao={onAddReuniaoAdsAcao!}
             onRemoveAcao={onRemoveReuniaoAdsAcao!}
