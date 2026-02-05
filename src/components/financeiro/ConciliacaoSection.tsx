@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronDown, ChevronUp, FileSpreadsheet, Loader2, CheckCircle2, Link2, AlertCircle, Plus, Calendar } from 'lucide-react';
-import { ContaFluxo, Fornecedor, MapeamentoDescricaoFornecedor, extrairPadraoDescricao, encontrarMapeamento } from '@/types/focus-mode';
+import { ContaFluxo, ContaFluxoTipo, ContaFluxoSubtipo, Fornecedor, MapeamentoDescricaoFornecedor, extrairPadraoDescricao, encontrarMapeamento } from '@/types/focus-mode';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
@@ -21,7 +21,8 @@ interface ExtractedLancamento {
   descricao: string;
   valor: string;
   dataVencimento: string;
-  tipo: 'pagar' | 'receber';
+  tipo: ContaFluxoTipo;
+  subtipo?: ContaFluxoSubtipo;
   pago?: boolean;
   // Match info
   matchedContaId?: string;
@@ -147,11 +148,12 @@ export function ConciliacaoSection({
 
       return (data?.contas || []).map((c: any) => ({
         tipo: c.tipo || 'pagar',
+        subtipo: c.subtipo,
         descricao: c.descricao || '',
         valor: c.valor || '',
         dataVencimento: c.dataVencimento || '',
         pago: true,
-      }));
+      } as ExtractedLancamento));
     } catch (err) {
       clearTimeout(timeoutId);
       throw err;
@@ -246,7 +248,12 @@ export function ConciliacaoSection({
           if (fornecedorIdMapeado) {
             const fornecedorMapeado = fornecedores.find(f => f.id === fornecedorIdMapeado);
             novos.push({
-              ...lanc,
+              tipo: lanc.tipo,
+              subtipo: lanc.subtipo,
+              descricao: lanc.descricao,
+              valor: lanc.valor,
+              dataVencimento: lanc.dataVencimento,
+              pago: true,
               fornecedorId: fornecedorIdMapeado,
               categoria: fornecedorMapeado?.categoria,
               conciliado: true,
@@ -257,7 +264,12 @@ export function ConciliacaoSection({
           
             if (fornecedorMatch) {
               novos.push({
-                ...lanc,
+                tipo: lanc.tipo,
+                subtipo: lanc.subtipo,
+                descricao: lanc.descricao,
+                valor: lanc.valor,
+                dataVencimento: lanc.dataVencimento,
+                pago: true,
                 fornecedorId: fornecedorMatch.id,
                 categoria: fornecedorMatch.categoria,
                 conciliado: true,
@@ -269,9 +281,14 @@ export function ConciliacaoSection({
                 needsReview: true,
               });
             } else {
-              // Recebimento - adicionar direto
+              // Recebimento, aplicação, resgate, intercompany - adicionar direto
               novos.push({
-                ...lanc,
+                tipo: lanc.tipo,
+                subtipo: lanc.subtipo,
+                descricao: lanc.descricao,
+                valor: lanc.valor,
+                dataVencimento: lanc.dataVencimento,
+                pago: true,
                 conciliado: true,
               });
             }
@@ -317,13 +334,15 @@ export function ConciliacaoSection({
   };
 
   // Handler para adicionar lançamento revisado
-  const handleAddRevisado = (lanc: ExtractedLancamento, fornecedorId?: string) => {
+  const handleAddRevisado = (lanc: ExtractedLancamento, fornecedorId?: string, tipoOverride?: ContaFluxoTipo) => {
     const fornecedor = fornecedores.find(f => f.id === fornecedorId);
+    const tipoFinal = tipoOverride || lanc.tipo;
     
     onConciliar({
       conciliados: [],
       novos: [{
-        tipo: lanc.tipo,
+        tipo: tipoFinal,
+        subtipo: lanc.subtipo,
         descricao: lanc.descricao,
         valor: lanc.valor,
         dataVencimento: lanc.dataVencimento,
@@ -517,11 +536,12 @@ function ReviewItem({
 }: {
   lancamento: ExtractedLancamento;
   fornecedores: Fornecedor[];
-  onAdd: (lanc: ExtractedLancamento, fornecedorId?: string) => void;
+  onAdd: (lanc: ExtractedLancamento, fornecedorId?: string, tipoOverride?: ContaFluxoTipo) => void;
   onIgnore: (lanc: ExtractedLancamento) => void;
   onCreateFornecedor?: (fornecedor: Omit<Fornecedor, 'id'>) => void;
 }) {
   const [selectedFornecedor, setSelectedFornecedor] = useState<string | undefined>();
+  const [selectedTipo, setSelectedTipo] = useState<ContaFluxoTipo>(lancamento.tipo);
 
   const valorFormatado = useMemo(() => {
     const num = parseValorFlexivel(lancamento.valor);
@@ -536,6 +556,14 @@ function ReviewItem({
     }
   }, [lancamento.dataVencimento]);
 
+  const tipoLabels: Record<ContaFluxoTipo, { label: string; emoji: string }> = {
+    pagar: { label: 'A Pagar', emoji: '🔴' },
+    receber: { label: 'A Receber', emoji: '🟢' },
+    intercompany: { label: 'Intercompany', emoji: '🔁' },
+    aplicacao: { label: 'Aplicação', emoji: '📈' },
+    resgate: { label: 'Resgate', emoji: '💰' },
+  };
+
   return (
     <div className="p-2 bg-background rounded border overflow-visible">
       {/* Linha 1: Descrição + Valor */}
@@ -544,26 +572,43 @@ function ReviewItem({
         <p className="text-xs font-medium shrink-0">{valorFormatado}</p>
       </div>
       
-      {/* Linha 2: Data + Fornecedor + Ações (tudo horizontal) */}
-      <div className="flex items-center gap-2">
+      {/* Linha 2: Data + Tipo + Fornecedor + Ações */}
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-[10px] text-muted-foreground shrink-0">{dataFormatada}</span>
         
-        <div className="flex-1 min-w-0 relative z-50">
-          <FornecedorSelect
-            fornecedores={fornecedores}
-            value={selectedFornecedor}
-            onChange={(id) => setSelectedFornecedor(id)}
-            placeholder="Fornecedor..."
-            descricaoSugerida={lancamento.descricao}
-            onCreateNew={onCreateFornecedor}
-          />
-        </div>
+        {/* Seletor de Tipo */}
+        <Select value={selectedTipo} onValueChange={(v) => setSelectedTipo(v as ContaFluxoTipo)}>
+          <SelectTrigger className="h-7 w-[110px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(tipoLabels).map(([tipo, { label, emoji }]) => (
+              <SelectItem key={tipo} value={tipo} className="text-xs">
+                {emoji} {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
+        {/* Seletor de Fornecedor (apenas para tipo pagar) */}
+        {selectedTipo === 'pagar' && (
+          <div className="flex-1 min-w-0 relative z-50">
+            <FornecedorSelect
+              fornecedores={fornecedores}
+              value={selectedFornecedor}
+              onChange={(id) => setSelectedFornecedor(id)}
+              placeholder="Fornecedor..."
+              descricaoSugerida={lancamento.descricao}
+              onCreateNew={onCreateFornecedor}
+            />
+          </div>
+        )}
         
         <Button
           size="sm"
           variant="outline"
           className="h-7 px-2 gap-1 shrink-0"
-          onClick={() => onAdd(lancamento, selectedFornecedor)}
+          onClick={() => onAdd(lancamento, selectedFornecedor, selectedTipo)}
         >
           <Plus className="h-3 w-3" />
           <span className="hidden sm:inline">Add</span>

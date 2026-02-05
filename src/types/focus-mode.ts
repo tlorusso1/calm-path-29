@@ -94,9 +94,18 @@ export interface CustosFixosDetalhados {
 }
 
 // ============= Contas a Pagar/Receber (Fluxo de Caixa) =============
+export type ContaFluxoTipo = 'pagar' | 'receber' | 'intercompany' | 'aplicacao' | 'resgate';
+export type ContaFluxoSubtipo = 'cdb' | 'trust' | 'renda_fixa' | 'lci' | 'lca' | 'tesouro' | 'outro';
+
 export interface ContaFluxo {
   id: string;
-  tipo: 'pagar' | 'receber' | 'intercompany';  // Intercompany para transferências entre CNPJs
+  tipo: ContaFluxoTipo;  
+  // pagar: despesa normal
+  // receber: receita normal
+  // intercompany: transferências entre CNPJs (afeta caixa, não DRE)
+  // aplicacao: aplicação financeira (saída de caixa, não é despesa)
+  // resgate: resgate de aplicação (entrada de caixa, não é receita operacional)
+  subtipo?: ContaFluxoSubtipo;
   descricao: string;
   valor: string;
   dataVencimento: string;  // ISO date (YYYY-MM-DD)

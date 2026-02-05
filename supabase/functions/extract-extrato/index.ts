@@ -14,8 +14,8 @@ Regras de extração:
 1. Cada linha do extrato é um lançamento separado
 2. Extraia: descrição (resumida), valor, data e tipo
 3. Valor:
-   - Negativo (com "-" ou "débito"): tipo = "pagar", valor como número positivo
-   - Positivo (sem "-" ou "crédito"): tipo = "receber"
+   - Negativo (com "-" ou "débito"): tipo baseado na classificação abaixo
+   - Positivo (sem "-" ou "crédito"): tipo baseado na classificação abaixo
    - Formato: número puro (ex: "1234.56" para R$ 1.234,56)
 4. Descrição: Simplifique para identificar o pagamento (ex: "PIX ENVIADO FULANO" -> "PIX Fulano")
 5. Data: 
@@ -23,8 +23,16 @@ Regras de extração:
    - Se não houver data clara, use a data de hoje
    - Formato ISO: YYYY-MM-DD
    - IMPORTANTE: Valide datas (fev max 28/29, meses 30/31 dias). Use último dia válido se inválido.
-6. Ignore: rendimentos automáticos (REND PAGO), aplicações (CDB, TRUST), transferências entre contas próprias (SAME PERSON)
-7. IMPORTANTE: Marque pago=true pois são lançamentos já realizados
+
+6. CLASSIFICAÇÃO DE TIPO (IMPORTANTE):
+   - "aplicacao": APLICACAO CDB, APLICACAO TRUST, APLICACAO IDSELICEMP INT, LCI, LCA, TESOURO (saídas que são investimentos)
+   - "resgate": RESGATE CDB, RESGATE TRUST (entradas de resgate de investimento)
+   - "intercompany": TED ou PIX entre empresas do mesmo grupo (ex: TED NICE, PIX NICE FOODS)
+   - "pagar": débitos/saídas normais (boletos, fornecedores, despesas)
+   - "receber": créditos/entradas normais (vendas, recebimentos)
+
+7. Ignore completamente: REND PAGO, rendimentos automáticos
+8. IMPORTANTE: Marque pago=true pois são lançamentos já realizados
 
 Use a função extract_lancamento para CADA lançamento encontrado.`;
 
@@ -51,8 +59,13 @@ const tools = [
           },
           tipo: {
             type: "string",
-            enum: ["pagar", "receber"],
-            description: "pagar para débitos/saídas, receber para créditos/entradas"
+            enum: ["pagar", "receber", "intercompany", "aplicacao", "resgate"],
+            description: "pagar=débitos normais, receber=créditos normais, intercompany=transferências entre empresas do grupo, aplicacao=investimentos CDB/TRUST/etc, resgate=resgates de investimentos"
+          },
+          subtipo: {
+            type: "string",
+            enum: ["cdb", "trust", "renda_fixa", "lci", "lca", "tesouro", "outro"],
+            description: "Subtipo para aplicações/resgates (opcional)"
           },
           categoria: {
             type: "string",
@@ -124,8 +137,39 @@ async function processarChunk(texto: string, mesAno: string, apiKey: string): Pr
     .map((tc: any) => {
       try {
         const parsed = JSON.parse(tc.function.arguments);
+        
+        // Classificação de fallback caso a IA não tenha detectado corretamente
+        let tipo = parsed.tipo;
+        let subtipo = parsed.subtipo;
+        const desc = (parsed.descricao || '').toUpperCase();
+        
+        // Detectar aplicações
+        if (/APLICACAO|APLIC\.|CDB DI|TRUST DI|IDSELICEMP/i.test(desc)) {
+          tipo = 'aplicacao';
+          if (/CDB/i.test(desc)) subtipo = 'cdb';
+          else if (/TRUST/i.test(desc)) subtipo = 'trust';
+          else if (/LCI/i.test(desc)) subtipo = 'lci';
+          else if (/LCA/i.test(desc)) subtipo = 'lca';
+          else if (/TESOURO/i.test(desc)) subtipo = 'tesouro';
+          else subtipo = 'outro';
+        }
+        
+        // Detectar resgates
+        if (/RESGATE|RESG\./i.test(desc)) {
+          tipo = 'resgate';
+          if (/CDB/i.test(desc)) subtipo = 'cdb';
+          else if (/TRUST/i.test(desc)) subtipo = 'trust';
+        }
+        
+        // Detectar intercompany
+        if (/TED.*NICE|PIX.*NICE|TRANSF.*NICE/i.test(desc)) {
+          tipo = 'intercompany';
+        }
+        
         return {
           ...parsed,
+          tipo,
+          subtipo,
           dataVencimento: validarData(parsed.dataVencimento),
           pago: true,
         };
