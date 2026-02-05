@@ -12,6 +12,7 @@ import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/mo
 import { FluxoCaixaChart } from '@/components/financeiro/FluxoCaixaChart';
 import { ContasFluxoSection } from '@/components/financeiro/ContasFluxoSection';
 import { ConciliacaoSection } from '@/components/financeiro/ConciliacaoSection';
+import { MetaVendasCard } from '@/components/financeiro/MetaVendasCard';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 import { format } from 'date-fns';
@@ -872,6 +873,9 @@ export function FinanceiroMode({
         semanasHistorico={fluxoCaixa.semanasHistorico}
         onAddConta={() => toggleSection('fluxoContas')}
       />
+      
+      {/* ========== META DE VENDAS SEMANAL ========== */}
+      <MetaVendasCard contas={data.contasFluxo || []} />
       
       {/* ========== CONTAS A PAGAR/RECEBER ========== */}
       <ContasFluxoSection

@@ -1,14 +1,16 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar } from 'lucide-react';
 import { ContaFluxo } from '@/types/focus-mode';
-import { format, parseISO, isAfter, isBefore, isToday, addDays } from 'date-fns';
+import { format, parseISO, isAfter, isBefore, isToday, addDays, subDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
 import { toast } from 'sonner';
 import { ContaItem } from './ContaItem';
 
@@ -41,11 +43,56 @@ export function ContasFluxoSection({
   const [dataVencimento, setDataVencimento] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isHistoricoOpen, setIsHistoricoOpen] = useState(false);
+  const [historicoLimit, setHistoricoLimit] = useState(30);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   const limite30d = addDays(hoje, 30);
+  
+  // ========== HISTÓRICO: Contas pagas dos últimos 60 dias ==========
+  const { contasPagas, totalSaidas, totalEntradas, saldoPeriodo } = useMemo(() => {
+    const limite60dAtras = subDays(hoje, 60);
+    
+    const pagas = contas
+      .filter(c => c.pago)
+      .filter(c => {
+        const data = parseISO(c.dataVencimento);
+        return isAfter(data, limite60dAtras);
+      })
+      .sort((a, b) => b.dataVencimento.localeCompare(a.dataVencimento)); // Mais recentes primeiro
+    
+    const saidas = pagas
+      .filter(c => c.tipo === 'pagar')
+      .reduce((acc, c) => acc + parseValorFlexivel(c.valor), 0);
+    
+    const entradas = pagas
+      .filter(c => c.tipo === 'receber')
+      .reduce((acc, c) => acc + parseValorFlexivel(c.valor), 0);
+    
+    return {
+      contasPagas: pagas,
+      totalSaidas: saidas,
+      totalEntradas: entradas,
+      saldoPeriodo: entradas - saidas,
+    };
+  }, [contas, hoje]);
+  
+  const formatCurrencyValue = (value: number): string => {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+  
+  // Badge para tipo de baixa
+  const getBadgeTipoBaixa = (conta: ContaFluxo) => {
+    if (conta.conciliado) {
+      return <Badge variant="outline" className="text-[10px] h-4 px-1 bg-blue-50 text-blue-700 border-blue-200">conc</Badge>;
+    }
+    if (conta.agendado) {
+      return <Badge variant="outline" className="text-[10px] h-4 px-1 bg-purple-50 text-purple-700 border-purple-200">agend</Badge>;
+    }
+    return <Badge variant="outline" className="text-[10px] h-4 px-1 bg-muted">manual</Badge>;
+  };
 
   // Separar contas por status
   const contasAtrasadas = contas
@@ -412,10 +459,99 @@ export function ContasFluxoSection({
               </div>
             )}
 
-            {contas.filter(c => !c.pago).length === 0 && (
+            {contas.filter(c => !c.pago).length === 0 && contasPagas.length === 0 && (
               <p className="text-xs text-muted-foreground text-center py-4">
                 Nenhuma conta pendente. O gráfico usa projeção baseada em médias.
               </p>
+            )}
+            
+            {/* ========== HISTÓRICO (últimos 60 dias) ========== */}
+            {contasPagas.length > 0 && (
+              <Collapsible open={isHistoricoOpen} onOpenChange={setIsHistoricoOpen}>
+                <div className="border-t pt-3 mt-3">
+                  <CollapsibleTrigger asChild>
+                    <button className="flex items-center justify-between w-full text-left hover:bg-muted/50 rounded-lg p-2 -mx-2 transition-colors">
+                      <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                        <History className="h-3.5 w-3.5" />
+                        Histórico (últimos 60d)
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-xs">
+                          {contasPagas.length} item(ns)
+                        </Badge>
+                        {isHistoricoOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      </div>
+                    </button>
+                  </CollapsibleTrigger>
+                  
+                  <CollapsibleContent>
+                    <div className="mt-3 space-y-3">
+                      {/* Resumo do período */}
+                      <div className="p-3 rounded-lg bg-muted/50 border">
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase">Saídas</p>
+                            <p className="text-sm font-semibold text-destructive">
+                              {formatCurrencyValue(totalSaidas)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase">Entradas</p>
+                            <p className="text-sm font-semibold text-green-600">
+                              {formatCurrencyValue(totalEntradas)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase">Saldo</p>
+                            <p className={`text-sm font-semibold ${saldoPeriodo >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                              {saldoPeriodo >= 0 ? '+' : ''}{formatCurrencyValue(saldoPeriodo)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Lista de itens pagos */}
+                      <ScrollArea className={contasPagas.length > 5 ? 'h-[200px]' : ''}>
+                        <div className="space-y-1.5">
+                          {contasPagas.slice(0, historicoLimit).map((conta) => (
+                            <div 
+                              key={conta.id}
+                              className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border text-xs"
+                            >
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className="text-muted-foreground font-mono shrink-0">
+                                  {format(parseISO(conta.dataVencimento), 'dd/MM')}
+                                </span>
+                                <span className="truncate" title={conta.descricao}>
+                                  {conta.descricao}
+                                </span>
+                                {getBadgeTipoBaixa(conta)}
+                              </div>
+                              <span className={`font-medium shrink-0 ml-2 ${
+                                conta.tipo === 'receber' ? 'text-green-600' : 'text-muted-foreground'
+                              }`}>
+                                {conta.tipo === 'receber' ? '+' : '-'} {formatCurrency(conta.valor)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                      
+                      {/* Botão "Carregar mais" */}
+                      {contasPagas.length > historicoLimit && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-xs"
+                          onClick={() => setHistoricoLimit(prev => prev + 30)}
+                        >
+                          Mostrar mais ({contasPagas.length - historicoLimit} restantes)
+                        </Button>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
             )}
           </CardContent>
         </CollapsibleContent>
