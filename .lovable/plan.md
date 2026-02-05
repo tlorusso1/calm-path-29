@@ -1,148 +1,123 @@
 
+# Plano: Correções de UX e Clarificação
 
-# Plano de Recuperação e Prevenção de Perda de Dados
+## Problemas Identificados
 
-## Diagnóstico Confirmado
+### 1. "Faturamento/mês" - Confuso
+**Arquivo:** `src/components/modes/FinanceiroMode.tsx` (linha 281)
 
-Os dados foram perdidos devido a um **reset não intencional** durante um deploy/reload. O sistema:
-1. Carregou dados completos do Supabase
-2. Processou os dados e algo disparou a lógica de reset (linha 154-188 em useFocusModes.ts)
-3. Salvou os dados vazios de volta, sobrescrevendo os dados bons
+**Problema:** O label "Faturamento/mês" não deixa claro se é:
+- Faturamento do mês anterior (referência contábil)
+- Faturamento acumulado do mês atual
 
-## Dados Recuperáveis (Parcial)
-
-Dos **weekly_snapshots** da semana de 26/01, temos:
-- Caixa Livre Real: R$ 80.200
-- Status Financeiro: Estratégia
-- Score Financeiro: 90
-- Total Defasados: R$ 119.800
-- Prioridade: Repor Estoque
-- Sessões Semana: 5.000
-
-**Os dados detalhados (contas a pagar, custos fixos, tarefas) foram perdidos permanentemente.**
+**Solução:** Alterar para label mais claro com tooltip explicativo:
+- Label: "Faturamento mês atual (acumulado)"
+- Adicionar sublabel: "Total faturado até hoje no mês corrente"
 
 ---
 
-## Plano de Implementação: Proteções Anti-Perda
+### 2. Marketing Estrutural Duplicado
+**Arquivo:** `src/components/modes/FinanceiroMode.tsx` (linha 308-319)
 
-### Fase 1: Backup Automático (CRÍTICO)
+**Problema:** O campo "Marketing estrutural" aparece na seção "Dados Base" (topo), mas provavelmente também está incluído dentro dos Custos Fixos Detalhados na categoria "marketing".
 
-**Arquivo:** `src/hooks/useFocusModes.ts`
+**Análise:**
+- Em `CustosFixosCard.tsx` existe categoria "marketing" nos custos fixos detalhados
+- O campo separado no topo gera confusão e possível duplicação
 
-Adicionar backup antes de qualquer save que tenha dados vazios:
+**Solução:**
+1. Remover o campo "Marketing estrutural" da seção "Dados Base"
+2. Puxar o valor automaticamente da categoria `custosFixosDetalhados.marketing`
+3. Exibir como "leitura" (readonly) calculada do breakdown de custos
 
+Alteração em `modeStatusCalculator.ts`:
 ```typescript
-// Antes de salvar, verificar se estamos sobrescrevendo dados bons com dados vazios
-const saveToSupabase = useCallback(async () => {
-  if (!user || !initialLoadDone.current) return;
-  
-  // PROTEÇÃO: Verificar se estamos tentando salvar dados vazios
-  const temDadosFinanceiro = state.modes.financeiro.financeiroData?.caixaAtual ||
-                              state.modes.financeiro.financeiroData?.faturamentoMes;
-  const temTarefas = state.modes.tasks.backlogData?.tarefas?.length > 0;
-  
-  // Se NÃO temos dados mas JÁ CARREGAMOS antes, é suspeito
-  if (!temDadosFinanceiro && !temTarefas && wasLoadedWithData.current) {
-    console.warn('⚠️ Tentativa de salvar dados vazios bloqueada');
-    return; // NÃO SALVAR
+// Buscar marketing estrutural do breakdown de custos fixos
+const marketingEstrutural = d.custosFixosDetalhados?.marketing
+  ? d.custosFixosDetalhados.marketing.reduce((s, i) => s + i.valor, 0)
+  : parseCurrency(d.marketingEstrutural || d.marketingBase || '');
+```
+
+---
+
+### 3. Erro na Conciliação Bancária
+**Análise dos Network Requests:**
+- Request 1: `POST extract-extrato` → "Error: Load failed"
+- Request 2: Retry também falhou
+
+**Causa provável:** O texto do extrato estava muito grande (muitas linhas) e pode ter causado timeout ou truncamento.
+
+**Soluções:**
+1. Aumentar timeout no cliente (adicionar AbortController com timeout maior)
+2. Mostrar mensagem de erro mais amigável ao usuário
+3. Sugerir dividir o extrato em partes menores se falhar
+
+**Arquivo:** `src/components/financeiro/ConciliacaoSection.tsx`
+```typescript
+// Adicionar tratamento de erro mais robusto
+if (error) {
+  if (error.message?.includes('Load failed')) {
+    toast.error('Falha na conexão. Tente novamente ou cole menos linhas.');
+  } else {
+    toast.error('Erro ao processar extrato. Tente novamente.');
   }
-  
-  // ... resto do save
-}, [user, state]);
-```
-
-### Fase 2: Snapshot Completo (Não apenas Métricas)
-
-**Arquivo:** `src/hooks/useFocusModes.ts`
-
-Ao detectar mudança de semana, salvar o JSON completo dos modos:
-
-```typescript
-// Em saveWeeklySnapshot, adicionar campo 'modes_full_backup'
-const snapshot = {
-  // ... campos existentes
-  modes_full_backup: JSON.stringify(modes), // NOVO: Backup completo
-};
-```
-
-**Migração SQL Necessária:**
-```sql
-ALTER TABLE weekly_snapshots 
-ADD COLUMN modes_full_backup jsonb;
-```
-
-### Fase 3: Trava de Segurança no Reset
-
-**Arquivo:** `src/hooks/useFocusModes.ts`
-
-Adicionar confirmação antes de resetar dados com conteúdo:
-
-```typescript
-function processLoadedState(state: FocusModeState | null): ProcessResult {
-  // ... código existente
-  
-  // NOVA TRAVA: Se financeiro tem dados, NÃO RESETAR
-  if (id === 'financeiro' && state.modes.financeiro?.financeiroData?.contasFluxo?.length > 0) {
-    console.log('Preservando financeiro com', state.modes.financeiro.financeiroData.contasFluxo.length, 'contas');
-    updatedModes[id] = {
-      ...state.modes.financeiro,
-      status: calculateModeStatus(state.modes.financeiro),
-    };
-    continue; // Pular reset
-  }
-}
-```
-
-### Fase 4: Rollback com Optimistic Updates
-
-Implementar o padrão de rollback com snapshot conforme documentação:
-
-```typescript
-onMutate: async (updatedState) => {
-  // Snapshot antes de mudar
-  const previousState = queryClient.getQueryData(['focus-modes']);
-  return { previousState };
-},
-onError: (err, variables, context) => {
-  // Rollback se falhar
-  if (context?.previousState) {
-    setState(context.previousState);
-  }
-  toast.error('Erro ao salvar. Dados restaurados.');
+  return;
 }
 ```
 
 ---
 
-## Ordem de Implementação
+### 4. "Ads Máx/semana" deveria ser "Ads Máx/mês"
+**Arquivo:** `src/components/financeiro/ExecutiveResume.tsx` (linha 136)
 
-| # | Item | Impacto | Arquivos |
-|---|------|---------|----------|
-| 1 | Trava anti-save vazio | CRÍTICO | useFocusModes.ts |
-| 2 | Migração: modes_full_backup | ALTO | SQL + useFocusModes.ts |
-| 3 | Trava de reset com dados | ALTO | useFocusModes.ts |
-| 4 | Rollback com optimistic | MÉDIO | useFocusModes.ts |
+**Problema:** O label diz "Ads Máx/semana" mas o cálculo é baseado em 10% do faturamento mensal, não semanal.
+
+**Análise do cálculo em `modeStatusCalculator.ts` (linha 122):**
+```typescript
+const tetoAdsAbsoluto = faturamentoEsperado * 0.10;
+```
+O `faturamentoEsperado` é de 30 dias, então o teto é **mensal**, não semanal.
+
+**Solução:** Corrigir o label para "Ads Máx/mês"
+
+Linha 136:
+```typescript
+<p className="text-xs text-muted-foreground uppercase tracking-wide">Ads Máx/mês</p>
+```
 
 ---
 
-## O Que Você Precisa Refazer
+## Arquivos a Modificar
 
-Infelizmente, os seguintes dados precisam ser repreenchidos manualmente:
+| Arquivo | Mudança |
+|---------|---------|
+| `src/components/modes/FinanceiroMode.tsx` | Clarificar label "Faturamento/mês", remover campo duplicado Marketing Estrutural |
+| `src/utils/modeStatusCalculator.ts` | Puxar Marketing Estrutural do breakdown de custos fixos |
+| `src/components/financeiro/ExecutiveResume.tsx` | Corrigir label para "Ads Máx/mês" |
+| `src/components/financeiro/ConciliacaoSection.tsx` | Melhorar tratamento de erro de rede |
 
-1. **Financeiro:**
-   - Saldos das contas bancárias
-   - Contas a pagar/receber cadastradas
-   - Faturamento do mês e esperado
-   - Custos fixos detalhados
+---
 
-2. **Tasks:**
-   - Todas as tarefas e ideias
+## Resumo Visual
 
-3. **Marketing:**
-   - Métricas de orgânico (emails, sessões, pedidos)
+**Antes:**
+```
+Dados Base
+├── Faturamento/mês          <- Confuso
+├── Marketing estrutural     <- DUPLICADO com custos fixos
+└── ...
 
-4. **Supply Chain:**
-   - Itens de estoque
+Executive Resume
+└── Ads Máx/semana          <- ERRADO (é mensal)
+```
 
-Posso começar implementando as proteções imediatamente para evitar que isso aconteça novamente?
+**Depois:**
+```
+Dados Base
+├── Faturamento mês atual (acumulado)    <- CLARO
+├── [REMOVIDO - puxar de Custos Fixos]
+└── ...
 
+Executive Resume
+└── Ads Máx/mês             <- CORRETO
+```
