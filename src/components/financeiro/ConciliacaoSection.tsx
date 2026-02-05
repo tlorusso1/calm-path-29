@@ -118,6 +118,13 @@ export function ConciliacaoSection({
       return;
     }
 
+    // Validar tamanho do extrato (máximo 100 linhas por vez)
+    const linhasCount = texto.split('\n').filter(l => l.trim()).length;
+    if (linhasCount > 100) {
+      toast.error(`Extrato muito grande (${linhasCount} linhas). Cole no máximo 100 linhas por vez.`);
+      return;
+    }
+
     setIsProcessing(true);
     setLastResult(null);
     setLancamentosParaRevisar([]);
@@ -127,16 +134,23 @@ export function ConciliacaoSection({
       // Usa mês/ano selecionado pelo usuário
       const mesAno = `${mesExtrato}/${anoExtrato}`;
 
+      // Aumentar timeout para 45 segundos (edge functions pode levar tempo)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
+
       const { data, error } = await supabase.functions.invoke('extract-extrato', {
-        body: { texto, mesAno }
+        body: { texto, mesAno },
+        signal: controller.signal as any,
       });
+
+      clearTimeout(timeoutId);
 
       if (error) {
         console.error('Error extracting extrato:', error);
-        if (error.message?.includes('Load failed') || error.message?.includes('timeout')) {
-          toast.error('Falha na conexão. Tente novamente ou cole menos linhas de cada vez.');
+        if (error.message?.includes('Load failed') || error.message?.includes('timeout') || error.message?.includes('AbortError')) {
+          toast.error('⏱️ Timeout ao processar. Cole menos linhas (máx 50) e tente novamente.');
         } else {
-          toast.error('Erro ao processar extrato. Tente novamente.');
+          toast.error('Erro ao processar extrato. Verifique o formato e tente novamente.');
         }
         return;
       }
