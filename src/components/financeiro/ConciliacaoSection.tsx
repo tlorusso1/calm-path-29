@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronDown, ChevronUp, FileSpreadsheet, Loader2, CheckCircle2, Link2, AlertCircle, Plus, Calendar } from 'lucide-react';
@@ -12,6 +13,8 @@ import { toast } from 'sonner';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
 import { parseISO, differenceInDays, format } from 'date-fns';
 import { matchFornecedor } from '@/utils/fornecedoresParser';
+
+const BATCH_SIZE = 80; // Linhas por lote (seguro para timeout)
 import { FornecedorSelect } from './FornecedorSelect';
 
 interface ExtractedLancamento {
@@ -91,6 +94,9 @@ export function ConciliacaoSection({
   const [lancamentosParaRevisar, setLancamentosParaRevisar] = useState<ExtractedLancamento[]>([]);
   const [showReviewPanel, setShowReviewPanel] = useState(false);
   
+  // Progress para lotes
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  
   // Seletores de mês/ano do extrato
   const [mesExtrato, setMesExtrato] = useState(new Date().getMonth() + 1);
   const [anoExtrato, setAnoExtrato] = useState(new Date().getFullYear());
@@ -112,63 +118,100 @@ export function ConciliacaoSection({
   
   const anosDisponiveis = [2024, 2025, 2026, 2027];
 
-  const handleProcessar = async () => {
-    if (!texto.trim()) {
-      toast.error('Cole o extrato bancário no campo de texto.');
-      return;
-    }
-
-    // Validar tamanho do extrato (máximo 100 linhas por vez)
-    const linhasCount = texto.split('\n').filter(l => l.trim()).length;
-    if (linhasCount > 100) {
-      toast.error(`Extrato muito grande (${linhasCount} linhas). Cole no máximo 100 linhas por vez.`);
-      return;
-    }
-
-    setIsProcessing(true);
-    setLastResult(null);
-    setLancamentosParaRevisar([]);
-    setShowReviewPanel(false);
+  // Função para processar um lote
+  const processarLote = async (textoLote: string, mesAno: string): Promise<ExtractedLancamento[]> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-      // Usa mês/ano selecionado pelo usuário
-      const mesAno = `${mesExtrato}/${anoExtrato}`;
-
-      // Aumentar timeout para 45 segundos (edge functions pode levar tempo)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
-
       const { data, error } = await supabase.functions.invoke('extract-extrato', {
-        body: { texto, mesAno },
+        body: { texto: textoLote, mesAno },
         signal: controller.signal as any,
       });
 
       clearTimeout(timeoutId);
 
       if (error) {
-        console.error('Error extracting extrato:', error);
-        if (error.message?.includes('Load failed') || error.message?.includes('timeout') || error.message?.includes('AbortError')) {
-          toast.error('⏱️ Timeout ao processar. Cole menos linhas (máx 50) e tente novamente.');
-        } else {
-          toast.error('Erro ao processar extrato. Verifique o formato e tente novamente.');
-        }
-        return;
+        console.error('Error extracting extrato batch:', error);
+        throw error;
       }
 
       if (data?.error) {
-        toast.error(data.error);
-        return;
+        throw new Error(data.error);
       }
 
-      const lancamentos: ExtractedLancamento[] = (data?.contas || []).map((c: any) => ({
+      return (data?.contas || []).map((c: any) => ({
         tipo: c.tipo || 'pagar',
         descricao: c.descricao || '',
         valor: c.valor || '',
         dataVencimento: c.dataVencimento || '',
         pago: true,
       }));
+    } catch (err) {
+      clearTimeout(timeoutId);
+      throw err;
+    }
+  };
 
-      if (lancamentos.length === 0) {
+  const handleProcessar = async () => {
+    if (!texto.trim()) {
+      toast.error('Cole o extrato bancário no campo de texto.');
+      return;
+    }
+
+    const linhas = texto.split('\n').filter(l => l.trim());
+    const totalLinhas = linhas.length;
+
+    setIsProcessing(true);
+    setLastResult(null);
+    setLancamentosParaRevisar([]);
+    setShowReviewPanel(false);
+    setBatchProgress(null);
+
+    try {
+      const mesAno = `${mesExtrato}/${anoExtrato}`;
+      
+      // Dividir em lotes se necessário
+      const lotes: string[] = [];
+      for (let i = 0; i < linhas.length; i += BATCH_SIZE) {
+        const loteLinhas = linhas.slice(i, i + BATCH_SIZE);
+        lotes.push(loteLinhas.join('\n'));
+      }
+
+      // Mostrar progresso se múltiplos lotes
+      if (lotes.length > 1) {
+        toast.info(`Processando ${totalLinhas} linhas em ${lotes.length} lotes...`);
+      }
+
+      // Processar cada lote
+      let todosLancamentos: ExtractedLancamento[] = [];
+      
+      for (let i = 0; i < lotes.length; i++) {
+        setBatchProgress({ current: i + 1, total: lotes.length });
+        
+        try {
+          const lancamentosLote = await processarLote(lotes[i], mesAno);
+          todosLancamentos = [...todosLancamentos, ...lancamentosLote];
+          
+          // Pequena pausa entre lotes para não sobrecarregar
+          if (i < lotes.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (err: any) {
+          console.error(`Erro no lote ${i + 1}:`, err);
+          if (err.message?.includes('Load failed') || err.message?.includes('timeout') || err.message?.includes('AbortError')) {
+            toast.error(`⏱️ Timeout no lote ${i + 1}. Tente novamente.`);
+          } else {
+            toast.error(`Erro no lote ${i + 1}: ${err.message || 'Erro desconhecido'}`);
+          }
+          // Continuar com os lotes que já processou
+          break;
+        }
+      }
+
+      setBatchProgress(null);
+
+      if (todosLancamentos.length === 0) {
         toast.warning('Nenhum lançamento encontrado no extrato.');
         return;
       }
@@ -180,7 +223,7 @@ export function ConciliacaoSection({
       const paraRevisar: ExtractedLancamento[] = [];
       let ignorados = 0;
 
-      for (const lanc of lancamentos) {
+      for (const lanc of todosLancamentos) {
         // Tentar match com contas existentes
         const match = encontrarMatch(lanc, contasNaoPagas);
         
@@ -243,7 +286,7 @@ export function ConciliacaoSection({
       }
       
       toast.success(
-        `${lancamentos.length} lançamentos: ${conciliados.length} conciliados, ${novos.length} novos` +
+        `${todosLancamentos.length} lançamentos: ${conciliados.length} conciliados, ${novos.length} novos` +
         (paraRevisar.length > 0 ? `, ${paraRevisar.length} para revisar` : '')
       );
 
@@ -364,9 +407,20 @@ export function ConciliacaoSection({
                 disabled={isProcessing}
               />
 
+              {/* Barra de progresso para lotes */}
+              {batchProgress && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Processando lote {batchProgress.current} de {batchProgress.total}...</span>
+                    <span>{Math.round((batchProgress.current / batchProgress.total) * 100)}%</span>
+                  </div>
+                  <Progress value={(batchProgress.current / batchProgress.total) * 100} className="h-2" />
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <p className="text-[10px] text-muted-foreground">
-                  💡 Matches automáticos marcam contas como pagas. Novos são adicionados ao histórico.
+                  💡 Extratos grandes são processados automaticamente em lotes.
                 </p>
                 
                 <Button
@@ -378,7 +432,7 @@ export function ConciliacaoSection({
                   {isProcessing ? (
                     <>
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      Processando...
+                      {batchProgress ? `Lote ${batchProgress.current}/${batchProgress.total}` : 'Processando...'}
                     </>
                   ) : (
                     <>
