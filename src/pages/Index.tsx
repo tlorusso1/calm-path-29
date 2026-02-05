@@ -6,6 +6,7 @@ import { ModeSelector } from '@/components/ModeSelector';
 import { ModeContent } from '@/components/ModeContent';
 import { NoModeSelected } from '@/components/NoModeSelected';
 import { LocalStorageMigration } from '@/components/LocalStorageMigration';
+import { RitmoStatusBar } from '@/components/RitmoStatusBar';
 import { Button } from '@/components/ui/button';
 import { LogOut, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
@@ -30,6 +31,8 @@ const Index = () => {
     prioridadeSemana,
     marketingExports,
     scoreNegocio,
+    ritmoExpectativa,
+    updateTimestamp,
     setActiveMode,
     toggleItemComplete,
     setItemClassification,
@@ -136,6 +139,8 @@ const Index = () => {
         </div>
       </div>
 
+      <RitmoStatusBar ritmo={ritmoExpectativa} />
+
       <ModeSelector
         activeMode={activeMode}
         modes={modes}
@@ -186,9 +191,15 @@ const Index = () => {
             onUpdateBacklogIdeia={updateBacklogIdeia}
             onRemoveBacklogIdeia={removeBacklogIdeia}
             onSetBacklogTarefaEmFoco={setTarefaEmFoco}
+            ritmoExpectativa={ritmoExpectativa}
+            onUpdateTimestamp={updateTimestamp}
           />
         ) : (
-          <NoModeSelected lastCompletedMode={lastCompletedMode} />
+          <NoModeSelected 
+            lastCompletedMode={lastCompletedMode} 
+            ritmo={ritmoExpectativa}
+            onNavigateTo={setActiveMode}
+          />
         )}
       </main>
     </div>

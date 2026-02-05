@@ -15,6 +15,8 @@ import {
   ReuniaoAdsAcao,
   FinanceiroExports,
   ItemEstoque,
+  RitmoTimestamps,
+  UserRitmoExpectativa,
   MODE_CONFIGS, 
   DEFAULT_CHECKLISTS,
   DEFAULT_FINANCEIRO_DATA,
@@ -38,6 +40,7 @@ import {
   calcScoreNegocioV2,
   calculateSupplyExports,
 } from '@/utils/modeStatusCalculator';
+import { getRitmoExpectativa } from '@/utils/ritmoCalculator';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
@@ -1229,12 +1232,29 @@ export function useFocusModes() {
     });
   }, []);
 
+  // ============= Ritmo & Expectativa =============
+  const updateTimestamp = useCallback((key: keyof RitmoTimestamps) => {
+    setState(prev => ({
+      ...prev,
+      timestamps: {
+        ...(prev.timestamps ?? {}),
+        [key]: getTodayDate(),
+      },
+    }));
+  }, []);
+
+  const ritmoExpectativa = useMemo((): UserRitmoExpectativa => {
+    return getRitmoExpectativa(state);
+  }, [state]);
 
   return {
     activeMode: state.activeMode,
     modes: state.modes,
     lastCompletedMode: state.lastCompletedMode,
     isLoading,
+    // Ritmo & Expectativa
+    ritmoExpectativa,
+    updateTimestamp,
     // Exports para outros modos
     financeiroExports,
     supplyExports,

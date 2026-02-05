@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, ScoreNegocio, ItemEstoque } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, ScoreNegocio, ItemEstoque, UserRitmoExpectativa, RitmoTimestamps } from '@/types/focus-mode';
 import { Button } from '@/components/ui/button';
 import { FinanceiroMode } from '@/components/modes/FinanceiroMode';
 import { MarketingMode } from '@/components/modes/MarketingMode';
@@ -8,7 +8,7 @@ import { PreReuniaoVerterMode } from '@/components/modes/PreReuniaoVerterMode';
 import { ReuniaoAdsMode } from '@/components/modes/ReuniaoAdsMode';
 import { TasksMode } from '@/components/modes/TasksMode';
 
-interface ModeContentProps {
+export interface ModeContentProps {
   mode: FocusMode;
   onComplete: () => void;
   onToggleItem: (itemId: string) => void;
@@ -17,6 +17,9 @@ interface ModeContentProps {
   onSetNotes: (itemId: string, notes: string) => void;
   onAddItem: (text: string) => void;
   onRemoveItem: (itemId: string) => void;
+  // Ritmo & Expectativa
+  ritmoExpectativa?: UserRitmoExpectativa;
+  onUpdateTimestamp?: (key: keyof RitmoTimestamps) => void;
   // Financeiro
   onUpdateFinanceiroData?: (data: Partial<FinanceiroStage>) => void;
   onAddFinanceiroItem?: (text: string) => void;
@@ -60,6 +63,8 @@ export function ModeContent({
   onSetNotes,
   onAddItem,
   onRemoveItem,
+  ritmoExpectativa,
+  onUpdateTimestamp,
   onUpdateFinanceiroData,
   onAddFinanceiroItem,
   onToggleFinanceiroItem,
@@ -94,6 +99,8 @@ export function ModeContent({
           <FinanceiroMode 
             mode={mode}
             onUpdateFinanceiroData={onUpdateFinanceiroData!}
+            ritmoExpectativa={ritmoExpectativa}
+            onUpdateTimestamp={onUpdateTimestamp}
           />
         );
       case 'marketing':
