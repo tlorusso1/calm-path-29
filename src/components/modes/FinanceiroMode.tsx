@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { TrendingUp, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Clock, Flame, Timer, Info, Target, Building2 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/modeStatusCalculator';
 import { FluxoCaixaChart } from '@/components/financeiro/FluxoCaixaChart';
@@ -14,6 +14,8 @@ import { ContasFluxoSection } from '@/components/financeiro/ContasFluxoSection';
 import { ConciliacaoSection } from '@/components/financeiro/ConciliacaoSection';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 interface FinanceiroModeProps {
   mode: FocusMode;
@@ -181,6 +183,39 @@ export function FinanceiroMode({
       ),
     });
   };
+  
+  const handleToggleAgendado = (id: string) => {
+    onUpdateFinanceiroData({
+      contasFluxo: (data.contasFluxo || []).map(c => 
+        c.id === id ? { ...c, agendado: !c.agendado } : c
+      ),
+    });
+  };
+  
+  // Auto-baixa de contas agendadas cujo vencimento chegou
+  const hasRunAutoBaixa = useRef(false);
+  useEffect(() => {
+    if (hasRunAutoBaixa.current) return;
+    
+    const hoje = format(new Date(), 'yyyy-MM-dd');
+    const contasParaDarBaixa = (data.contasFluxo || []).filter(c => 
+      c.agendado && 
+      !c.pago && 
+      c.dataVencimento <= hoje
+    );
+    
+    if (contasParaDarBaixa.length > 0) {
+      hasRunAutoBaixa.current = true;
+      const contasAtualizadas = (data.contasFluxo || []).map(c => {
+        if (contasParaDarBaixa.find(cp => cp.id === c.id)) {
+          return { ...c, pago: true };
+        }
+        return c;
+      });
+      onUpdateFinanceiroData({ contasFluxo: contasAtualizadas });
+      toast.success(`${contasParaDarBaixa.length} conta(s) agendada(s) marcada(s) como paga(s)`);
+    }
+  }, [data.contasFluxo, onUpdateFinanceiroData]);
 
   return (
     <div className="space-y-6">
@@ -838,6 +873,7 @@ export function FinanceiroMode({
         onUpdateConta={handleUpdateConta}
         onRemoveConta={handleRemoveConta}
         onTogglePago={handleTogglePago}
+        onToggleAgendado={handleToggleAgendado}
         isOpen={openSections.fluxoContas}
         onToggle={() => toggleSection('fluxoContas')}
       />

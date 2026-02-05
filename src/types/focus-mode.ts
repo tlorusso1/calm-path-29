@@ -48,6 +48,7 @@ export interface ContaFluxo {
   valor: string;
   dataVencimento: string;  // ISO date (YYYY-MM-DD)
   pago?: boolean;
+  agendado?: boolean;  // Indica se foi agendado no banco (auto-baixa no vencimento)
 }
 
 // ============= Financeiro V2 =============
