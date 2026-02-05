@@ -16,6 +16,7 @@ import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { loadFornecedores } from '@/utils/loadFornecedores';
 
 interface FinanceiroModeProps {
   mode: FocusMode;
@@ -73,8 +74,11 @@ export function FinanceiroMode({
     mensal: false,
   });
   
+  // Carregar fornecedores do CSV uma vez
+  const fornecedoresCarregados = useMemo(() => loadFornecedores(), []);
+  
   // Merge com defaults para garantir estrutura V2
-  const data: FinanceiroStage = {
+  const data: FinanceiroStage = useMemo(() => ({
     ...DEFAULT_FINANCEIRO_DATA,
     ...mode.financeiroData,
     contas: {
@@ -97,7 +101,11 @@ export function FinanceiroMode({
       ...DEFAULT_FINANCEIRO_DATA.checklistMensal,
       ...mode.financeiroData?.checklistMensal,
     },
-  };
+    // Usar fornecedores do CSV se não tiver customizados
+    fornecedores: mode.financeiroData?.fornecedores?.length 
+      ? mode.financeiroData.fornecedores 
+      : fornecedoresCarregados,
+  }), [mode.financeiroData, fornecedoresCarregados]);
   
   // Calcular totais das contas bancárias
   const totaisContas = useMemo(() => {

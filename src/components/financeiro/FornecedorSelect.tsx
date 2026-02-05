@@ -1,202 +1,184 @@
-import { useState, useMemo } from 'react';
-import { Check, ChevronsUpDown, Plus } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
 import { Fornecedor } from '@/types/focus-mode';
+import { ChevronDown, X, Plus } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { buscarFornecedores } from '@/utils/loadFornecedores';
+import { extrairBeneficiarioFinal } from '@/utils/fornecedoresParser';
 
 interface FornecedorSelectProps {
   fornecedores: Fornecedor[];
-  value?: string;
-  onChange: (fornecedorId: string | undefined, fornecedor: Fornecedor | undefined) => void;
-  onCreateNew?: (nome: string) => void;
+  value?: string; // fornecedorId
+  onChange: (fornecedorId: string | undefined) => void;
   placeholder?: string;
-  descricaoSugerida?: string;
-}
-
-// Extrai "Beneficiário Final" de descrições compostas
-function extrairBeneficiario(texto: string): string | null {
-  const match = texto.match(/Benefici[aá]rio\s*Final[:\s]+([^)]+)/i);
-  if (match) return match[1].trim();
-  return null;
-}
-
-// Fuzzy match simples
-function fuzzyMatch(text: string, query: string): boolean {
-  const normalizedText = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const normalizedQuery = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return normalizedText.includes(normalizedQuery);
+  descricaoSugerida?: string; // Para tentar match automático
+  onCreateNew?: (nome: string) => void;
+  className?: string;
 }
 
 export function FornecedorSelect({
   fornecedores,
   value,
   onChange,
-  onCreateNew,
-  placeholder = "Selecione fornecedor...",
+  placeholder = 'Buscar fornecedor...',
   descricaoSugerida,
+  onCreateNew,
+  className,
 }: FornecedorSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
+  // Fornecedor selecionado
   const selectedFornecedor = useMemo(() => 
     fornecedores.find(f => f.id === value),
     [fornecedores, value]
   );
 
-  // Tenta encontrar sugestão baseada na descrição
-  const sugestao = useMemo(() => {
-    if (!descricaoSugerida) return null;
-    
-    // Tentar extrair beneficiário final
-    const beneficiario = extrairBeneficiario(descricaoSugerida);
-    const termosBusca = beneficiario 
-      ? [beneficiario, descricaoSugerida]
-      : [descricaoSugerida];
-    
-    for (const termo of termosBusca) {
-      const match = fornecedores.find(f => 
-        fuzzyMatch(f.nome, termo) || 
-        f.aliases?.some(a => fuzzyMatch(a, termo))
-      );
-      if (match) return match;
-    }
-    return null;
-  }, [descricaoSugerida, fornecedores]);
+  // Filtrar fornecedores por busca
+  const fornecedoresFiltrados = useMemo(() => {
+    if (!fornecedores.length) return [];
+    return buscarFornecedores(search, fornecedores, 15);
+  }, [search, fornecedores]);
 
-  const filteredFornecedores = useMemo(() => {
-    if (!search) return fornecedores.slice(0, 50); // Limitar para performance
-    return fornecedores.filter(f => 
-      fuzzyMatch(f.nome, search) || 
-      fuzzyMatch(f.categoria, search) ||
-      f.aliases?.some(a => fuzzyMatch(a, search))
-    ).slice(0, 50);
-  }, [fornecedores, search]);
+  // Sugestão de beneficiário extraído
+  const beneficiarioSugerido = useMemo(() => {
+    if (!descricaoSugerida) return null;
+    return extrairBeneficiarioFinal(descricaoSugerida);
+  }, [descricaoSugerida]);
+
+  // Fechar ao clicar fora
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelect = (fornecedor: Fornecedor) => {
+    onChange(fornecedor.id);
+    setSearch('');
+    setOpen(false);
+  };
+
+  const handleClear = () => {
+    onChange(undefined);
+    setSearch('');
+  };
+
+  const handleInputFocus = () => {
+    setOpen(true);
+    // Se tem sugestão de beneficiário, usar como busca inicial
+    if (beneficiarioSugerido && !search && !value) {
+      setSearch(beneficiarioSugerido);
+    }
+  };
 
   return (
-    <div className="space-y-1">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
+    <div ref={containerRef} className={cn("relative", className)}>
+      {/* Campo de busca / seleção */}
+      {selectedFornecedor ? (
+        <div className="flex items-center gap-1.5 h-8 px-2 border rounded-md bg-background">
+          <span className="text-xs truncate flex-1">{selectedFornecedor.nome}</span>
+          <Badge variant="outline" className="text-[9px] h-4 px-1 shrink-0">
+            {selectedFornecedor.categoria}
+          </Badge>
           <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="w-full justify-between h-8 text-xs"
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-5 w-5 p-0"
+            onClick={handleClear}
           >
-            {selectedFornecedor ? (
-              <span className="truncate">{selectedFornecedor.nome}</span>
-            ) : (
-              <span className="text-muted-foreground">{placeholder}</span>
-            )}
-            <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+            <X className="h-3 w-3" />
           </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[300px] p-0" align="start">
-          <Command shouldFilter={false}>
-            <CommandInput 
-              placeholder="Buscar fornecedor..." 
-              value={search}
-              onValueChange={setSearch}
-              className="text-xs"
-            />
-            <CommandList>
-              <CommandEmpty>
-                <div className="p-2 text-center">
-                  <p className="text-xs text-muted-foreground mb-2">Nenhum fornecedor encontrado</p>
-                  {onCreateNew && search && (
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="text-xs gap-1"
-                      onClick={() => {
-                        onCreateNew(search);
-                        setOpen(false);
-                        setSearch('');
-                      }}
-                    >
-                      <Plus className="h-3 w-3" />
-                      Criar "{search}"
-                    </Button>
-                  )}
-                </div>
-              </CommandEmpty>
-              <CommandGroup>
-                {/* Sugestão destacada */}
-                {sugestao && !search && !selectedFornecedor && (
-                  <CommandItem
-                    key={`sugestao-${sugestao.id}`}
-                    value={sugestao.id}
-                    onSelect={() => {
-                      onChange(sugestao.id, sugestao);
-                      setOpen(false);
-                    }}
-                    className="bg-primary/5 border-l-2 border-primary"
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-3 w-3",
-                        value === sugestao.id ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">
-                        💡 {sugestao.nome}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground truncate">
-                        {sugestao.categoria}
-                      </p>
-                    </div>
-                  </CommandItem>
-                )}
-                {filteredFornecedores.map((fornecedor) => (
-                  <CommandItem
-                    key={fornecedor.id}
-                    value={fornecedor.id}
-                    onSelect={() => {
-                      onChange(
-                        fornecedor.id === value ? undefined : fornecedor.id,
-                        fornecedor.id === value ? undefined : fornecedor
-                      );
-                      setOpen(false);
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-3 w-3",
-                        value === fornecedor.id ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs truncate">{fornecedor.nome}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">
-                        {fornecedor.categoria}
-                      </p>
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-      
-      {/* Mostrar categoria selecionada */}
-      {selectedFornecedor && (
-        <p className="text-[10px] text-muted-foreground">
-          {selectedFornecedor.modalidade} → {selectedFornecedor.categoria}
-        </p>
+        </div>
+      ) : (
+        <div className="relative">
+          <Input
+            ref={inputRef}
+            type="text"
+            placeholder={placeholder}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onFocus={handleInputFocus}
+            className="h-8 text-xs pr-8"
+          />
+          <ChevronDown 
+            className={cn(
+              "absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground transition-transform",
+              open && "rotate-180"
+            )} 
+          />
+        </div>
+      )}
+
+      {/* Dropdown */}
+      {open && !selectedFornecedor && (
+        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
+          {/* Sugestão de beneficiário */}
+          {beneficiarioSugerido && !search && (
+            <div className="p-2 border-b bg-muted/50">
+              <p className="text-[10px] text-muted-foreground mb-1">Beneficiário extraído:</p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full h-7 justify-start text-xs gap-1"
+                onClick={() => setSearch(beneficiarioSugerido)}
+              >
+                🔍 {beneficiarioSugerido}
+              </Button>
+            </div>
+          )}
+
+          {/* Lista de resultados */}
+          {fornecedoresFiltrados.length > 0 ? (
+            <div className="py-1">
+              {fornecedoresFiltrados.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  className="w-full px-2 py-1.5 text-left hover:bg-accent flex items-center justify-between gap-2"
+                  onClick={() => handleSelect(f)}
+                >
+                  <span className="text-xs truncate">{f.nome}</span>
+                  <Badge variant="outline" className="text-[9px] h-4 px-1 shrink-0">
+                    {f.categoria}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="p-3 text-center">
+              <p className="text-xs text-muted-foreground mb-2">
+                Nenhum fornecedor encontrado
+              </p>
+              {onCreateNew && search.length >= 3 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 h-7 text-xs"
+                  onClick={() => {
+                    onCreateNew(search);
+                    setOpen(false);
+                    setSearch('');
+                  }}
+                >
+                  <Plus className="h-3 w-3" />
+                  Criar "{search}"
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
