@@ -16,8 +16,8 @@ interface CaixaContratadoCardProps {
 }
 
 const PRAZOS: Record<keyof CaixaContratadoData, string> = {
-  nuvemshop: 'D+14',
-  asaas: 'D+7',
+  nuvemshop: 'D+2',
+  asaas: 'D+30',
   pagarMe: 'D+14',
   mercadoPago: 'D+14',
 };
