@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria, ContaFluxo, WeeklySnapshot, Fornecedor } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, MARGEM_OPERACIONAL, DEFAULT_FINANCEIRO_CONTAS, FinanceiroContas, ContaBancaria, ContaFluxo, WeeklySnapshot, Fornecedor, UserRitmoExpectativa, RitmoTimestamps } from '@/types/focus-mode';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import { MetaMensalCard } from '@/components/financeiro/MetaMensalCard';
 import { SugestoesIACard, SugestoesIAState } from '@/components/financeiro/SugestoesIACard';
 import { DRESection } from '@/components/financeiro/DRESection';
 import { FaturamentoCanaisCard } from '@/components/financeiro/FaturamentoCanaisCard';
+import { RitmoContextualAlert } from '@/components/RitmoContextualAlert';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 import { format } from 'date-fns';
@@ -26,6 +27,8 @@ import { loadFornecedores } from '@/utils/loadFornecedores';
 interface FinanceiroModeProps {
   mode: FocusMode;
   onUpdateFinanceiroData: (data: Partial<FinanceiroStage>) => void;
+  ritmoExpectativa?: UserRitmoExpectativa;
+  onUpdateTimestamp?: (key: keyof RitmoTimestamps) => void;
 }
 
 // Status visual do Caixa Livre Real
@@ -68,6 +71,8 @@ const getRiscoColor = (risco: 'verde' | 'amarelo' | 'vermelho') => {
 export function FinanceiroMode({
   mode,
   onUpdateFinanceiroData,
+  ritmoExpectativa,
+  onUpdateTimestamp,
 }: FinanceiroModeProps) {
   const [openSections, setOpenSections] = useState({
     contas: true,
@@ -231,8 +236,18 @@ export function FinanceiroMode({
     }
   }, [data.contasFluxo, onUpdateFinanceiroData]);
 
+  // Ritmo: Get task status for contextual alerts
+  const getCaixaStatus = () => ritmoExpectativa?.tarefasHoje.find(t => t.id === 'caixa')?.status ?? 'ok';
+  const getContasHojeStatus = () => ritmoExpectativa?.tarefasHoje.find(t => t.id === 'contas-hoje')?.status ?? 'ok';
+  const getConciliacaoStatus = () => ritmoExpectativa?.tarefasHoje.find(t => t.id === 'conciliacao')?.status ?? 'ok';
+  const getPremissasStatus = () => ritmoExpectativa?.tarefasHoje.find(t => t.id === 'premissas')?.status ?? 'ok';
+
   return (
     <div className="space-y-6">
+      {/* Ritmo Contextual Alerts */}
+      <RitmoContextualAlert taskId="caixa" status={getCaixaStatus()} />
+      <RitmoContextualAlert taskId="contas-hoje" status={getContasHojeStatus()} />
+      
       {/* ========== INPUTS BÁSICOS ========== */}
       <Card>
         <CardHeader className="pb-3">

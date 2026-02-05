@@ -451,12 +451,40 @@ export interface FocusMode {
   completedAt?: string;
 }
 
+// ============= Ritmo & Expectativa =============
+export interface RitmoTimestamps {
+  lastCaixaUpdate?: string;           // ISO date (YYYY-MM-DD)
+  lastContasAPagarCheck?: string;     // Marcar como "visto hoje"
+  lastConciliacaoCheck?: string;      // Revisar 1x/semana
+  lastPremissasReview?: string;       // Revisar no início do mês
+}
+
+export type RitmoTaskId = 'caixa' | 'contas-hoje' | 'decisao' | 'conciliacao' | 'premissas';
+export type RitmoFrequencia = 'diario' | 'semanal' | 'mensal';
+
+export interface RitmoTask {
+  id: RitmoTaskId;
+  titulo: string;
+  status: 'ok' | 'pendente';
+  frequencia: RitmoFrequencia;
+}
+
+export interface UserRitmoExpectativa {
+  statusRitmo: 'ok' | 'atencao' | 'pendente';
+  hojePrecisaDeAtencao: boolean;
+  tarefasHoje: RitmoTask[];
+  totalPendentes: number;
+  pendentesHoje: number;
+  pendentesEstaSemana: number;
+}
+
 export interface FocusModeState {
   date: string;
   weekStart: string;
   activeMode: FocusModeId | null;
   modes: Record<FocusModeId, FocusMode>;
   lastCompletedMode?: FocusModeId;
+  timestamps?: RitmoTimestamps;
 }
 
 // ============= Configurações dos Modos =============
