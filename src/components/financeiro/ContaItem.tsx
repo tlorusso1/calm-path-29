@@ -250,7 +250,8 @@ export function ContaItem({
               receber: { emoji: '🟢', label: 'ENTRADA', next: 'intercompany' as ContaFluxoTipo },
               intercompany: { emoji: '🔁', label: 'INTER', next: 'aplicacao' as ContaFluxoTipo },
               aplicacao: { emoji: '📈', label: 'APLIC', next: 'resgate' as ContaFluxoTipo },
-              resgate: { emoji: '📉', label: 'RESG', next: 'pagar' as ContaFluxoTipo },
+              resgate: { emoji: '📉', label: 'RESG', next: 'cartao' as ContaFluxoTipo },
+              cartao: { emoji: '💳', label: 'CARTÃO', next: 'pagar' as ContaFluxoTipo },
             };
             const config = tipoConfig[conta.tipo];
             const bgColor = 
@@ -258,7 +259,8 @@ export function ContaItem({
               conta.tipo === 'receber' ? 'bg-green-100 text-green-700' :
               conta.tipo === 'intercompany' ? 'bg-blue-100 text-blue-700' :
               conta.tipo === 'aplicacao' ? 'bg-purple-100 text-purple-700' :
-              'bg-orange-100 text-orange-700';
+              conta.tipo === 'resgate' ? 'bg-orange-100 text-orange-700' :
+              'bg-slate-100 text-slate-700';
             
             return (
               <Tooltip>

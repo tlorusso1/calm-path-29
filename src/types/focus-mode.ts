@@ -100,7 +100,7 @@ export interface CustosFixosDetalhados {
 }
 
 // ============= Contas a Pagar/Receber (Fluxo de Caixa) =============
-export type ContaFluxoTipo = 'pagar' | 'receber' | 'intercompany' | 'aplicacao' | 'resgate';
+export type ContaFluxoTipo = 'pagar' | 'receber' | 'intercompany' | 'aplicacao' | 'resgate' | 'cartao';
 export type ContaFluxoSubtipo = 'cdb' | 'trust' | 'renda_fixa' | 'lci' | 'lca' | 'tesouro' | 'outro';
 
 // Natureza da saída: operacional (impacta meta) vs capitalGiro (não impacta meta)

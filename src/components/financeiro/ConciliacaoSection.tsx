@@ -577,6 +577,7 @@ function ReviewItem({
     intercompany: { label: 'Intercompany', emoji: '🔁' },
     aplicacao: { label: 'Aplicação', emoji: '📈' },
     resgate: { label: 'Resgate', emoji: '💰' },
+    cartao: { label: 'Cartão', emoji: '💳' },
   };
 
   return (

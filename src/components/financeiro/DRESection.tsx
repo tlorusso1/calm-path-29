@@ -37,7 +37,7 @@ interface DREModalidade {
 }
 
 // Tipos que NÃO entram no DRE (afetam caixa mas não resultado operacional)
-const TIPOS_EXCLUIDOS_DRE = ['intercompany', 'aplicacao', 'resgate'];
+const TIPOS_EXCLUIDOS_DRE = ['intercompany', 'aplicacao', 'resgate', 'cartao'];
 
 function formatCurrency(valor: number): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
