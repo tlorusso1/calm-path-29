@@ -147,7 +147,10 @@ export interface FinanceiroStage {
   // NOVO: Contas Bancárias Detalhadas
   contas?: FinanceiroContas;
   
-  // CUSTOS DEFASADOS (novidade crítica)
+  // NOVO: Faturamento do mês anterior (base para cálculo de impostos)
+  faturamentoMesAnterior?: string;
+  
+  // CUSTOS DEFASADOS (novidade crítica) - DEPRECATED: usar contasFluxo
   custosDefasados: {
     impostosProximoMes: string;
     adsCartaoAnterior: string;

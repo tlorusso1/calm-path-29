@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -583,18 +583,13 @@ function ReviewPanel({
     return stableIdsRef.current.get(dataKey)!;
   }, []);
   
-  // Limpar IDs órfãos quando lista muda
-  useMemo(() => {
-    const currentKeys = new Set(
-      lancamentos.map(l => `${l.descricao}|${l.valor}|${l.dataVencimento}`)
-    );
-    // Remover IDs de itens que não existem mais
-    stableIdsRef.current.forEach((_, key) => {
-      if (!currentKeys.has(key)) {
-        stableIdsRef.current.delete(key);
-      }
-    });
-  }, [lancamentos]);
+  // Cleanup apenas quando componente desmonta
+  // NÃO limpar IDs durante re-renders para evitar perda de estado
+  React.useEffect(() => {
+    return () => {
+      stableIdsRef.current.clear();
+    };
+  }, []);
 
   return (
     <div className="space-y-3 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-300 dark:border-yellow-700">
