@@ -1,169 +1,154 @@
 
+# Criar Gestão de Fornecedores Cadastrados
 
-## Plano: Separar Capital de Giro de Despesas Operacionais
+## Situação Atual
+O componente **FornecedoresManager** foi planejado anteriormente mas **não foi implementado**. Atualmente:
+- Fornecedores são carregados de um CSV estático (~1200 registros)
+- Novos fornecedores podem ser criados durante a conciliação bancária
+- **Não existe UI para visualizar ou gerenciar fornecedores existentes**
 
-### Diagnóstico Confirmado
+## O Que Será Criado
 
-Você acertou no ponto: **compras de estoque (capital de giro)** estão sendo tratadas como **despesas operacionais** no cálculo da meta de faturamento, inflando artificialmente a meta necessária.
+### Interface Visual
+```text
+┌─────────────────────────────────────────────────────┐
+│ 📋 Fornecedores Cadastrados                  (123)  │
+├─────────────────────────────────────────────────────┤
+│ [🔍 Buscar fornecedor...                         ]  │
+├─────────────────────────────────────────────────────┤
+│ CUSTOS DE PRODUTO VENDIDO (45)              [▼]     │
+│ ┌─────────────────────────────────────────────────┐ │
+│ │ 3TM DISTRIBUIDORA        │ Embalagens   │ [✏️🗑] │ │
+│ │ JUND COCO LTDA           │ Compra MP    │ [✏️🗑] │ │
+│ └─────────────────────────────────────────────────┘ │
+│                                                     │
+│ DESPESAS COMERCIAIS (28)                    [▶]     │
+│ DESPESAS ADMINISTRATIVAS (32)               [▶]     │
+│                                                     │
+│ [+ Adicionar Novo Fornecedor]                       │
+└─────────────────────────────────────────────────────┘
+```
 
-**Exemplo real:**
-- Saídas totais: R$ 160k
-- Estoque dentro disso: R$ 60k
-- Hoje: 160k ÷ 0,4 = **R$ 400k** de meta ❌
-- Correto: 100k ÷ 0,4 = **R$ 250k** de meta ✅
-
-### Solução Proposta
-
-Usar a **estrutura DRE existente** para separar automaticamente:
-- Contas com `fornecedorId` cuja modalidade = `CUSTOS DE PRODUTO VENDIDO` → **Capital de Giro** (não impacta meta)
-- Demais contas → **Despesas Operacionais** (impacta meta)
+### Funcionalidades
+1. **Visualização**: Lista agrupada por modalidade DRE com busca fuzzy
+2. **Edição**: Click no nome abre edição inline (nome + categoria DRE)
+3. **Exclusão**: Com verificação de contas vinculadas (impede exclusão se houver)
+4. **Adição**: Formulário inline com seletor de categoria DRE
 
 ---
 
-### Arquivos a Modificar
+## Arquivos a Modificar
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/types/focus-mode.ts` | Adicionar constante `MODALIDADES_CAPITAL_GIRO` |
-| `src/utils/fluxoCaixaCalculator.ts` | Criar função `isCapitalGiro()` |
-| `src/components/financeiro/MetaMensalCard.tsx` | Separar saídas operacionais vs capital de giro |
-| `src/components/financeiro/ContaItem.tsx` | Exibir badge visual de "Capital de Giro" |
+| Arquivo | Ação |
+|---------|------|
+| `src/components/financeiro/FornecedoresManager.tsx` | **NOVO** - Componente de gestão |
+| `src/components/modes/FinanceiroMode.tsx` | Adicionar na seção "Parâmetros do Sistema" |
 
 ---
 
-### Detalhes da Implementação
+## Detalhes Técnicos
 
-#### 1. Constante de Modalidades (focus-mode.ts)
-
-```typescript
-// Modalidades que representam Capital de Giro (não impactam meta de faturamento)
-export const MODALIDADES_CAPITAL_GIRO = [
-  'CUSTOS DE PRODUTO VENDIDO', // Compra matéria-prima, embalagens, etc.
-];
-```
-
-#### 2. Função Helper (fluxoCaixaCalculator.ts)
+### 1. Novo Componente: FornecedoresManager.tsx
 
 ```typescript
-import { ContaFluxo, Fornecedor, MODALIDADES_CAPITAL_GIRO } from '@/types/focus-mode';
-
-export function isCapitalGiro(
-  conta: ContaFluxo, 
-  fornecedores: Fornecedor[]
-): boolean {
-  // Se não tem fornecedor atrelado, considera despesa operacional
-  if (!conta.fornecedorId) return false;
-  
-  const fornecedor = fornecedores.find(f => f.id === conta.fornecedorId);
-  if (!fornecedor) return false;
-  
-  return MODALIDADES_CAPITAL_GIRO.includes(fornecedor.modalidade);
+interface FornecedoresManagerProps {
+  fornecedores: Fornecedor[];
+  contasFluxo: ContaFluxo[];  // Para verificar vínculos
+  onAdd: (fornecedor: Omit<Fornecedor, 'id'>) => void;
+  onUpdate: (id: string, updates: Partial<Fornecedor>) => void;
+  onRemove: (id: string) => void;
+  isOpen: boolean;
+  onToggle: () => void;
 }
 ```
 
-#### 3. Cálculo Corrigido (MetaMensalCard.tsx)
+**Estados internos:**
+- `search`: string para busca
+- `openModalidades`: Record<string, boolean> para controlar colapso por grupo
+- `editingId`: string | null para modo edição
+- `showAddForm`: boolean para exibir formulário de adição
 
+**Agrupamento por Modalidade:**
 ```typescript
-// Receber fornecedores como prop
-interface MetaMensalCardProps {
-  // ...existentes
-  fornecedores?: Fornecedor[];
-}
-
-// No cálculo:
-const { contasOperacionais30d, capitalGiro30d } = contasFluxo
-  .filter(c => {
-    if (c.pago) return false;
-    if (c.tipo !== 'pagar') return false;
-    return c.dataVencimento >= hojeStr && c.dataVencimento <= em30diasStr;
-  })
-  .reduce((acc, c) => {
-    const valor = parseValorFlexivel(c.valor);
-    if (isCapitalGiro(c, fornecedores || [])) {
-      acc.capitalGiro30d += valor;
-    } else {
-      acc.contasOperacionais30d += valor;
-    }
+const grouped = useMemo(() => {
+  const filtrados = buscarFornecedores(search, fornecedores, 500);
+  return filtrados.reduce((acc, f) => {
+    const key = f.modalidade || 'Não Classificado';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(f);
     return acc;
-  }, { contasOperacionais30d: 0, capitalGiro30d: 0 });
-
-// META usa APENAS saídas operacionais
-const totalSaidasOperacionais = contasOperacionais30d + custoFixo + mktEstrutural + ads;
-const faturamentoNecessario = totalSaidasOperacionais / MARGEM_OPERACIONAL;
-
-// NECESSIDADE DE CAIXA inclui TUDO (para stress test)
-const necessidadeCaixa30d = contasOperacionais30d + capitalGiro30d + custoFixo + mktEstrutural + ads;
+  }, {} as Record<string, Fornecedor[]>);
+}, [search, fornecedores]);
 ```
 
-#### 4. Exibição no Card (dois totais)
+**Verificação de Vínculo antes de Excluir:**
+```typescript
+const isVinculado = (id: string) => contasFluxo.some(c => c.fornecedorId === id);
 
-```text
-┌─ Saídas Previstas (próx. 30d) ────────────────┐
-│                                               │
-│ OPERACIONAIS (impactam meta):                 │
-│   ├── Contas operacionais    R$ 40.000        │
-│   ├── Custo fixo             R$ 50.000        │
-│   ├── Marketing estrutural   R$ 5.000         │
-│   └── Ads base               R$ 5.000         │
-│   TOTAL OPERACIONAL          R$ 100.000       │
-│                                               │
-│ CAPITAL DE GIRO (não impacta meta):           │
-│   └── Estoque/Insumos        R$ 60.000        │
-│                                               │
-│ ═══════════════════════════════════════════   │
-│ META DE FATURAMENTO          R$ 250.000       │
-│ (100k ÷ 40%)                                  │
-│                                               │
-│ NECESSIDADE DE CAIXA 30d     R$ 160.000       │
-│ (inclui capital de giro)                      │
-└───────────────────────────────────────────────┘
+const handleRemove = (id: string) => {
+  const vinculadas = contasFluxo.filter(c => c.fornecedorId === id);
+  if (vinculadas.length > 0) {
+    toast.error(`Não é possível excluir: ${vinculadas.length} conta(s) vinculada(s)`);
+    return;
+  }
+  onRemove(id);
+  toast.success('Fornecedor removido!');
+};
 ```
 
-#### 5. Badge Visual no ContaItem
+### 2. Integração no FinanceiroMode.tsx
 
-Para contas classificadas como Capital de Giro, exibir badge:
+**Adicionar estado em `openSections`:**
+```typescript
+const [openSections, setOpenSections] = useState({
+  // ...existentes
+  fornecedores: false,  // NOVO
+});
+```
 
+**Handlers:**
+```typescript
+const handleAddFornecedor = (fornecedor: Omit<Fornecedor, 'id'>) => {
+  const novoId = crypto.randomUUID();
+  onUpdateFinanceiroData({
+    fornecedores: [...(data.fornecedores || []), { ...fornecedor, id: novoId }],
+  });
+  toast.success(`Fornecedor "${fornecedor.nome}" criado!`);
+};
+
+const handleUpdateFornecedor = (id: string, updates: Partial<Fornecedor>) => {
+  onUpdateFinanceiroData({
+    fornecedores: (data.fornecedores || []).map(f => 
+      f.id === id ? { ...f, ...updates } : f
+    ),
+  });
+};
+
+const handleRemoveFornecedor = (id: string) => {
+  onUpdateFinanceiroData({
+    fornecedores: (data.fornecedores || []).filter(f => f.id !== id),
+  });
+};
+```
+
+**Adicionar componente após Conciliação Bancária:**
 ```tsx
-{isCapitalGiro(conta, fornecedores) && (
-  <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-700 border-orange-200">
-    💰 Capital de Giro
-  </Badge>
-)}
+<FornecedoresManager
+  fornecedores={data.fornecedores || []}
+  contasFluxo={data.contasFluxo || []}
+  onAdd={handleAddFornecedor}
+  onUpdate={handleUpdateFornecedor}
+  onRemove={handleRemoveFornecedor}
+  isOpen={openSections.fornecedores}
+  onToggle={() => toggleSection('fornecedores')}
+/>
 ```
 
 ---
 
-### Fluxo de Funcionamento
-
-```text
-1. Usuário importa extrato ou adiciona conta manualmente
-2. Na conciliação, seleciona fornecedor (ex: "Supermix" → CUSTOS DE PRODUTO VENDIDO)
-3. Sistema detecta automaticamente que é Capital de Giro
-4. Na Meta Mensal:
-   - Saída operacional: NÃO inclui essa conta
-   - Necessidade de caixa: INCLUI essa conta
-5. Meta de faturamento fica realista
-6. Pressão de caixa permanece visível (não some o dinheiro necessário)
-```
-
----
-
-### Resultado Esperado
-
-| Métrica | Antes | Depois |
-|---------|-------|--------|
-| Total Saídas | R$ 160k | - |
-| Saídas Operacionais | - | R$ 100k |
-| Capital de Giro | - | R$ 60k |
-| Meta Faturamento | R$ 400k | **R$ 250k** |
-| Pressão | Alta ❌ | Saudável ✅ |
-
----
-
-### Extensão Futura (Opcional)
-
-Se quiser ir além:
-1. Indicador **Giro de Estoque (dias)** = Capital de Giro / (Faturamento ÷ 30)
-2. Vincular com **prazo médio de recebimento** dos canais
-3. Mostrar "Quanto de estoque já virou faturamento"
-
+## Resultado Esperado
+- Usuário pode visualizar todos os fornecedores agrupados por modalidade
+- Pode buscar por nome
+- Pode editar nome e categoria DRE
+- Pode excluir fornecedores sem contas vinculadas
+- Pode adicionar novos fornecedores manualmente
