@@ -548,7 +548,7 @@ export function ConciliacaoSection({
                 <div className="space-y-2">
                    {lancamentosParaRevisar.map((lanc, idx) => (
                      <div 
-                       key={`${lanc.descricao}-${lanc.valor}-${lanc.dataVencimento}`}
+                       key={`${lanc.descricao}-${lanc.valor}-${lanc.dataVencimento}-${idx}`}
                        style={{ position: 'relative', zIndex: lancamentosParaRevisar.length - idx }}
                      >
                        <ReviewItem
