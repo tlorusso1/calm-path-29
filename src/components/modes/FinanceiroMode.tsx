@@ -771,6 +771,13 @@ export function FinanceiroMode({
                 toast.success(`Fornecedor "${novoFornecedor.nome}" criado!`);
                 return novoId; // Retorna ID para seleção automática
               }}
+              onUpdateFornecedor={(id, updates) => {
+                onUpdateFinanceiroData({
+                  fornecedores: (data.fornecedores || []).map(f => 
+                    f.id === id ? { ...f, ...updates } : f
+                  ),
+                });
+              }}
               isOpen={openSections.conciliacao || false}
               onToggle={() => toggleSection('conciliacao')}
             />

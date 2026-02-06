@@ -56,6 +56,7 @@ export interface Fornecedor {
   cnpj?: string;
   chavePix?: string;
   aliases?: string[];       // Nomes alternativos (para match)
+  naturezaPadrao?: ContaFluxoNatureza; // Natureza padrão para este fornecedor (operacional ou capitalGiro)
 }
 
 // ============= Custos Fixos Detalhados =============
