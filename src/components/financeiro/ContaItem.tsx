@@ -145,77 +145,87 @@ export function ContaItem({
 
   if (isEditing) {
     return (
-      <div className={`flex flex-wrap items-center gap-2 p-2 rounded border ${styles.bg}`}>
-        <Select value={editTipo} onValueChange={(val) => setEditTipo(val as ContaFluxoTipo)}>
-          <SelectTrigger className="h-7 w-28 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="pagar">💸 Pagar</SelectItem>
-            <SelectItem value="receber">💰 Receber</SelectItem>
-            <SelectItem value="intercompany">🔁 Intercompany</SelectItem>
-            <SelectItem value="aplicacao">📈 Aplicação</SelectItem>
-            <SelectItem value="resgate">📉 Resgate</SelectItem>
-          </SelectContent>
-        </Select>
-        
-        {/* Seletor de Natureza (somente para tipo "pagar") */}
-        {editTipo === 'pagar' && (
-          <Select 
-            value={editNatureza || 'operacional'} 
-            onValueChange={(val) => setEditNatureza(val as ContaFluxoNatureza)}
-          >
-            <SelectTrigger className="h-7 w-32 text-xs">
+      <div className={`flex flex-wrap items-center gap-2 sm:gap-3 p-3 rounded border ${styles.bg}`}>
+        {/* Linha 1: Tipo + Natureza */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Select value={editTipo} onValueChange={(val) => setEditTipo(val as ContaFluxoTipo)}>
+            <SelectTrigger className="h-8 w-full sm:w-28 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="operacional">⚙️ Operacional</SelectItem>
-              <SelectItem value="capitalGiro">📦 Estoque</SelectItem>
+              <SelectItem value="pagar">💸 Pagar</SelectItem>
+              <SelectItem value="receber">💰 Receber</SelectItem>
+              <SelectItem value="intercompany">🔁 Intercompany</SelectItem>
+              <SelectItem value="aplicacao">📈 Aplicação</SelectItem>
+              <SelectItem value="resgate">📉 Resgate</SelectItem>
             </SelectContent>
           </Select>
-        )}
+          
+          {/* Seletor de Natureza (somente para tipo "pagar") */}
+          {editTipo === 'pagar' && (
+            <Select 
+              value={editNatureza || 'operacional'} 
+              onValueChange={(val) => setEditNatureza(val as ContaFluxoNatureza)}
+            >
+              <SelectTrigger className="h-8 w-full sm:w-32 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="operacional">⚙️ Operacional</SelectItem>
+                <SelectItem value="capitalGiro">📦 Estoque</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </div>
         
-        <Input
-          ref={inputRef}
-          value={editData}
-          onChange={(e) => setEditData(e.target.value)}
-          type="date"
-          className="h-7 w-24 text-xs"
-          onKeyDown={handleKeyDown}
-        />
-        <Input
-          value={editDescricao}
-          onChange={(e) => setEditDescricao(e.target.value)}
-          placeholder="Descrição"
-          className="h-7 flex-1 min-w-[120px] text-xs"
-          onKeyDown={handleKeyDown}
-        />
-        <div className="relative w-24">
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+        {/* Linha 2: Data + Descrição */}
+        <div className="flex items-center gap-2 w-full sm:w-auto sm:flex-1">
           <Input
-            value={editValor}
-            onChange={(e) => setEditValor(e.target.value)}
-            placeholder="0,00"
-            className="h-7 text-xs pl-7 text-right"
+            value={editData}
+            onChange={(e) => setEditData(e.target.value)}
+            type="date"
+            className="h-8 w-full sm:w-32 text-xs"
+            onKeyDown={handleKeyDown}
+          />
+          <Input
+            ref={inputRef}
+            value={editDescricao}
+            onChange={(e) => setEditDescricao(e.target.value)}
+            placeholder="Descrição"
+            className="h-8 flex-1 min-w-0 text-xs"
             onKeyDown={handleKeyDown}
           />
         </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 w-6 p-0 text-green-600 hover:text-green-700"
-          onClick={handleSave}
-        >
-          <Check className="h-3 w-3" />
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-          onClick={handleCancel}
-        >
-          <X className="h-3 w-3" />
-        </Button>
+        
+        {/* Linha 3: Valor + Ações */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-28 sm:flex-none">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+            <Input
+              value={editValor}
+              onChange={(e) => setEditValor(e.target.value)}
+              placeholder="0,00"
+              className="h-8 text-xs pl-7 text-right"
+              onKeyDown={handleKeyDown}
+            />
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
+            onClick={handleSave}
+          >
+            <Check className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            onClick={handleCancel}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     );
   }
@@ -224,25 +234,29 @@ export function ContaItem({
     <TooltipProvider>
       <div
         className={cn(
-          "flex items-center justify-between p-2 rounded border text-sm group transition-colors",
+          "flex flex-wrap items-center gap-2 p-2 rounded border text-sm group transition-colors",
           styles.bg,
           "cursor-pointer hover:bg-muted/50"
         )}
         onClick={() => setIsEditing(true)}
       >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
+        {/* Linha 1: Data + Descrição */}
+        <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto sm:flex-1">
           <span className="text-xs text-muted-foreground w-12 shrink-0">
             {format(parseISO(conta.dataVencimento), 'dd/MM', { locale: ptBR })}
           </span>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="truncate max-w-[250px] cursor-default">{conta.descricao}</span>
+              <span className="truncate flex-1 sm:max-w-[300px] cursor-default">{conta.descricao}</span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[350px] text-xs">
               {conta.descricao}
             </TooltipContent>
           </Tooltip>
-          
+        </div>
+        
+        {/* Linha 2: Badges + Valor + Ações */}
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           {/* Badge de tipo clicável com cycling */}
           {(() => {
             const tipoConfig = {
@@ -339,86 +353,88 @@ export function ContaItem({
               Estoque
             </Badge>
           )}
-        </div>
+          
+          {/* Valor + Ações - empurrados para direita */}
+          <div className="flex items-center gap-1.5 ml-auto shrink-0">
         
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className={`font-medium ${styles.text}`}>
-            {formatCurrency(conta.valor)}
-          </span>
-          
-          {/* Botões de ação */}
-          {!conta.pago && onTogglePago && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onTogglePago(conta.id);
-                  }}
-                >
-                  <CheckCircle className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Dar baixa (pago)</TooltipContent>
-            </Tooltip>
-          )}
-          
-          {!conta.pago && onToggleAgendado && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className={cn(
-                    "h-6 w-6 p-0",
-                    conta.agendado 
-                      ? "text-blue-600 hover:text-blue-700 hover:bg-blue-100" 
-                      : "text-muted-foreground hover:text-blue-600 hover:bg-blue-50"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleAgendado(conta.id);
-                  }}
-                >
-                  {conta.agendado ? (
-                    <CalendarCheck className="h-3.5 w-3.5" />
-                  ) : (
-                    <Calendar className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {conta.agendado ? 'Desmarcar agendamento' : 'Agendar (baixa automática no vencimento)'}
-              </TooltipContent>
-            </Tooltip>
-          )}
-          
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 w-6 p-0 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsEditing(true);
-            }}
-          >
-            <Pencil className="h-3 w-3" />
-          </Button>
-          
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(conta.id);
-            }}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
+            <span className={`font-medium ${styles.text}`}>
+              {formatCurrency(conta.valor)}
+            </span>
+            
+            {/* Botões de ação */}
+            {!conta.pago && onTogglePago && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTogglePago(conta.id);
+                    }}
+                  >
+                    <CheckCircle className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Dar baixa (pago)</TooltipContent>
+              </Tooltip>
+            )}
+            
+            {!conta.pago && onToggleAgendado && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={cn(
+                      "h-6 w-6 p-0",
+                      conta.agendado 
+                        ? "text-blue-600 hover:text-blue-700 hover:bg-blue-100" 
+                        : "text-muted-foreground hover:text-blue-600 hover:bg-blue-50"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleAgendado(conta.id);
+                    }}
+                  >
+                    {conta.agendado ? (
+                      <CalendarCheck className="h-3.5 w-3.5" />
+                    ) : (
+                      <Calendar className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {conta.agendado ? 'Desmarcar agendamento' : 'Agendar (baixa automática no vencimento)'}
+                </TooltipContent>
+              </Tooltip>
+            )}
+            
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditing(true);
+              }}
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+            
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(conta.id);
+              }}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
       </div>
     </TooltipProvider>
