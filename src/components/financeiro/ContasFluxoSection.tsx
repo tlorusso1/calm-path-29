@@ -194,14 +194,24 @@ export function ContasFluxoSection({
 
   const contasPagarAtrasadas = contasAtrasadas.filter(c => c.tipo === 'pagar');
   const contasReceberAtrasadas = contasAtrasadas.filter(c => c.tipo === 'receber');
+  const contasOutrasAtrasadas = contasAtrasadas.filter(c => 
+    c.tipo !== 'pagar' && c.tipo !== 'receber'
+  );
   const contasPagarHoje = contasHoje.filter(c => c.tipo === 'pagar');
   const contasReceberHoje = contasHoje.filter(c => c.tipo === 'receber');
+  const contasOutrasHoje = contasHoje.filter(c => 
+    c.tipo !== 'pagar' && c.tipo !== 'receber'
+  );
   const contasPagar = contasFuturas.filter(c => c.tipo === 'pagar');
   const contasReceber = contasFuturas.filter(c => c.tipo === 'receber');
+  const contasOutrasFuturas = contasFuturas.filter(c => 
+    c.tipo !== 'pagar' && c.tipo !== 'receber'
+  );
 
   // Totais 30 dias
   const totalPagar30d = contasPagar.reduce((acc, c) => acc + parseValorFlexivel(c.valor), 0);
   const totalReceber30d = contasReceber.reduce((acc, c) => acc + parseValorFlexivel(c.valor), 0);
+  const totalOutras30d = contasOutrasFuturas.reduce((acc, c) => acc + parseValorFlexivel(c.valor), 0);
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -443,7 +453,7 @@ export function ContasFluxoSection({
             </div>
 
             {/* ⚠️ Atrasadas */}
-            {(contasPagarAtrasadas.length > 0 || contasReceberAtrasadas.length > 0) && (
+            {(contasPagarAtrasadas.length > 0 || contasReceberAtrasadas.length > 0 || contasOutrasAtrasadas.length > 0) && (
               <div className="space-y-2 p-3 rounded-lg bg-destructive/5 border border-destructive/20">
                 <p className="text-xs font-semibold text-destructive flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
@@ -476,12 +486,25 @@ export function ContasFluxoSection({
                       formatCurrency={formatCurrency}
                     />
                   ))}
+                  {contasOutrasAtrasadas.map((conta) => (
+                    <ContaItem
+                      key={conta.id}
+                      conta={conta}
+                      variant={conta.tipo}
+                      fornecedores={fornecedores}
+                      onUpdate={onUpdateConta || (() => {})}
+                      onRemove={onRemoveConta}
+                      onTogglePago={onTogglePago}
+                      onToggleAgendado={onToggleAgendado}
+                      formatCurrency={formatCurrency}
+                    />
+                  ))}
                 </div>
               </div>
             )}
 
             {/* ⏰ Hoje */}
-            {(contasPagarHoje.length > 0 || contasReceberHoje.length > 0) && (
+            {(contasPagarHoje.length > 0 || contasReceberHoje.length > 0 || contasOutrasHoje.length > 0) && (
               <div className="space-y-2 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
                 <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
                   <Clock className="h-3 w-3" />
@@ -514,12 +537,25 @@ export function ContasFluxoSection({
                       formatCurrency={formatCurrency}
                     />
                   ))}
+                  {contasOutrasHoje.map((conta) => (
+                    <ContaItem
+                      key={conta.id}
+                      conta={conta}
+                      variant={conta.tipo}
+                      fornecedores={fornecedores}
+                      onUpdate={onUpdateConta || (() => {})}
+                      onRemove={onRemoveConta}
+                      onTogglePago={onTogglePago}
+                      onToggleAgendado={onToggleAgendado}
+                      formatCurrency={formatCurrency}
+                    />
+                  ))}
                 </div>
               </div>
             )}
 
             {/* Próximos 30 dias */}
-            {(contasPagar.length > 0 || contasReceber.length > 0) && (
+            {(contasPagar.length > 0 || contasReceber.length > 0 || contasOutrasFuturas.length > 0) && (
               <div className="space-y-3">
                 {contasPagar.length > 0 && (
                   <div>
@@ -567,6 +603,35 @@ export function ContasFluxoSection({
                           key={conta.id}
                           conta={conta}
                           variant="receber"
+                          fornecedores={fornecedores}
+                          onUpdate={onUpdateConta || (() => {})}
+                          onRemove={onRemoveConta}
+                          onTogglePago={onTogglePago}
+                          onToggleAgendado={onToggleAgendado}
+                          formatCurrency={formatCurrency}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {contasOutrasFuturas.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-1">
+                        <RefreshCw className="h-3 w-3 text-blue-600" />
+                        Outras Movimentações (próx. 30d)
+                      </span>
+                      <span className="font-semibold text-blue-600">
+                        {formatCurrencyValue(totalOutras30d)}
+                      </span>
+                    </p>
+                    <div className="space-y-1">
+                      {contasOutrasFuturas.map((conta) => (
+                        <ContaItem
+                          key={conta.id}
+                          conta={conta}
+                          variant={conta.tipo}
                           fornecedores={fornecedores}
                           onUpdate={onUpdateConta || (() => {})}
                           onRemove={onRemoveConta}

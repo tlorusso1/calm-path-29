@@ -298,14 +298,22 @@ export function ContaItem({
           })()}
           
           {conta.agendado && !conta.pago && (
-            <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700 shrink-0">
+            <Badge 
+              variant="secondary" 
+              className="text-[10px] bg-blue-100 text-blue-700 shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
               agendado
             </Badge>
           )}
           {status === 'atrasada' && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="destructive" className="text-[10px] shrink-0">
+                <Badge 
+                  variant="destructive" 
+                  className="text-[10px] shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {getDiasAtraso()}d atraso
                 </Badge>
               </TooltipTrigger>
@@ -315,7 +323,11 @@ export function ContaItem({
             </Tooltip>
           )}
           {status === 'hoje' && (
-            <Badge variant="secondary" className="text-[10px] bg-yellow-100 text-yellow-700 shrink-0">
+            <Badge 
+              variant="secondary" 
+              className="text-[10px] bg-yellow-100 text-yellow-700 shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
               vence hoje
             </Badge>
           )}
