@@ -305,18 +305,39 @@ export function ContaItem({
               vence hoje
             </Badge>
           )}
-          {ehCapitalGiro && !conta.pago && (
+          {/* Toggle de Natureza - apenas para contas a pagar pendentes */}
+          {conta.tipo === 'pagar' && !conta.pago && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="outline" className="text-[10px] bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700 shrink-0 gap-1">
-                  <Package className="h-2.5 w-2.5" />
-                  Estoque
-                </Badge>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const novaNatureza = conta.natureza === 'capitalGiro' ? 'operacional' : 'capitalGiro';
+                    onUpdate(conta.id, { natureza: novaNatureza });
+                  }}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[10px] font-medium hover:opacity-80 transition-opacity shrink-0 flex items-center gap-1",
+                    conta.natureza === 'capitalGiro' 
+                      ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" 
+                      : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                  )}
+                >
+                  {conta.natureza === 'capitalGiro' ? '📦 EST' : '⚙️ OP'}
+                </button>
               </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs max-w-[200px]">
-                Capital de Giro — não impacta meta de faturamento
+              <TooltipContent side="top" className="text-xs">
+                {conta.natureza === 'capitalGiro' 
+                  ? "Estoque (não impacta meta) — Clique para Operacional" 
+                  : "Operacional (impacta meta) — Clique para Estoque"}
               </TooltipContent>
             </Tooltip>
+          )}
+          {/* Badge estático para contas pagas (histórico) */}
+          {conta.tipo === 'pagar' && conta.pago && conta.natureza === 'capitalGiro' && (
+            <Badge variant="outline" className="text-[10px] bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700 shrink-0 gap-1">
+              <Package className="h-2.5 w-2.5" />
+              Estoque
+            </Badge>
           )}
         </div>
         
