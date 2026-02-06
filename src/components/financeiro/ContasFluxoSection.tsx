@@ -6,8 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw, Building2, List } from 'lucide-react';
-import { ContaFluxo, Fornecedor } from '@/types/focus-mode';
+import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw, Building2, List, Search } from 'lucide-react';
+import { ContaFluxo, Fornecedor, ContaFluxoTipo } from '@/types/focus-mode';
 import { format, parseISO, isAfter, isBefore, isToday, addDays, subDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
@@ -16,7 +16,7 @@ import { ContaItem } from './ContaItem';
 
 interface ContasFluxoSectionProps {
   contas: ContaFluxo[];
-  fornecedores?: Fornecedor[]; // Para identificar Capital de Giro
+  fornecedores?: Fornecedor[];
   onAddConta: (conta: Omit<ContaFluxo, 'id'>) => void;
   onAddMultipleContas?: (contas: Omit<ContaFluxo, 'id'>[]) => void;
   onUpdateConta?: (id: string, updates: Partial<ContaFluxo>) => void;
@@ -48,6 +48,11 @@ export function ContasFluxoSection({
   const [isHistoricoOpen, setIsHistoricoOpen] = useState(false);
   const [historicoLimit, setHistoricoLimit] = useState(30);
   const [historicoView, setHistoricoView] = useState<'lista' | 'por-conta'>('lista');
+  // Filtros do histórico
+  const [filtroTexto, setFiltroTexto] = useState('');
+  const [filtroMes, setFiltroMes] = useState<number | 'todos'>('todos');
+  const [filtroTipo, setFiltroTipo] = useState<ContaFluxoTipo | 'todos'>('todos');
+  const [filtroCategoria, setFiltroCategoria] = useState<string | 'todos'>('todos');
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
   const hoje = new Date();
@@ -58,13 +63,39 @@ export function ContasFluxoSection({
   const { contasPagas, totalSaidas, totalEntradas, saldoPeriodo, porConta } = useMemo(() => {
     const limite60dAtras = subDays(hoje, 60);
     
-    const pagas = contas
+    let pagas = contas
       .filter(c => c.pago)
       .filter(c => {
         const data = parseISO(c.dataVencimento);
         return isAfter(data, limite60dAtras);
-      })
-      .sort((a, b) => b.dataVencimento.localeCompare(a.dataVencimento)); // Mais recentes primeiro
+      });
+    
+    // Aplicar filtros
+    if (filtroTexto.trim()) {
+      const termo = filtroTexto.toLowerCase();
+      pagas = pagas.filter(c => c.descricao.toLowerCase().includes(termo));
+    }
+    
+    if (filtroMes !== 'todos') {
+      pagas = pagas.filter(c => {
+        const data = parseISO(c.dataVencimento);
+        return data.getMonth() + 1 === filtroMes;
+      });
+    }
+    
+    if (filtroTipo !== 'todos') {
+      pagas = pagas.filter(c => c.tipo === filtroTipo);
+    }
+    
+    if (filtroCategoria !== 'todos') {
+      pagas = pagas.filter(c => {
+        if (!c.fornecedorId) return false;
+        const fornecedor = fornecedores.find(f => f.id === c.fornecedorId);
+        return fornecedor?.modalidade === filtroCategoria;
+      });
+    }
+    
+    pagas = pagas.sort((a, b) => b.dataVencimento.localeCompare(a.dataVencimento));
     
     const saidas = pagas
       .filter(c => c.tipo === 'pagar')
@@ -74,11 +105,10 @@ export function ContasFluxoSection({
       .filter(c => c.tipo === 'receber')
       .reduce((acc, c) => acc + parseValorFlexivel(c.valor), 0);
     
-    // Agrupar por conta/origem (extrair padrão da descrição)
+    // Agrupar por conta/origem
     const agrupado: Record<string, { entradas: number; saidas: number; count: number }> = {};
     
     for (const c of pagas) {
-      // Detectar conta pela descrição (padrões comuns)
       let conta = 'Outros';
       const desc = c.descricao.toUpperCase();
       
@@ -113,7 +143,6 @@ export function ContasFluxoSection({
       agrupado[conta].count++;
     }
     
-    // Converter para array ordenado
     const porContaArray = Object.entries(agrupado)
       .map(([nome, dados]) => ({
         nome,
@@ -122,7 +151,7 @@ export function ContasFluxoSection({
         saldo: dados.entradas - dados.saidas,
         count: dados.count,
       }))
-      .sort((a, b) => (b.entradas + b.saidas) - (a.entradas + a.saidas)); // Maior movimentação primeiro
+      .sort((a, b) => (b.entradas + b.saidas) - (a.entradas + a.saidas));
     
     return {
       contasPagas: pagas,
@@ -131,13 +160,12 @@ export function ContasFluxoSection({
       saldoPeriodo: entradas - saidas,
       porConta: porContaArray,
     };
-  }, [contas, hoje]);
+  }, [contas, hoje, filtroTexto, filtroMes, filtroTipo, filtroCategoria, fornecedores]);
   
   const formatCurrencyValue = (value: number): string => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
   
-  // Badge para tipo de baixa
   const getBadgeTipoBaixa = (conta: ContaFluxo) => {
     if (conta.conciliado) {
       return <Badge variant="outline" className="text-[10px] h-4 px-1 bg-blue-50 text-blue-700 border-blue-200">conc</Badge>;
@@ -148,7 +176,6 @@ export function ContasFluxoSection({
     return <Badge variant="outline" className="text-[10px] h-4 px-1 bg-muted">manual</Badge>;
   };
 
-  // Separar contas por status
   const contasAtrasadas = contas
     .filter(c => !c.pago && isBefore(parseISO(c.dataVencimento), hoje) && !isToday(parseISO(c.dataVencimento)))
     .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento));
@@ -157,7 +184,6 @@ export function ContasFluxoSection({
     .filter(c => !c.pago && isToday(parseISO(c.dataVencimento)))
     .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento));
 
-  // Contas futuras (próximos 30 dias, não pagas)
   const contasFuturas = contas
     .filter(c => !c.pago)
     .filter(c => {
@@ -173,7 +199,6 @@ export function ContasFluxoSection({
   const contasPagar = contasFuturas.filter(c => c.tipo === 'pagar');
   const contasReceber = contasFuturas.filter(c => c.tipo === 'receber');
 
-  // File to base64
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -183,7 +208,6 @@ export function ContasFluxoSection({
     });
   };
 
-  // Process image via edge function
   const processImage = async (file: File) => {
     if (file.size > 5 * 1024 * 1024) {
       toast.error('Imagem muito grande. Máximo 5MB.');
@@ -209,7 +233,6 @@ export function ContasFluxoSection({
         return;
       }
       
-      // Handle array of contas from OCR
       const contasExtraidas = data?.contas || [];
       
       if (contasExtraidas.length === 0) {
@@ -218,7 +241,6 @@ export function ContasFluxoSection({
       }
       
       if (contasExtraidas.length === 1) {
-        // Single account: fill form for review
         const c = contasExtraidas[0];
         if (c.descricao) setDescricao(c.descricao);
         if (c.valor) setValor(c.valor);
@@ -226,7 +248,6 @@ export function ContasFluxoSection({
         if (c.tipo) setTipo(c.tipo);
         toast.success('Dados extraídos! Confira e clique em + para adicionar.');
       } else {
-        // Multiple accounts: add all at once
         if (onAddMultipleContas) {
           const contasParaAdicionar = contasExtraidas.map((c: any) => ({
             tipo: c.tipo || 'pagar',
@@ -238,7 +259,6 @@ export function ContasFluxoSection({
           onAddMultipleContas(contasParaAdicionar);
           toast.success(`${contasExtraidas.length} lançamentos extraídos e adicionados!`);
         } else {
-          // Fallback: fill form with first item if handler not provided
           const c = contasExtraidas[0];
           if (c.descricao) setDescricao(c.descricao);
           if (c.valor) setValor(c.valor);
@@ -255,7 +275,6 @@ export function ContasFluxoSection({
     }
   };
 
-  // Handle paste (Ctrl+V)
   const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     for (const item of Array.from(items || [])) {
@@ -270,7 +289,6 @@ export function ContasFluxoSection({
     }
   };
 
-  // Handle drag events
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(true);
@@ -302,7 +320,6 @@ export function ContasFluxoSection({
       pago: false,
     });
 
-    // Reset form
     setDescricao('');
     setValor('');
     setDataVencimento('');
@@ -423,60 +440,10 @@ export function ContasFluxoSection({
               <div className="space-y-2 p-3 rounded-lg bg-destructive/5 border border-destructive/20">
                 <p className="text-xs font-semibold text-destructive flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
-                  Atrasadas ({contasPagarAtrasadas.length + contasReceberAtrasadas.length})
+                  Atrasadas ({contasAtrasadas.length})
                 </p>
                 <div className="space-y-1">
-                  {[...contasPagarAtrasadas, ...contasReceberAtrasadas].map((conta) => (
-                    <ContaItem
-                      key={conta.id}
-                      conta={conta}
-                      variant={conta.tipo}
-                      fornecedores={fornecedores}
-                      onUpdate={onUpdateConta || (() => {})}
-                      onRemove={onRemoveConta}
-                      onTogglePago={onTogglePago}
-                      onToggleAgendado={onToggleAgendado}
-                      formatCurrency={formatCurrency}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 📅 Vence Hoje */}
-            {(contasPagarHoje.length > 0 || contasReceberHoje.length > 0) && (
-              <div className="space-y-2 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-300 dark:border-yellow-700">
-                <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Vence Hoje ({contasPagarHoje.length + contasReceberHoje.length})
-                </p>
-                <div className="space-y-1">
-                  {[...contasPagarHoje, ...contasReceberHoje].map((conta) => (
-                    <ContaItem
-                      key={conta.id}
-                      conta={conta}
-                      variant={conta.tipo}
-                      fornecedores={fornecedores}
-                      onUpdate={onUpdateConta || (() => {})}
-                      onRemove={onRemoveConta}
-                      onTogglePago={onTogglePago}
-                      onToggleAgendado={onToggleAgendado}
-                      formatCurrency={formatCurrency}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Lista A Pagar - Futuras */}
-            {contasPagar.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                  <ArrowUpCircle className="h-3 w-3 text-destructive" />
-                  A Pagar (próx. 30d)
-                </p>
-                <div className="space-y-1">
-                  {contasPagar.map((conta) => (
+                  {contasPagarAtrasadas.map((conta) => (
                     <ContaItem
                       key={conta.id}
                       conta={conta}
@@ -489,19 +456,7 @@ export function ContasFluxoSection({
                       formatCurrency={formatCurrency}
                     />
                   ))}
-                </div>
-              </div>
-            )}
-
-            {/* Lista A Receber - Futuras */}
-            {contasReceber.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                  <ArrowDownCircle className="h-3 w-3 text-primary" />
-                  A Receber (próx. 30d)
-                </p>
-                <div className="space-y-1">
-                  {contasReceber.map((conta) => (
+                  {contasReceberAtrasadas.map((conta) => (
                     <ContaItem
                       key={conta.id}
                       conta={conta}
@@ -515,6 +470,97 @@ export function ContasFluxoSection({
                     />
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* ⏰ Hoje */}
+            {(contasPagarHoje.length > 0 || contasReceberHoje.length > 0) && (
+              <div className="space-y-2 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+                <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Vence Hoje ({contasHoje.length})
+                </p>
+                <div className="space-y-1">
+                  {contasPagarHoje.map((conta) => (
+                    <ContaItem
+                      key={conta.id}
+                      conta={conta}
+                      variant="pagar"
+                      fornecedores={fornecedores}
+                      onUpdate={onUpdateConta || (() => {})}
+                      onRemove={onRemoveConta}
+                      onTogglePago={onTogglePago}
+                      onToggleAgendado={onToggleAgendado}
+                      formatCurrency={formatCurrency}
+                    />
+                  ))}
+                  {contasReceberHoje.map((conta) => (
+                    <ContaItem
+                      key={conta.id}
+                      conta={conta}
+                      variant="receber"
+                      fornecedores={fornecedores}
+                      onUpdate={onUpdateConta || (() => {})}
+                      onRemove={onRemoveConta}
+                      onTogglePago={onTogglePago}
+                      onToggleAgendado={onToggleAgendado}
+                      formatCurrency={formatCurrency}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Próximos 30 dias */}
+            {(contasPagar.length > 0 || contasReceber.length > 0) && (
+              <div className="space-y-3">
+                {contasPagar.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+                      <ArrowDownCircle className="h-3 w-3 text-primary" />
+                      A Pagar (próx. 30d)
+                    </p>
+                    <div className="space-y-1">
+                      {contasPagar.map((conta) => (
+                        <ContaItem
+                          key={conta.id}
+                          conta={conta}
+                          variant="pagar"
+                          fornecedores={fornecedores}
+                          onUpdate={onUpdateConta || (() => {})}
+                          onRemove={onRemoveConta}
+                          onTogglePago={onTogglePago}
+                          onToggleAgendado={onToggleAgendado}
+                          formatCurrency={formatCurrency}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {contasReceber.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+                      <ArrowDownCircle className="h-3 w-3 text-primary" />
+                      A Receber (próx. 30d)
+                    </p>
+                    <div className="space-y-1">
+                      {contasReceber.map((conta) => (
+                        <ContaItem
+                          key={conta.id}
+                          conta={conta}
+                          variant="receber"
+                          fornecedores={fornecedores}
+                          onUpdate={onUpdateConta || (() => {})}
+                          onRemove={onRemoveConta}
+                          onTogglePago={onTogglePago}
+                          onToggleAgendado={onToggleAgendado}
+                          formatCurrency={formatCurrency}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -594,6 +640,78 @@ export function ContasFluxoSection({
                           Por Conta
                         </button>
                       </div>
+
+                      {/* Barra de Filtros */}
+                      <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-muted/30 border">
+                        {/* Busca por texto */}
+                        <div className="relative flex-1 min-w-[150px]">
+                          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                          <Input
+                            placeholder="Buscar por descrição..."
+                            value={filtroTexto}
+                            onChange={(e) => setFiltroTexto(e.target.value)}
+                            className="h-8 text-xs pl-7"
+                          />
+                        </div>
+                        
+                        {/* Filtro por mês */}
+                        <Select value={String(filtroMes)} onValueChange={(v) => setFiltroMes(v === 'todos' ? 'todos' : Number(v))}>
+                          <SelectTrigger className="h-8 w-[100px] text-xs">
+                            <SelectValue placeholder="Mês" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todos">Todos</SelectItem>
+                            <SelectItem value="1">Jan</SelectItem>
+                            <SelectItem value="2">Fev</SelectItem>
+                            <SelectItem value="3">Mar</SelectItem>
+                            <SelectItem value="4">Abr</SelectItem>
+                            <SelectItem value="5">Mai</SelectItem>
+                            <SelectItem value="6">Jun</SelectItem>
+                            <SelectItem value="7">Jul</SelectItem>
+                            <SelectItem value="8">Ago</SelectItem>
+                            <SelectItem value="9">Set</SelectItem>
+                            <SelectItem value="10">Out</SelectItem>
+                            <SelectItem value="11">Nov</SelectItem>
+                            <SelectItem value="12">Dez</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        
+                        {/* Filtro por tipo */}
+                        <Select value={filtroTipo as string} onValueChange={(v) => setFiltroTipo(v as any)}>
+                          <SelectTrigger className="h-8 w-[110px] text-xs">
+                            <SelectValue placeholder="Tipo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todos">Todos</SelectItem>
+                            <SelectItem value="receber">🟢 Entradas</SelectItem>
+                            <SelectItem value="pagar">🔴 Saídas</SelectItem>
+                            <SelectItem value="intercompany">🔁 Inter</SelectItem>
+                            <SelectItem value="aplicacao">📈 Aplic.</SelectItem>
+                            <SelectItem value="resgate">📉 Resg.</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        
+                        {/* Filtro por categoria DRE */}
+                        <Select value={filtroCategoria as string} onValueChange={setFiltroCategoria}>
+                          <SelectTrigger className="h-8 w-[140px] text-xs">
+                            <SelectValue placeholder="Categoria" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todos">Todas</SelectItem>
+                            <SelectItem value="Vendas">Vendas</SelectItem>
+                            <SelectItem value="Custo de Mercadoria">CMV</SelectItem>
+                            <SelectItem value="Despesas Operacionais">Desp. Op.</SelectItem>
+                            <SelectItem value="Financeiro">Financeiro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Mostrar quantidade de resultados após filtros */}
+                      {(filtroTexto || filtroMes !== 'todos' || filtroTipo !== 'todos' || filtroCategoria !== 'todos') && (
+                        <div className="text-xs text-muted-foreground px-1">
+                          {contasPagas.length} resultado{contasPagas.length !== 1 ? 's' : ''}
+                        </div>
+                      )}
                       
                       {/* Visualização por lista */}
                       {historicoView === 'lista' && (

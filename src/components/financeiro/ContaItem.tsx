@@ -243,12 +243,44 @@ export function ContaItem({
             </TooltipContent>
           </Tooltip>
           
-          {/* Badges de status */}
-          {conta.pago && (
-            <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 shrink-0">
-              pago
-            </Badge>
-          )}
+          {/* Badge de tipo clicável com cycling */}
+          {(() => {
+            const tipoConfig = {
+              pagar: { emoji: '🔴', label: 'SAÍDA', next: 'receber' as ContaFluxoTipo },
+              receber: { emoji: '🟢', label: 'ENTRADA', next: 'intercompany' as ContaFluxoTipo },
+              intercompany: { emoji: '🔁', label: 'INTER', next: 'aplicacao' as ContaFluxoTipo },
+              aplicacao: { emoji: '📈', label: 'APLIC', next: 'resgate' as ContaFluxoTipo },
+              resgate: { emoji: '📉', label: 'RESG', next: 'pagar' as ContaFluxoTipo },
+            };
+            const config = tipoConfig[conta.tipo];
+            const bgColor = 
+              conta.tipo === 'pagar' ? 'bg-red-100 text-red-700' :
+              conta.tipo === 'receber' ? 'bg-green-100 text-green-700' :
+              conta.tipo === 'intercompany' ? 'bg-blue-100 text-blue-700' :
+              conta.tipo === 'aplicacao' ? 'bg-purple-100 text-purple-700' :
+              'bg-orange-100 text-orange-700';
+            
+            return (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUpdate(conta.id, { tipo: config.next });
+                    }}
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium hover:opacity-80 transition-opacity shrink-0 ${bgColor}`}
+                    title="Clique para alternar tipo"
+                  >
+                    {config.emoji} {config.label}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Próximo: {tipoConfig[config.next as ContaFluxoTipo].label}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })()}
+          
           {conta.agendado && !conta.pago && (
             <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700 shrink-0">
               agendado
