@@ -383,11 +383,11 @@ export function ContasFluxoSection({
               )}
             </div>
 
-            {/* Form para adicionar */}
-            <div className="grid grid-cols-12 gap-2 p-3 rounded-lg border bg-muted/30">
-              <div className="col-span-3">
+            {/* Form para adicionar - Responsivo */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 p-3 rounded-lg border bg-muted/30">
+              <div className="sm:col-span-3">
                 <Select value={tipo} onValueChange={(v) => setTipo(v as 'pagar' | 'receber' | 'intercompany')}>
-                  <SelectTrigger className="h-8 text-xs">
+                  <SelectTrigger className="h-9 sm:h-8 text-sm sm:text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -397,44 +397,47 @@ export function ContasFluxoSection({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-4">
+              <div className="sm:col-span-4">
                 <Input
                   placeholder="Descrição"
                   value={descricao}
                   onChange={(e) => setDescricao(e.target.value)}
-                  className="h-8 text-xs"
+                  className="h-9 sm:h-8 text-sm sm:text-xs"
                 />
               </div>
-              <div className="col-span-2">
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+              <div className="grid grid-cols-2 gap-2 sm:contents">
+                <div className="sm:col-span-2">
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                    <Input
+                      placeholder="0,00"
+                      value={valor}
+                      onChange={(e) => setValor(e.target.value)}
+                      className="h-9 sm:h-8 text-sm sm:text-xs pl-7 text-right"
+                    />
+                  </div>
+                </div>
+                <div className="sm:col-span-2">
                   <Input
-                    placeholder="0,00"
-                    value={valor}
-                    onChange={(e) => setValor(e.target.value)}
-                    className="h-8 text-xs pl-7 text-right"
+                    type="date"
+                    value={dataVencimento}
+                    onChange={(e) => setDataVencimento(e.target.value)}
+                    className="h-9 sm:h-8 text-sm sm:text-xs"
+                    min={format(hoje, 'yyyy-MM-dd')}
+                    max={format(limite30d, 'yyyy-MM-dd')}
                   />
                 </div>
               </div>
-              <div className="col-span-2">
-                <Input
-                  type="date"
-                  value={dataVencimento}
-                  onChange={(e) => setDataVencimento(e.target.value)}
-                  className="h-8 text-xs"
-                  min={format(hoje, 'yyyy-MM-dd')}
-                  max={format(limite30d, 'yyyy-MM-dd')}
-                />
-              </div>
-              <div className="col-span-1">
+              <div className="sm:col-span-1">
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-8 w-full"
+                  className="h-9 sm:h-8 w-full"
                   onClick={handleAdd}
                   disabled={!descricao.trim() || !valor || !dataVencimento}
                 >
-                  <Plus className="h-3 w-3" />
+                  <Plus className="h-4 sm:h-3 w-4 sm:w-3 mr-1 sm:mr-0" />
+                  <span className="sm:hidden">Adicionar</span>
                 </Button>
               </div>
             </div>
