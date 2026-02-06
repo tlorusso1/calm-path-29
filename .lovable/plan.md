@@ -1,160 +1,90 @@
 
-# Melhoria de Responsividade no Layout de Contas
 
-## Problema Identificado
+# Correção de Bugs: Sumiço de Contas + Layout Responsivo
 
-O componente `ContaItem.tsx` atualmente exibe todos os elementos em uma única linha:
-- Data (12 chars)
-- Descrição (truncada)
-- Badge de tipo (SAÍDA/ENTRADA)
-- Badge "agendado" (opcional)
-- Badge "vence hoje" (opcional)
-- Badge OP/EST (opcional)
-- Valor
-- 4 botões de ação (check, calendar, edit, trash)
+## Diagnóstico Final
 
-No mobile e até em telas médias, isso causa sobreposição de elementos.
+### Problema 1: Contas Desaparecem ao Clicar em Badges
+
+**Causa Raiz Identificada:**
+Quando você clica no badge de tipo (🔴 SAÍDA), ele faz "cycling" entre tipos:
+`pagar` → `receber` → `intercompany` → `aplicacao` → `resgate` → `cartao`
+
+As listas de "Vence Hoje" e "Atrasadas" só exibem contas dos tipos:
+- `tipo === 'pagar'` 
+- `tipo === 'receber'`
+
+**Se a conta muda para `intercompany`, `aplicacao`, `resgate` ou `cartao`, ela SOME da visualização** porque não existe grupo para esses tipos nas listas de pendentes.
+
+**A conta NÃO foi deletada** - está no banco de dados. Apenas não está sendo exibida.
+
+**Solução:**
+1. Adicionar grupos para os outros tipos (intercompany, aplicacao, etc) nas listas de pendentes
+2. OU criar um grupo "Outras Movimentações" que agrupa todos os tipos que não são pagar/receber
+3. Adicionar `e.stopPropagation()` aos cliques em badges para não abrir o editor acidentalmente
+
+### Problema 2: Layout Apertado
+
+O layout responsivo foi planejado mas pode não ter sido aplicado completamente. Vou verificar e garantir que:
+- Em mobile: campos empilham verticalmente
+- Badges e valor ficam em linha separada da descrição
+- Formulário de adição usa grid responsivo
 
 ---
 
-## Solução: Layout Responsivo em 2 Linhas
+## Mudanças Planejadas
 
-### Estrutura Proposta
+### ContasFluxoSection.tsx
 
-```text
-DESKTOP (>768px):
-┌─────────────────────────────────────────────────────────────────┐
-│ 06/02  Folha: Paola...  🔴 SAÍDA  vence hoje  ⚙️ OP  R$ 5.000  ✓ 📅 ✏️ 🗑 │
-└─────────────────────────────────────────────────────────────────┘
-
-MOBILE (<768px):
-┌─────────────────────────────────────────────────────────┐
-│ 06/02  Folha: Paola Meneguelli                         │
-│ 🔴 SAÍDA  vence hoje  ⚙️ OP    R$ 5.000,00  ✓ 📅 🗑    │
-└─────────────────────────────────────────────────────────┘
+1. **Criar filtros para todos os tipos:**
+```typescript
+// Adicionar filtro para outros tipos
+const contasOutrasHoje = contasHoje.filter(c => 
+  c.tipo !== 'pagar' && c.tipo !== 'receber'
+);
+const contasOutrasAtrasadas = contasAtrasadas.filter(c => 
+  c.tipo !== 'pagar' && c.tipo !== 'receber'
+);
+const contasOutrasFuturas = contasFuturas.filter(c => 
+  c.tipo !== 'pagar' && c.tipo !== 'receber'
+);
 ```
 
-### Mudanças no `ContaItem.tsx`
+2. **Renderizar seção "Outras Movimentações"** para que contas intercompany, aplicações, etc apareçam nas listas de pendentes
 
-1. **Wrapper com flex-wrap**: Permitir quebra de linha natural
-2. **Primeira linha**: Data + Descrição (flex-1, sem truncate em mobile)
-3. **Segunda linha (mobile)**: Badges + Valor + Ações
-4. **Espaçamento**: Aumentar gap entre elementos
+### ContaItem.tsx
 
-### CSS Responsivo
-
-- `flex-wrap` para permitir quebra
-- `w-full` condicional em mobile para forçar nova linha
-- Remover `shrink-0` de alguns elementos para permitir compressão
-- Aumentar `max-w-[250px]` para `max-w-[300px]` em desktop
-
----
-
-## Formulário de Adição
-
-O grid atual `grid-cols-12` também está apertado. Proposta:
-
-```text
-DESKTOP:
-[Tipo 3col] [Descrição 4col] [Valor 2col] [Data 2col] [+1col]
-
-MOBILE (stack vertical):
-[Tipo]
-[Descrição]
-[Valor] [Data]
-[+ Adicionar]
+1. **Prevenir propagação de clique no badge "vence hoje":**
+```tsx
+{status === 'hoje' && (
+  <Badge 
+    variant="secondary" 
+    className="text-[10px] bg-yellow-100 text-yellow-700 shrink-0"
+    onClick={(e) => e.stopPropagation()} // Previne abrir editor
+  >
+    vence hoje
+  </Badge>
+)}
 ```
 
-### Mudanças no `ContasFluxoSection.tsx`
-
-1. Usar classes responsivas: `grid-cols-1 sm:grid-cols-12`
-2. Span full-width em mobile: `col-span-1 sm:col-span-3`
+2. **Confirmar layout responsivo aplicado:**
+- Wrapper com `flex-wrap`
+- Primeira div com `w-full sm:w-auto sm:flex-1`
+- Segunda div com `w-full sm:w-auto`
 
 ---
 
-## Arquivos a Modificar
+## Resumo das Mudanças
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/components/financeiro/ContaItem.tsx` | Layout responsivo com 2 linhas em mobile |
-| `src/components/financeiro/ContasFluxoSection.tsx` | Grid responsivo no formulário de adição |
+| `src/components/financeiro/ContasFluxoSection.tsx` | Adicionar grupo "Outras Movimentações" para tipos não-pagar/receber |
+| `src/components/financeiro/ContaItem.tsx` | Adicionar `stopPropagation` aos badges clicáveis, confirmar layout responsivo |
 
 ---
 
-## Detalhes da Implementação
+## Estimativa
 
-### ContaItem.tsx - Modo de Visualização
+- Bug de sumiço de contas: 1-2 mensagens
+- Layout responsivo: já implementado, verificar se precisa ajuste fino
 
-```tsx
-// Antes: flex items-center justify-between
-// Depois: flex flex-wrap items-center gap-2
-
-<div className="flex flex-wrap items-center gap-2 p-2 ...">
-  {/* Linha 1: Data + Descrição */}
-  <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto sm:flex-1">
-    <span className="text-xs text-muted-foreground shrink-0">06/02</span>
-    <span className="truncate sm:max-w-[300px]">Folha: Paola...</span>
-  </div>
-  
-  {/* Linha 2: Badges + Valor + Ações */}
-  <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-    {/* Badges */}
-    <button>🔴 SAÍDA</button>
-    <Badge>vence hoje</Badge>
-    <button>⚙️ OP</button>
-    
-    {/* Valor + Ações */}
-    <div className="flex items-center gap-1.5 ml-auto">
-      <span className="font-medium">R$ 5.000,00</span>
-      {/* Botões */}
-    </div>
-  </div>
-</div>
-```
-
-### ContaItem.tsx - Modo de Edição
-
-```tsx
-// Usar flex-wrap com gap maior
-<div className="flex flex-wrap items-center gap-3 p-3 ...">
-  <Select className="w-full sm:w-28">...</Select>
-  <Input type="date" className="w-full sm:w-28" />
-  <Input placeholder="Descrição" className="w-full sm:flex-1 sm:min-w-[200px]" />
-  <Input placeholder="R$" className="w-24" />
-  <div className="flex gap-1">
-    <Button>✓</Button>
-    <Button>✕</Button>
-  </div>
-</div>
-```
-
-### ContasFluxoSection.tsx - Formulário
-
-```tsx
-// Grid responsivo
-<div className="grid grid-cols-1 sm:grid-cols-12 gap-2 p-3 ...">
-  <div className="sm:col-span-3">
-    <Select>...</Select>
-  </div>
-  <div className="sm:col-span-4">
-    <Input placeholder="Descrição" />
-  </div>
-  <div className="sm:col-span-2">
-    <Input placeholder="R$" />
-  </div>
-  <div className="sm:col-span-2">
-    <Input type="date" />
-  </div>
-  <div className="sm:col-span-1">
-    <Button>+</Button>
-  </div>
-</div>
-```
-
----
-
-## Resultado Esperado
-
-- **Mobile**: Campos empilham verticalmente, legíveis sem sobreposição
-- **Tablet**: Layout híbrido com quebra inteligente
-- **Desktop**: Layout horizontal compacto como atualmente, mas com mais respiro
