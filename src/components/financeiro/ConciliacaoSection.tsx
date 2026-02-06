@@ -411,14 +411,18 @@ export function ConciliacaoSection({
       }
     }
 
-    // Remover da lista de revisão
-    setLancamentosParaRevisar(prev => prev.filter(l => l !== lanc));
+    // Remover da lista de revisão (comparar por dados, não referência)
+    setLancamentosParaRevisar(prev => prev.filter(l => 
+      !(l.descricao === lanc.descricao && l.valor === lanc.valor && l.dataVencimento === lanc.dataVencimento)
+    ));
     toast.success('Lançamento adicionado!');
   };
 
-  // Ignorar lançamento
+  // Ignorar lançamento (comparar por dados, não referência)
   const handleIgnorar = (lanc: ExtractedLancamento) => {
-    setLancamentosParaRevisar(prev => prev.filter(l => l !== lanc));
+    setLancamentosParaRevisar(prev => prev.filter(l => 
+      !(l.descricao === lanc.descricao && l.valor === lanc.valor && l.dataVencimento === lanc.dataVencimento)
+    ));
     toast.info('Lançamento ignorado');
   };
 
