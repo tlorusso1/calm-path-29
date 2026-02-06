@@ -163,8 +163,8 @@ async function processarChunk(texto: string, mesAno: string, apiKey: string): Pr
           else if (/TRUST/i.test(desc)) subtipo = "trust";
         }
 
-        // Detectar intercompany
-        if (/SISPAG NICE FOODS ECOMME/i.test(desc)) {
+        // Detectar intercompany - SISPAG com NICE FOODS em qualquer variação
+        if (/SISPAG.*NICE.*FOODS/i.test(desc)) {
           tipo = "intercompany";
         }
 
