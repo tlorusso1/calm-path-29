@@ -688,6 +688,7 @@ export function ContasFluxoSection({
                             <SelectItem value="intercompany">🔁 Inter</SelectItem>
                             <SelectItem value="aplicacao">📈 Aplic.</SelectItem>
                             <SelectItem value="resgate">📉 Resg.</SelectItem>
+                            <SelectItem value="cartao">💳 Cartão</SelectItem>
                           </SelectContent>
                         </Select>
                         

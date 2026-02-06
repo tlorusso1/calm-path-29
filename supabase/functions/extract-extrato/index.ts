@@ -29,6 +29,7 @@ Regras de extração:
    - "aplicacao": APLICACAO CDB, APLICACAO TRUST, APLICACAO IDSELICEMP INT, LCI, LCA, TESOURO (saídas que são investimentos)
    - "resgate": RESGATE CDB, RESGATE TRUST (entradas de resgate de investimento)
    - "intercompany": TED, PIX ou SISPAG entre empresas do mesmo grupo (ex: TED NICE, PIX NICE FOODS, SISPAG NICE FOODS)
+   - "cartao": pagamento consolidado de fatura de cartão de crédito (BUSINESS 4004-0126, VISA, MASTERCARD) - NÃO entra no DRE
    - "pagar": débitos/saídas normais (boletos, fornecedores, despesas)
    - "receber": créditos/entradas normais (vendas, recebimentos)
 
@@ -60,9 +61,9 @@ const tools = [
           },
           tipo: {
             type: "string",
-            enum: ["pagar", "receber", "intercompany", "aplicacao", "resgate"],
+            enum: ["pagar", "receber", "intercompany", "aplicacao", "resgate", "cartao"],
             description:
-              "pagar=débitos normais, receber=créditos normais, intercompany=transferências entre empresas do grupo, aplicacao=investimentos CDB/TRUST/etc, resgate=resgates de investimentos",
+              "pagar=débitos normais, receber=créditos normais, intercompany=transferências entre empresas do grupo, aplicacao=investimentos CDB/TRUST/etc, resgate=resgates de investimentos, cartao=pagamento consolidado de fatura cartão (não entra no DRE)",
           },
           subtipo: {
             type: "string",
@@ -166,6 +167,11 @@ async function processarChunk(texto: string, mesAno: string, apiKey: string): Pr
         // Detectar intercompany
         if (/SISPAG NICE FOODS ECOM/i.test(desc)) {
           tipo = "intercompany";
+        }
+        
+        // Detectar pagamento consolidado de cartão de crédito
+        if (/BUSINESS \d{4}-\d{4}/i.test(desc)) {
+          tipo = "cartao";
         }
 
         return {
