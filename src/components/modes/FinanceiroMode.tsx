@@ -24,6 +24,7 @@ import { CaixaContratadoCard } from '@/components/financeiro/CaixaContratadoCard
 import { RitmoChecklist } from '@/components/financeiro/RitmoChecklist';
 import { RitmoContextualAlert } from '@/components/RitmoContextualAlert';
 import { FornecedoresManager } from '@/components/financeiro/FornecedoresManager';
+import { GerarContasFixasButton } from '@/components/financeiro/GerarContasFixasButton';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 import { DEFAULT_CUSTOS_FIXOS, calcularTotalCustosFixos, DEFAULT_EMPRESTIMOS } from '@/data/custos-fixos-default';
@@ -57,7 +58,7 @@ export function FinanceiroMode({
     margem: false,
     // Configurações
     custosFixos: false,
-    defasados: false,
+    gerarContas: false, // NOVO: Seção de geração automática
     conciliacao: false,
     fornecedores: false,
   });
@@ -668,63 +669,25 @@ export function FinanceiroMode({
             />
           </Collapsible>
           
-          {/* 7.2 Custos Defasados */}
-          <Collapsible open={openSections.defasados} onOpenChange={() => toggleSection('defasados')}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="w-full justify-between h-10 px-3 hover:bg-muted/50">
-                <span className="flex items-center gap-2 text-sm">
-                  <AlertTriangle className="h-4 w-4 text-orange-500" />
-                  Custos Defasados (30d)
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {formatCurrency(exports.totalDefasados)}
-                  </span>
-                  {openSections.defasados ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </div>
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3 space-y-3">
-              <p className="text-xs text-muted-foreground italic">
-                Valores já comprometidos que saem nos próximos 30 dias
-              </p>
-              
-              {/* Impostos calculados */}
-              <div className="flex items-center justify-between gap-3 p-2 rounded bg-muted/50">
-                <label className="text-sm text-foreground flex-1">
-                  Impostos próx. mês (16%)
-                </label>
-                <span className="text-sm font-medium text-right w-[130px]">
-                  {formatCurrency(parseCurrency(data.faturamentoMes) * 0.16)}
-                </span>
-              </div>
-              
-              {[
-                { key: 'adsCartaoAnterior', label: 'Ads (cartão anterior)' },
-                { key: 'parcelasEmprestimos', label: 'Parcelas empréstimos' },
-                { key: 'comprasEstoqueComprometidas', label: 'Compras estoque contratadas' },
-                { key: 'outrosCompromissos', label: 'Outros compromissos' },
-              ].map(({ key, label }) => (
-                <div key={key} className="flex items-center justify-between gap-3">
-                  <label className="text-sm text-foreground flex-1">{label}</label>
-                  <div className="relative w-[130px]">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                    <Input
-                      placeholder="0,00"
-                      value={data.custosDefasados[key as keyof typeof data.custosDefasados]}
-                      onChange={(e) => onUpdateFinanceiroData({ 
-                        custosDefasados: { 
-                          ...data.custosDefasados, 
-                          [key]: e.target.value 
-                        } 
-                      })}
-                      className="h-8 text-sm pl-7 text-right"
-                    />
-                  </div>
-                </div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
+          {/* 7.2 Gerar Contas Fixas do Mês */}
+          <GerarContasFixasButton
+            custosFixos={data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS}
+            contasExistentes={data.contasFluxo || []}
+            adsBase={parseCurrency(data.adsBase || '')}
+            faturamentoMesAnterior={data.faturamentoMesAnterior || ''}
+            onFaturamentoChange={(value) => onUpdateFinanceiroData({ faturamentoMesAnterior: value })}
+            onGerarContas={(novasContas) => {
+              const contasComId: ContaFluxo[] = novasContas.map(c => ({
+                ...c,
+                id: crypto.randomUUID(),
+              }));
+              onUpdateFinanceiroData({
+                contasFluxo: [...(data.contasFluxo || []), ...contasComId],
+              });
+            }}
+            isOpen={openSections.gerarContas || false}
+            onToggle={() => toggleSection('gerarContas')}
+          />
           
           {/* 7.3 Conciliação Bancária */}
           <div id="ritmo-conciliacao" className="scroll-mt-20">
