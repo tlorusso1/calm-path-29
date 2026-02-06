@@ -199,6 +199,10 @@ export function ContasFluxoSection({
   const contasPagar = contasFuturas.filter(c => c.tipo === 'pagar');
   const contasReceber = contasFuturas.filter(c => c.tipo === 'receber');
 
+  // Totais 30 dias
+  const totalPagar30d = contasPagar.reduce((acc, c) => acc + parseValorFlexivel(c.valor), 0);
+  const totalReceber30d = contasReceber.reduce((acc, c) => acc + parseValorFlexivel(c.valor), 0);
+
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -516,9 +520,14 @@ export function ContasFluxoSection({
               <div className="space-y-3">
                 {contasPagar.length > 0 && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
-                      <ArrowDownCircle className="h-3 w-3 text-primary" />
-                      A Pagar (próx. 30d)
+                    <p className="text-xs font-medium text-muted-foreground flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-1">
+                        <ArrowDownCircle className="h-3 w-3 text-destructive" />
+                        A Pagar (próx. 30d)
+                      </span>
+                      <span className="font-semibold text-destructive">
+                        {formatCurrencyValue(totalPagar30d)}
+                      </span>
                     </p>
                     <div className="space-y-1">
                       {contasPagar.map((conta) => (
@@ -540,9 +549,14 @@ export function ContasFluxoSection({
 
                 {contasReceber.length > 0 && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
-                      <ArrowDownCircle className="h-3 w-3 text-primary" />
-                      A Receber (próx. 30d)
+                    <p className="text-xs font-medium text-muted-foreground flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-1">
+                        <ArrowUpCircle className="h-3 w-3 text-green-600" />
+                        A Receber (próx. 30d)
+                      </span>
+                      <span className="font-semibold text-green-600">
+                        {formatCurrencyValue(totalReceber30d)}
+                      </span>
                     </p>
                     <div className="space-y-1">
                       {contasReceber.map((conta) => (
