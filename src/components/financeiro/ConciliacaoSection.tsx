@@ -546,17 +546,21 @@ export function ConciliacaoSection({
                 </p>
                 
                 <div className="space-y-2">
-                  {lancamentosParaRevisar.map((lanc, idx) => (
-                    <ReviewItem
-                      key={idx}
-                      lancamento={lanc}
-                      fornecedores={fornecedores}
-                      onAdd={handleAddRevisado}
-                      onIgnore={handleIgnorar}
-                      onCreateFornecedor={onCreateFornecedor}
-                    />
-                  ))}
-                </div>
+                   {lancamentosParaRevisar.map((lanc, idx) => (
+                     <div 
+                       key={`${lanc.descricao}-${lanc.valor}-${lanc.dataVencimento}`}
+                       style={{ position: 'relative', zIndex: lancamentosParaRevisar.length - idx }}
+                     >
+                       <ReviewItem
+                         lancamento={lanc}
+                         fornecedores={fornecedores}
+                         onAdd={handleAddRevisado}
+                         onIgnore={handleIgnorar}
+                         onCreateFornecedor={onCreateFornecedor}
+                       />
+                     </div>
+                   ))}
+                 </div>
               </div>
             )}
           </CardContent>
@@ -665,18 +669,18 @@ function ReviewItem({
         )}
         
         {/* Seletor de Fornecedor (apenas para tipo pagar) */}
-        {selectedTipo === 'pagar' && (
-          <div className="flex-1 min-w-0 relative z-50">
-            <FornecedorSelect
-              fornecedores={fornecedores}
-              value={selectedFornecedor}
-              onChange={handleFornecedorChange}
-              placeholder="Fornecedor..."
-              descricaoSugerida={lancamento.descricao}
-              onCreateNew={onCreateFornecedor}
-            />
-          </div>
-        )}
+         {selectedTipo === 'pagar' && (
+           <div className="flex-1 min-w-0 relative">
+             <FornecedorSelect
+               fornecedores={fornecedores}
+               value={selectedFornecedor}
+               onChange={handleFornecedorChange}
+               placeholder="Fornecedor..."
+               descricaoSugerida={lancamento.descricao}
+               onCreateNew={onCreateFornecedor}
+             />
+           </div>
+         )}
         
         <Button
           size="sm"
