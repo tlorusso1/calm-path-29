@@ -1,149 +1,229 @@
 
-# Melhorar Layout de Edição dos Lançamentos do Extrato
+# Melhorar Visualização e Edição do Histórico de Lançamentos
 
-## Problema
-O painel de revisão de lançamentos do extrato está muito "apertado":
-- Descrição, tipo, fornecedor e botões estão todos espremidos em duas linhas
-- O seletor de fornecedor tem pouco espaço para expandir
-- Em telas menores fica ainda pior com `flex-wrap`
-- Difícil de identificar e editar cada lançamento
+## Problemas Identificados
 
-## Layout Atual (Apertado)
+1. **Badge "pago" desnecessário**: Se está no histórico/conciliado, óbviamente já foi pago - informação redundante
+2. **Difícil diferenciar tipos**: Entradas, saídas e intercompany não estão claros visualmente
+3. **Edição pouco intuitiva**: Precisa clicar no item para abrir modo edição - não é óbvio
+4. **Sem filtros**: Impossível encontrar lançamentos específicos por nome, categoria ou mês
+
+## Solução
+
+### Nova Interface do Histórico
+
 ```text
-┌─────────────────────────────────────────────────────┐
-│ PIX ENVIADO PADARIA FULANO 12345   R$ 1.234,56     │
-│ 05/02 [A Pagar▼] [Fornecedor...      ] [+Add] [✕]  │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│ 🕐 Histórico (últimos 60d)                                   [▼]    │
+├─────────────────────────────────────────────────────────────────────┤
+│ [🔍 Buscar...]  [Jan ▼]  [Todas Categorias ▼]  [Todos Tipos ▼]     │
+├─────────────────────────────────────────────────────────────────────┤
+│ ┌─────────────────────────────────────────────────────────────────┐ │
+│ │ 03/02  PIX Nice Foods        [🔁] ← clicável     R$ 7.707,06 🗑 │ │
+│ │        INTER → clicar muda para: SAÍDA, ENTRADA                 │ │
+│ └─────────────────────────────────────────────────────────────────┘ │
+│ ┌─────────────────────────────────────────────────────────────────┐ │
+│ │ 02/02  Sispag Pix            [🔴]                  R$ 570,00 🗑 │ │
+│ │                              SAÍDA                              │ │
+│ └─────────────────────────────────────────────────────────────────┘ │
+│ ┌─────────────────────────────────────────────────────────────────┐ │
+│ │ 01/02  Venda B2C Shopee      [🟢]               R$ 2.340,00  🗑 │ │
+│ │                              ENTRADA                            │ │
+│ └─────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-## Novo Layout (Mais Espaçado)
-```text
-┌─────────────────────────────────────────────────────┐
-│ 📄 PIX ENVIADO PADARIA FULANO 12345                 │
-│                                                     │
-│ 📅 05/02/2026        💰 R$ 1.234,56                 │
-│                                                     │
-│ [🔴 A Pagar ▼]       [Selecionar fornecedor... ▼]  │
-│                                                     │
-│              [+ Adicionar]     [Ignorar]           │
-└─────────────────────────────────────────────────────┘
-```
+### Interações
+
+1. **Badge de Tipo Clicável**: Um único clique no badge alterna entre:
+   - 🔴 SAÍDA (pagar)
+   - 🟢 ENTRADA (receber) 
+   - 🔁 INTER (intercompany)
+   - 📈 APLICAÇÃO
+   - 📉 RESGATE
+
+2. **Filtros Rápidos**:
+   - **Busca por texto**: Filtra descrição
+   - **Mês**: Dropdown com meses disponíveis
+   - **Categoria DRE**: Dropdown agrupado por modalidade
+   - **Tipo**: Todos / Entradas / Saídas / Inter
+
+3. **Remove badge "pago"**: Redundante no contexto de histórico
 
 ---
 
-## Mudanças
+## Mudanças Técnicas
 
-### Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`
+### Arquivo 1: `src/components/financeiro/ContaItem.tsx`
 
-**1. Padding e espaçamento do container**
-- Aumentar padding de `p-2` para `p-4`
-- Aumentar gap entre linhas de `mb-2` para `mb-3`
+**1. Remover badge "pago" para contas já pagas (linha ~247-250)**
 
-**2. Linha 1 - Descrição em destaque**
-- Descrição em texto maior (`text-sm` ao invés de `text-xs`)
-- Adicionar ícone 📄 para identificação visual
-- Remover valor dessa linha
+Atualmente mostra:
+```tsx
+{conta.pago && (
+  <Badge>pago</Badge>
+)}
+```
 
-**3. Linha 2 - Data e Valor lado a lado**
-- Data formatada com ano (dd/MM/yyyy)
-- Valor em destaque com cor diferenciada
-- Espaçamento adequado entre elementos
+Remover este bloco - se está no histórico, já é implícito que foi pago.
 
-**4. Linha 3 - Seletores em linha separada**
-- Seletor de Tipo maior (`w-[140px]` ao invés de `w-[110px]`)
-- Seletor de Fornecedor com mais espaço (`min-w-[200px]`)
-- Altura maior nos seletores (`h-9` ao invés de `h-7`)
+**2. Adicionar badge de tipo clicável (novo componente inline)**
 
-**5. Linha 4 - Botões de ação**
-- Botões em linha separada para não competir espaço
-- Botão "Adicionar" mais proeminente
-- Botão "Ignorar" com texto visível (não só ✕)
+Após a descrição, adicionar um badge que indica o tipo e permite alternar com um clique:
 
-**6. Z-index dinâmico**
-- Wrapper com z-index decrescente para evitar sobreposição de dropdowns
-- Corrigir key única para evitar estados residuais após remoção
+```tsx
+// Novo componente de tipo clicável
+const tipoConfig = {
+  pagar: { emoji: '🔴', label: 'SAÍDA', next: 'receber' },
+  receber: { emoji: '🟢', label: 'ENTRADA', next: 'intercompany' },
+  intercompany: { emoji: '🔁', label: 'INTER', next: 'aplicacao' },
+  aplicacao: { emoji: '📈', label: 'APLIC', next: 'resgate' },
+  resgate: { emoji: '📉', label: 'RESG', next: 'pagar' },
+};
 
----
+<button
+  onClick={(e) => {
+    e.stopPropagation();
+    onUpdate(conta.id, { tipo: tipoConfig[conta.tipo].next });
+  }}
+  className="px-1.5 py-0.5 rounded text-[10px] font-medium hover:opacity-80 transition-opacity"
+  title="Clique para alternar tipo"
+>
+  {tipoConfig[conta.tipo].emoji} {tipoConfig[conta.tipo].label}
+</button>
+```
 
-## Detalhes Técnicos
+**3. Cores do badge por tipo:**
+- SAÍDA: `bg-red-100 text-red-700`
+- ENTRADA: `bg-green-100 text-green-700`  
+- INTER: `bg-blue-100 text-blue-700`
+- APLICAÇÃO: `bg-purple-100 text-purple-700`
+- RESGATE: `bg-orange-100 text-orange-700`
 
-### Novo código do ReviewItem (~linha 582-642):
+### Arquivo 2: `src/components/financeiro/ContasFluxoSection.tsx`
 
-```typescript
-return (
-  <div className="p-4 bg-background rounded-lg border space-y-3">
-    {/* Linha 1: Descrição */}
-    <div className="flex items-start gap-2">
-      <span className="text-muted-foreground">📄</span>
-      <p className="text-sm font-medium leading-snug flex-1">{lancamento.descricao}</p>
-    </div>
-    
-    {/* Linha 2: Data + Valor */}
-    <div className="flex items-center gap-4 text-sm">
-      <span className="flex items-center gap-1 text-muted-foreground">
-        📅 {dataFormatada}
-      </span>
-      <span className="font-semibold text-foreground">
-        {valorFormatado}
-      </span>
-    </div>
-    
-    {/* Linha 3: Seletores */}
-    <div className="flex items-center gap-3 flex-wrap">
-      <Select value={selectedTipo} onValueChange={...}>
-        <SelectTrigger className="h-9 w-[140px]">
-          <SelectValue />
-        </SelectTrigger>
-        ...
-      </Select>
-      
-      {selectedTipo === 'pagar' && (
-        <div className="flex-1 min-w-[200px]">
-          <FornecedorSelect ... />
-        </div>
-      )}
-    </div>
-    
-    {/* Linha 4: Botões de Ação */}
-    <div className="flex items-center justify-end gap-2 pt-2 border-t">
-      <Button variant="ghost" size="sm" onClick={() => onIgnore(lancamento)}>
-        Ignorar
-      </Button>
-      <Button variant="default" size="sm" onClick={() => onAdd(...)}>
-        <Plus className="h-4 w-4 mr-1" />
-        Adicionar
-      </Button>
-    </div>
+**1. Adicionar estados de filtro (após linha ~48)**
+
+```tsx
+// Filtros do histórico
+const [filtroTexto, setFiltroTexto] = useState('');
+const [filtroMes, setFiltroMes] = useState<number | 'todos'>('todos');
+const [filtroTipo, setFiltroTipo] = useState<ContaFluxoTipo | 'todos'>('todos');
+const [filtroCategoria, setFiltroCategoria] = useState<string | 'todos'>('todos');
+```
+
+**2. Filtrar contasPagas no useMemo (linha ~58-134)**
+
+Adicionar lógica de filtro após o `.filter(c => c.pago)`:
+
+```tsx
+// Dentro do useMemo, após filtrar por pago e data
+let pagas = contas
+  .filter(c => c.pago)
+  .filter(c => { /* limite 60d */ });
+
+// Aplicar filtros
+if (filtroTexto.trim()) {
+  const termo = filtroTexto.toLowerCase();
+  pagas = pagas.filter(c => c.descricao.toLowerCase().includes(termo));
+}
+
+if (filtroMes !== 'todos') {
+  pagas = pagas.filter(c => {
+    const data = parseISO(c.dataVencimento);
+    return data.getMonth() + 1 === filtroMes;
+  });
+}
+
+if (filtroTipo !== 'todos') {
+  pagas = pagas.filter(c => c.tipo === filtroTipo);
+}
+
+if (filtroCategoria !== 'todos') {
+  // Buscar fornecedor → categoria → modalidade
+  pagas = pagas.filter(c => {
+    if (!c.fornecedorId) return false;
+    const fornecedor = fornecedores.find(f => f.id === c.fornecedorId);
+    return fornecedor?.modalidade === filtroCategoria;
+  });
+}
+```
+
+**3. Adicionar barra de filtros na UI do histórico (linha ~598)**
+
+Antes do ScrollArea, inserir:
+
+```tsx
+{/* Barra de Filtros */}
+<div className="flex flex-wrap gap-2 p-2 rounded-lg bg-muted/30 border">
+  {/* Busca por texto */}
+  <div className="relative flex-1 min-w-[150px]">
+    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+    <Input
+      placeholder="Buscar..."
+      value={filtroTexto}
+      onChange={(e) => setFiltroTexto(e.target.value)}
+      className="h-8 text-xs pl-7"
+    />
   </div>
-);
+  
+  {/* Filtro por mês */}
+  <Select value={String(filtroMes)} onValueChange={(v) => setFiltroMes(v === 'todos' ? 'todos' : Number(v))}>
+    <SelectTrigger className="h-8 w-[100px] text-xs">
+      <SelectValue placeholder="Mês" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="todos">Todos</SelectItem>
+      <SelectItem value="1">Jan</SelectItem>
+      <SelectItem value="2">Fev</SelectItem>
+      {/* ... etc ... */}
+    </SelectContent>
+  </Select>
+  
+  {/* Filtro por tipo */}
+  <Select value={filtroTipo} onValueChange={(v) => setFiltroTipo(v as any)}>
+    <SelectTrigger className="h-8 w-[110px] text-xs">
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="todos">Todos</SelectItem>
+      <SelectItem value="receber">🟢 Entradas</SelectItem>
+      <SelectItem value="pagar">🔴 Saídas</SelectItem>
+      <SelectItem value="intercompany">🔁 Inter</SelectItem>
+    </SelectContent>
+  </Select>
+  
+  {/* Filtro por categoria DRE */}
+  <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+    <SelectTrigger className="h-8 w-[140px] text-xs">
+      <SelectValue placeholder="Categoria" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="todos">Todas</SelectItem>
+      {ORDEM_MODALIDADES_DRE.map(mod => (
+        <SelectItem key={mod} value={mod} className="text-xs">
+          {mod}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
 ```
 
-### Wrapper com z-index dinâmico (~linha 523-534):
+**4. Atualizar dependências do useMemo**
 
-```typescript
-<div className="space-y-3">
-  {lancamentosParaRevisar.map((lanc, idx) => (
-    <div 
-      key={`${lanc.descricao}-${lanc.valor}-${lanc.dataVencimento}`}
-      style={{ position: 'relative', zIndex: lancamentosParaRevisar.length - idx }}
-    >
-      <ReviewItem
-        lancamento={lanc}
-        fornecedores={fornecedores}
-        onAdd={handleAddRevisado}
-        onIgnore={handleIgnorar}
-        onCreateFornecedor={onCreateFornecedor}
-      />
-    </div>
-  ))}
-</div>
+Adicionar os novos estados de filtro às dependências:
+
+```tsx
+}, [contas, hoje, filtroTexto, filtroMes, filtroTipo, filtroCategoria, fornecedores]);
 ```
 
 ---
 
 ## Resultado Esperado
-- Cada lançamento tem espaço adequado para leitura
-- Seletores são maiores e mais fáceis de clicar
-- Botões de ação claramente visíveis e acessíveis
-- Dropdowns não sobrepõem outros itens incorretamente
-- Layout funciona bem em desktop e mobile
+
+1. **Tipo visualmente claro**: Cada lançamento tem badge colorido indicando entrada/saída/inter
+2. **Edição com um clique**: Clicar no badge de tipo alterna instantaneamente
+3. **Sem informação redundante**: Badge "pago" removido do histórico
+4. **Filtros poderosos**: Busca por texto, mês, tipo e categoria DRE
+5. **Navegação rápida**: Encontrar lançamentos específicos facilmente
