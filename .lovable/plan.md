@@ -1,188 +1,187 @@
 
-# Correções para Conciliação e Adição de Soma de Contas a Pagar 30d
+# Auto-Geração de Contas a Pagar Fixas + Correção de Bugs
 
-## Problemas Identificados
+## Resumo das Mudanças
 
-### 1. Falta soma de "Contas a Pagar próx. 30d"
-Na seção de Contas a Pagar/Receber, a lista de contas futuras mostra apenas "A Pagar (próx. 30d)" como título, mas **não exibe a soma total** dos valores a pagar nesse período.
+Este plano aborda três problemas principais:
 
-### 2. Itens de conciliação somem quando muda o filtro/toggle
-O problema está no `ReviewItem`:
-- O componente usa `useState` interno para `selectedTipo` e `selectedNatureza`
-- Quando o usuário muda o tipo (ex: de "pagar" para "receber"), o Select de Natureza desaparece (porque só aparece para tipo "pagar")
-- A **lista pai (`lancamentosParaRevisar`) não é afetada**, mas o React pode estar re-renderizando de forma inesperada
-
-**Causa raiz provável**: O `useMemo` de `valorFormatado` e `dataFormatada` pode estar causando re-render quando a key do item muda. Além disso, a comparação por dados no `handleAddRevisado` pode falhar se o valor for formatado diferente.
-
-### 3. Projeções NÃO usam Caixa Contratado
-Analisando `fluxoCaixaCalculator.ts`:
-- **Modo Projeção**: Usa `caixaAtual` + resultado semanal estimado (faturamento × margem - custos)
-- **Modo Preciso**: Usa `caixaAtual` + soma das contas a pagar/receber por semana
-
-O **Caixa Contratado** (A Receber dos gateways como Nuvemshop D+2, Asaas D+30, etc.) **NÃO é incluído** nas projeções. Isso é correto conceitualmente porque:
-- Caixa Contratado = vendas já feitas, aguardando liquidação
-- Não são "contas a receber" genéricas, são recebíveis já comprometidos
-- Servem para dar "conforto" de liquidez, não para projetar fluxo
+1. Gerar automaticamente contas a pagar baseado nos custos fixos cadastrados
+2. Corrigir o bug de itens sumindo nos filtros de conciliação
+3. Remover "Custos Defasados" para eliminar duplicidade de inputs
 
 ---
 
-## Soluções Propostas
+## Parte 1: Auto-Geração de Contas Fixas
 
-### Correção 1: Adicionar soma de Contas a Pagar 30d
+### Nova Funcionalidade
+Quando o usuário abre o Financeiro ou atualiza custos fixos, o sistema gera automaticamente as contas a pagar do mês atual que ainda não existem.
 
-**Arquivo**: `src/components/financeiro/ContasFluxoSection.tsx`
+### Regras de Geração
 
-Calcular a soma e exibir no header da seção:
+| Categoria | Fonte | Dia de Vencimento |
+|-----------|-------|-------------------|
+| Pessoas | custosFixosDetalhados.pessoas | 5º dia útil |
+| Software | custosFixosDetalhados.software | 23 |
+| Ads Base | financeiroData.adsBase | 23 |
+| Empréstimos | custosFixosDetalhados.emprestimos | Dia específico de cada um |
+| Armazenagem | custosFixosDetalhados.armazenagem | 25 |
+| Serviços | custosFixosDetalhados.servicos (por item) | Gioia: 15, Verter: 20, Vegui: 15, Matheus: 25 |
+| Impostos | Baseado em faturamento mês anterior | 20 (4 parcelas: 2 DAS + 2 DARF INSS) |
 
-```tsx
-// Após linha 200, calcular soma
-const totalPagar30d = contasPagar.reduce((acc, c) => 
-  acc + parseValorFlexivel(c.valor), 0
-);
-const totalReceber30d = contasReceber.reduce((acc, c) => 
-  acc + parseValorFlexivel(c.valor), 0
-);
+### Novo Campo: Faturamento do Mês Anterior
+Para calcular impostos do próximo mês, adicionar campo `faturamentoMesAnterior` em FinanceiroStage:
 
-// Na linha 519-521, atualizar o título
-<p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
-  <ArrowDownCircle className="h-3 w-3 text-destructive" />
-  A Pagar (próx. 30d)
-  <span className="ml-auto font-semibold text-destructive">
-    {formatCurrencyValue(totalPagar30d)}
-  </span>
-</p>
-
-// Similar para A Receber (linha 543-545)
-<p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
-  <ArrowUpCircle className="h-3 w-3 text-green-600" />
-  A Receber (próx. 30d)
-  <span className="ml-auto font-semibold text-green-600">
-    {formatCurrencyValue(totalReceber30d)}
-  </span>
-</p>
+```text
+FinanceiroStage {
+  ...
+  faturamentoMesAnterior: string;  // Ex: "140000" - base para impostos
+}
 ```
 
-### Correção 2: Evitar sumiço de itens de conciliação
+O sistema usa `faturamentoMesAnterior × 16%` para gerar 4 contas:
+- 2x DAS (Simples Nacional) = cada uma ~4% do faturamento
+- 2x DARF INSS = cada uma ~4% do faturamento
 
-**Arquivo**: `src/components/financeiro/ConciliacaoSection.tsx`
+### Lógica de Verificação
+Antes de criar, verificar se já existe conta com:
+- Mesmo nome/descrição
+- Mesmo mês de vencimento
+- Não pago
 
-O problema pode estar na key ou na comparação. Vamos:
+Se já existe, não duplica.
 
-1. **Usar key com ID único gerado** ao invés de dados do lançamento:
-```tsx
-// Adicionar useMemo para gerar IDs estáveis
-const lancamentosComId = useMemo(() => 
-  lancamentosParaRevisar.map((lanc, idx) => ({
-    ...lanc,
-    _tempId: `${lanc.descricao.substring(0,10)}-${lanc.valor}-${idx}-${Date.now()}`
-  })),
-  [lancamentosParaRevisar]
-);
+---
+
+## Parte 2: Correção do Bug de Filtros na Conciliação
+
+### Problema Identificado
+Quando você aplica filtros no histórico (mês, tipo), os itens de revisão de conciliação desaparecem. Isso acontece porque o `useMemo` que limpa IDs órfãos pode estar removendo IDs prematuramente.
+
+### Solução
+O bug está no `ReviewPanel` da `ConciliacaoSection.tsx`. O `useMemo` para limpar IDs órfãos executa mesmo quando não deveria:
+
+```typescript
+// PROBLEMA: Este useMemo executa quando lancamentos muda
+// e pode estar removendo IDs válidos
+useMemo(() => {
+  const currentKeys = new Set(
+    lancamentos.map(l => `${l.descricao}|${l.valor}|${l.dataVencimento}`)
+  );
+  // Remove IDs de itens que não existem mais
+  stableIdsRef.current.forEach((_, key) => {
+    if (!currentKeys.has(key)) {
+      stableIdsRef.current.delete(key);
+    }
+  });
+}, [lancamentos]);
 ```
 
-2. **Garantir que ReviewItem não perca estado** ao mudar toggles:
-```tsx
-// No ReviewItem, usar useCallback para handlers
-const handleTipoChange = useCallback((v: ContaFluxoTipo) => {
-  setSelectedTipo(v);
+**Correção**: Usar `useEffect` apenas para cleanup, e garantir que não interfere com re-renders:
+
+```typescript
+useEffect(() => {
+  // Limpar apenas IDs de itens que realmente saíram da lista
+  return () => {
+    // Cleanup quando componente desmonta
+    stableIdsRef.current.clear();
+  };
 }, []);
 ```
 
-3. **Mover estado para o componente pai** se necessário (lifting state up)
+---
 
-### Correção 3: Documentar comportamento do Caixa Contratado
+## Parte 3: Remover Custos Defasados
 
-O Caixa Contratado **não deve** entrar nas projeções de fluxo de caixa porque:
-- Ele já está computado como "vendas realizadas" no faturamento
-- Adicionar nas projeções causaria contagem dupla
-- Serve apenas como indicador de conforto de liquidez
+### Mudanças
+1. Remover seção "Custos Defasados" da UI (mas manter dados para retrocompatibilidade)
+2. Remover campos:
+   - `custosDefasados.impostos` → substituído por faturamentoMesAnterior
+   - `custosDefasados.parcelas` → puxado de emprestimos
+   - `custosDefasados.estoque` → lançado manualmente em contas a pagar
+   - `custosDefasados.outros` → lançado manualmente
 
-**Não é necessário mudar o cálculo**, mas podemos adicionar um tooltip explicativo no card de Caixa Contratado.
+3. Os cálculos de projeção usarão:
+   - **Saídas próx. 30d** = soma das contas a pagar não pagas com vencimento em 30 dias
+   - **Impostos** = calculado automaticamente de `faturamentoMesAnterior × 16%`
 
 ---
 
-## Mudanças Técnicas Detalhadas
+## Interface Atualizada
 
-### Arquivo 1: `src/components/financeiro/ContasFluxoSection.tsx`
+### Novo Campo no Financeiro
+Adicionar em "PARÂMETROS DO SISTEMA":
 
-**Calcular totais** (após linha 200):
-```tsx
-const totalPagar30d = contasPagar.reduce((acc, c) => 
-  acc + parseValorFlexivel(c.valor), 0
-);
-const totalReceber30d = contasReceber.reduce((acc, c) => 
-  acc + parseValorFlexivel(c.valor), 0
-);
+```text
+┌─────────────────────────────────────────────┐
+│ 📊 Base de Impostos (Faturamento Mês Ant.)  │
+│ ┌─────────────────────────────────────────┐ │
+│ │ R$ 140.000,00                           │ │
+│ └─────────────────────────────────────────┘ │
+│ Impostos estimados (16%): R$ 22.400,00      │
+│ → 4 parcelas de R$ 5.600,00 cada            │
+└─────────────────────────────────────────────┘
 ```
 
-**Exibir no header A Pagar** (linhas 519-522):
-```tsx
-<p className="text-xs font-medium text-muted-foreground flex items-center justify-between mb-2">
-  <span className="flex items-center gap-1">
-    <ArrowDownCircle className="h-3 w-3 text-destructive" />
-    A Pagar (próx. 30d)
-  </span>
-  <span className="font-semibold text-destructive">
-    {formatCurrencyValue(totalPagar30d)}
-  </span>
-</p>
-```
+### Botão "Gerar Contas do Mês"
+Adicionar botão que:
+1. Verifica quais contas fixas já existem para o mês
+2. Gera as que faltam
+3. Mostra toast com resumo: "12 contas geradas para Fevereiro"
 
-**Exibir no header A Receber** (linhas 543-546):
-```tsx
-<p className="text-xs font-medium text-muted-foreground flex items-center justify-between mb-2">
-  <span className="flex items-center gap-1">
-    <ArrowUpCircle className="h-3 w-3 text-green-600" />
-    A Receber (próx. 30d)
-  </span>
-  <span className="font-semibold text-green-600">
-    {formatCurrencyValue(totalReceber30d)}
-  </span>
-</p>
-```
+---
 
-### Arquivo 2: `src/components/financeiro/ConciliacaoSection.tsx`
+## Arquivos a Modificar
 
-**Estabilizar keys** usando ID temporário gerado uma vez (linhas 553-566):
-```tsx
-// Adicionar ref para IDs estáveis
-const lancamentoIdsRef = useRef<Map<string, string>>(new Map());
+| Arquivo | Mudança |
+|---------|---------|
+| `src/types/focus-mode.ts` | Adicionar `faturamentoMesAnterior` em FinanceiroStage |
+| `src/components/modes/FinanceiroMode.tsx` | Remover seção Custos Defasados, adicionar campo Faturamento Mês Anterior |
+| `src/components/financeiro/ConciliacaoSection.tsx` | Corrigir bug do useMemo que remove IDs |
+| `src/utils/gerarContasFixas.ts` | NOVO: Lógica para gerar contas a pagar fixas |
+| `src/components/financeiro/GerarContasFixasButton.tsx` | NOVO: Botão para gerar contas do mês |
 
-// Gerar ID estável para cada lançamento
-const getStableId = (lanc: ExtractedLancamento, idx: number) => {
-  const dataKey = `${lanc.descricao}-${lanc.valor}-${lanc.dataVencimento}`;
-  if (!lancamentoIdsRef.current.has(dataKey)) {
-    lancamentoIdsRef.current.set(dataKey, `review-${Date.now()}-${idx}`);
-  }
-  return lancamentoIdsRef.current.get(dataKey)!;
-};
+---
 
-// No map
-{lancamentosParaRevisar.map((lanc, idx) => (
-  <div 
-    key={getStableId(lanc, idx)}
-    style={{ position: 'relative', zIndex: lancamentosParaRevisar.length - idx }}
-  >
-    <ReviewItem ... />
-  </div>
-))}
-```
+## Fluxo do Usuário
 
-**Limpar IDs quando item é removido** (nas funções handleAddRevisado e handleIgnorar):
-```tsx
-// Remover ID do ref quando item é processado
-const dataKey = `${lanc.descricao}-${lanc.valor}-${lanc.dataVencimento}`;
-lancamentoIdsRef.current.delete(dataKey);
+```text
+1. Abre Financeiro
+        ↓
+2. Verifica se há contas fixas pendentes para gerar
+        ↓
+3. Se sim → Botão "Gerar Contas do Mês" fica destacado
+        ↓
+4. Clica no botão
+        ↓
+5. Sistema cria todas as contas pendentes:
+   - Pessoas (dia 5)
+   - Software (dia 23)
+   - Empréstimos (dias específicos)
+   - Armazenagem (dia 25)
+   - Serviços (dias específicos)
+   - Impostos (dia 20, 4 parcelas)
+        ↓
+6. Contas aparecem em "A Pagar (próx. 30d)"
+        ↓
+7. Usuário ajusta valores conforme necessário
+        ↓
+8. Na conciliação, sistema faz match automático
 ```
 
 ---
 
-## Resultado Esperado
+## Estimativa de Esforço
 
-| Item | Antes | Depois |
-|------|-------|--------|
-| Soma A Pagar 30d | Não exibida | Exibida no header "R$ X.XXX,XX" |
-| Soma A Receber 30d | Não exibida | Exibida no header "R$ X.XXX,XX" |
-| Toggle natureza na conciliação | Sumia itens | Mantém itens estáveis |
-| Toggle tipo na conciliação | Sumia itens | Mantém itens estáveis |
-| Caixa Contratado nas projeções | Não incluído | Mantém não incluído (correto) |
+- Parte 1 (Auto-geração): 4-6 mensagens
+- Parte 2 (Bug de filtros): 1-2 mensagens
+- Parte 3 (Remover Custos Defasados): 2-3 mensagens
+
+**Total estimado**: 7-11 mensagens
+
+---
+
+## Prioridade Sugerida
+
+1. Primeiro: Corrigir bug de filtros (rápido e libera uso imediato)
+2. Segundo: Adicionar campo faturamentoMesAnterior e lógica de geração
+3. Terceiro: Remover Custos Defasados da UI
