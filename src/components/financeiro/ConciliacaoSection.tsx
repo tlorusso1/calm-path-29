@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronDown, ChevronUp, FileSpreadsheet, Loader2, CheckCircle2, Link2, AlertCircle, Plus, Calendar } from 'lucide-react';
-import { ContaFluxo, ContaFluxoTipo, ContaFluxoSubtipo, Fornecedor, MapeamentoDescricaoFornecedor, extrairPadraoDescricao, encontrarMapeamento } from '@/types/focus-mode';
+import { ContaFluxo, ContaFluxoTipo, ContaFluxoSubtipo, ContaFluxoNatureza, Fornecedor, MapeamentoDescricaoFornecedor, extrairPadraoDescricao, encontrarMapeamento, MODALIDADES_CAPITAL_GIRO } from '@/types/focus-mode';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
@@ -43,6 +43,7 @@ interface ConciliacaoSectionProps {
   fornecedores: Fornecedor[];
   onConciliar: (result: ConciliacaoResult) => void;
   onCreateFornecedor?: (fornecedor: Omit<Fornecedor, 'id'>) => string | void;
+  onUpdateFornecedor?: (id: string, updates: Partial<Fornecedor>) => void;
   isOpen: boolean;
   onToggle: () => void;
   // Mapeamentos descrição→fornecedor
@@ -89,6 +90,7 @@ export function ConciliacaoSection({
   fornecedores,
   onConciliar,
   onCreateFornecedor,
+  onUpdateFornecedor,
   isOpen,
   onToggle,
   mapeamentos = [],
@@ -349,9 +351,24 @@ export function ConciliacaoSection({
   };
 
   // Handler para adicionar lançamento revisado
-  const handleAddRevisado = (lanc: ExtractedLancamento, fornecedorId?: string, tipoOverride?: ContaFluxoTipo) => {
+  const handleAddRevisado = (
+    lanc: ExtractedLancamento, 
+    fornecedorId?: string, 
+    tipoOverride?: ContaFluxoTipo,
+    naturezaOverride?: ContaFluxoNatureza
+  ) => {
     const fornecedor = fornecedores.find(f => f.id === fornecedorId);
     const tipoFinal = tipoOverride || lanc.tipo;
+    
+    // Determinar natureza: override > fornecedor.naturezaPadrao > default
+    let naturezaFinal: ContaFluxoNatureza | undefined = naturezaOverride;
+    if (!naturezaFinal && fornecedor?.naturezaPadrao) {
+      naturezaFinal = fornecedor.naturezaPadrao;
+    }
+    // Se fornecedor é de CPV, padrão é capitalGiro
+    if (!naturezaFinal && fornecedor && MODALIDADES_CAPITAL_GIRO.includes(fornecedor.modalidade)) {
+      naturezaFinal = 'capitalGiro';
+    }
     
     onConciliar({
       conciliados: [],
@@ -365,6 +382,7 @@ export function ConciliacaoSection({
         fornecedorId,
         categoria: fornecedor?.categoria,
         conciliado: true,
+        natureza: naturezaFinal,
       }],
       ignorados: 0,
       paraRevisar: [],
@@ -383,6 +401,13 @@ export function ConciliacaoSection({
             criadoEm: new Date().toISOString(),
           });
         }
+      }
+    }
+    
+    // Aprender natureza padrão do fornecedor (se diferente da atual)
+    if (fornecedorId && naturezaOverride && onUpdateFornecedor) {
+      if (fornecedor && fornecedor.naturezaPadrao !== naturezaOverride) {
+        onUpdateFornecedor(fornecedorId, { naturezaPadrao: naturezaOverride });
       }
     }
 
@@ -551,12 +576,32 @@ function ReviewItem({
 }: {
   lancamento: ExtractedLancamento;
   fornecedores: Fornecedor[];
-  onAdd: (lanc: ExtractedLancamento, fornecedorId?: string, tipoOverride?: ContaFluxoTipo) => void;
+  onAdd: (lanc: ExtractedLancamento, fornecedorId?: string, tipoOverride?: ContaFluxoTipo, naturezaOverride?: ContaFluxoNatureza) => void;
   onIgnore: (lanc: ExtractedLancamento) => void;
   onCreateFornecedor?: (fornecedor: Omit<Fornecedor, 'id'>) => void;
 }) {
   const [selectedFornecedor, setSelectedFornecedor] = useState<string | undefined>();
   const [selectedTipo, setSelectedTipo] = useState<ContaFluxoTipo>(lancamento.tipo);
+  const [selectedNatureza, setSelectedNatureza] = useState<ContaFluxoNatureza>('operacional');
+
+  // Auto-selecionar natureza quando fornecedor muda
+  const handleFornecedorChange = (id: string | undefined) => {
+    setSelectedFornecedor(id);
+    if (id) {
+      const forn = fornecedores.find(f => f.id === id);
+      if (forn) {
+        // Se tem natureza padrão, usa ela
+        if (forn.naturezaPadrao) {
+          setSelectedNatureza(forn.naturezaPadrao);
+        } else if (MODALIDADES_CAPITAL_GIRO.includes(forn.modalidade)) {
+          // Se é CPV, padrão é capitalGiro
+          setSelectedNatureza('capitalGiro');
+        } else {
+          setSelectedNatureza('operacional');
+        }
+      }
+    }
+  };
 
   const valorFormatado = useMemo(() => {
     const num = parseValorFlexivel(lancamento.valor);
@@ -588,7 +633,7 @@ function ReviewItem({
         <p className="text-xs font-medium shrink-0">{valorFormatado}</p>
       </div>
       
-      {/* Linha 2: Data + Tipo + Fornecedor + Ações */}
+      {/* Linha 2: Data + Tipo + Natureza + Fornecedor + Ações */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-[10px] text-muted-foreground shrink-0">{dataFormatada}</span>
         
@@ -606,13 +651,26 @@ function ReviewItem({
           </SelectContent>
         </Select>
         
+        {/* Seletor de Natureza (apenas para tipo pagar) */}
+        {selectedTipo === 'pagar' && (
+          <Select value={selectedNatureza} onValueChange={(v) => setSelectedNatureza(v as ContaFluxoNatureza)}>
+            <SelectTrigger className="h-7 w-[100px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="operacional" className="text-xs">⚙️ Operac.</SelectItem>
+              <SelectItem value="capitalGiro" className="text-xs">📦 Estoque</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        
         {/* Seletor de Fornecedor (apenas para tipo pagar) */}
         {selectedTipo === 'pagar' && (
           <div className="flex-1 min-w-0 relative z-50">
             <FornecedorSelect
               fornecedores={fornecedores}
               value={selectedFornecedor}
-              onChange={(id) => setSelectedFornecedor(id)}
+              onChange={handleFornecedorChange}
               placeholder="Fornecedor..."
               descricaoSugerida={lancamento.descricao}
               onCreateNew={onCreateFornecedor}
@@ -624,7 +682,7 @@ function ReviewItem({
           size="sm"
           variant="outline"
           className="h-7 px-2 gap-1 shrink-0"
-          onClick={() => onAdd(lancamento, selectedFornecedor, selectedTipo)}
+          onClick={() => onAdd(lancamento, selectedFornecedor, selectedTipo, selectedTipo === 'pagar' ? selectedNatureza : undefined)}
         >
           <Plus className="h-3 w-3" />
           <span className="hidden sm:inline">Add</span>
