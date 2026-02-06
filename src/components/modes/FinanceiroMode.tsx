@@ -23,6 +23,7 @@ import { SectionHeader } from '@/components/financeiro/SectionHeader';
 import { CaixaContratadoCard } from '@/components/financeiro/CaixaContratadoCard';
 import { RitmoChecklist } from '@/components/financeiro/RitmoChecklist';
 import { RitmoContextualAlert } from '@/components/RitmoContextualAlert';
+import { FornecedoresManager } from '@/components/financeiro/FornecedoresManager';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 import { DEFAULT_CUSTOS_FIXOS, calcularTotalCustosFixos, DEFAULT_EMPRESTIMOS } from '@/data/custos-fixos-default';
@@ -58,6 +59,7 @@ export function FinanceiroMode({
     custosFixos: false,
     defasados: false,
     conciliacao: false,
+    fornecedores: false,
   });
   
   // Carregar fornecedores do CSV uma vez
@@ -773,6 +775,32 @@ export function FinanceiroMode({
               onToggle={() => toggleSection('conciliacao')}
             />
           </div>
+          
+          {/* 7.4 Fornecedores Cadastrados */}
+          <FornecedoresManager
+            fornecedores={data.fornecedores || []}
+            contasFluxo={data.contasFluxo || []}
+            onAdd={(fornecedor) => {
+              const novoId = crypto.randomUUID();
+              onUpdateFinanceiroData({
+                fornecedores: [...(data.fornecedores || []), { ...fornecedor, id: novoId }],
+              });
+            }}
+            onUpdate={(id, updates) => {
+              onUpdateFinanceiroData({
+                fornecedores: (data.fornecedores || []).map(f => 
+                  f.id === id ? { ...f, ...updates } : f
+                ),
+              });
+            }}
+            onRemove={(id) => {
+              onUpdateFinanceiroData({
+                fornecedores: (data.fornecedores || []).filter(f => f.id !== id),
+              });
+            }}
+            isOpen={openSections.fornecedores || false}
+            onToggle={() => toggleSection('fornecedores')}
+          />
         </CardContent>
       </Card>
       
