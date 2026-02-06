@@ -1,121 +1,149 @@
 
-# Permitir Edição de Tipo nas Contas do Histórico
+# Melhorar Layout de Edição dos Lançamentos do Extrato
 
-## Problema Identificado
-As transações que aparecem no **Histórico** (últimos 60 dias - contas já pagas) não podem ser editadas. Isso causa problemas porque:
-- Durante a conciliação bancária, a IA classifica automaticamente algumas transações como "intercompany"
-- Mas nem todas são realmente intercompany - algumas são apenas transferências entre contas da mesma empresa
-- Uma vez conciliada como paga, **não há como corrigir o tipo**
-- Isso causa distorções no DRE e fluxo de caixa
+## Problema
+O painel de revisão de lançamentos do extrato está muito "apertado":
+- Descrição, tipo, fornecedor e botões estão todos espremidos em duas linhas
+- O seletor de fornecedor tem pouco espaço para expandir
+- Em telas menores fica ainda pior com `flex-wrap`
+- Difícil de identificar e editar cada lançamento
 
-## Situação Atual
+## Layout Atual (Apertado)
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│ Histórico (últimos 60d)                                         │
-├─────────────────────────────────────────────────────────────────┤
-│ 03/02  PIX Nice Foods   [conc] [inter]     ↔ R$ 7.707,06   🗑   │ ← NÃO EDITA
-│ 02/02  Sispag Pix       [conc]               - R$ 570,00   🗑   │ ← NÃO EDITA
-│ 02/02  TED Nice F E     [conc] [inter]     ↔ R$ 11.089,36  🗑   │ ← NÃO EDITA
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ PIX ENVIADO PADARIA FULANO 12345   R$ 1.234,56     │
+│ 05/02 [A Pagar▼] [Fornecedor...      ] [+Add] [✕]  │
+└─────────────────────────────────────────────────────┘
 ```
 
-## Solução
-Adicionar botão de edição em cada item do histórico, similar às contas pendentes, permitindo alterar:
-- **Tipo** (Pagar, Receber, Intercompany, Aplicação, Resgate)
-- **Natureza** (Operacional vs Estoque)
-
-### Nova Interface
+## Novo Layout (Mais Espaçado)
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│ 03/02  PIX Nice Foods   [conc] [inter]     ↔ R$ 7.707,06  ✏️ 🗑 │
-│                                                                 │
-│ [Click ✏️ abre modo edição:]                                    │
-│ ┌─────────────────────────────────────────────────────────────┐ │
-│ │ [Tipo: Receber ▼] [Data] [Descrição] [Valor] [✓] [✕]        │ │
-│ └─────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│ 📄 PIX ENVIADO PADARIA FULANO 12345                 │
+│                                                     │
+│ 📅 05/02/2026        💰 R$ 1.234,56                 │
+│                                                     │
+│ [🔴 A Pagar ▼]       [Selecionar fornecedor... ▼]  │
+│                                                     │
+│              [+ Adicionar]     [Ignorar]           │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Mudanças Técnicas
+## Mudanças
 
-### Arquivo: `src/components/financeiro/ContasFluxoSection.tsx`
+### Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`
 
-#### 1. Substituir renderização manual do histórico por `ContaItem`
+**1. Padding e espaçamento do container**
+- Aumentar padding de `p-2` para `p-4`
+- Aumentar gap entre linhas de `mb-2` para `mb-3`
 
-**Linhas 603-641** - Trocar a `div` manual pelo componente `ContaItem`:
+**2. Linha 1 - Descrição em destaque**
+- Descrição em texto maior (`text-sm` ao invés de `text-xs`)
+- Adicionar ícone 📄 para identificação visual
+- Remover valor dessa linha
+
+**3. Linha 2 - Data e Valor lado a lado**
+- Data formatada com ano (dd/MM/yyyy)
+- Valor em destaque com cor diferenciada
+- Espaçamento adequado entre elementos
+
+**4. Linha 3 - Seletores em linha separada**
+- Seletor de Tipo maior (`w-[140px]` ao invés de `w-[110px]`)
+- Seletor de Fornecedor com mais espaço (`min-w-[200px]`)
+- Altura maior nos seletores (`h-9` ao invés de `h-7`)
+
+**5. Linha 4 - Botões de ação**
+- Botões em linha separada para não competir espaço
+- Botão "Adicionar" mais proeminente
+- Botão "Ignorar" com texto visível (não só ✕)
+
+**6. Z-index dinâmico**
+- Wrapper com z-index decrescente para evitar sobreposição de dropdowns
+- Corrigir key única para evitar estados residuais após remoção
+
+---
+
+## Detalhes Técnicos
+
+### Novo código do ReviewItem (~linha 582-642):
 
 ```typescript
-{contasPagas.slice(0, historicoLimit).map((conta) => (
-  <ContaItem
-    key={conta.id}
-    conta={conta}
-    variant={conta.tipo}
-    fornecedores={fornecedores}
-    onUpdate={onUpdateConta || (() => {})}
-    onRemove={onRemoveConta}
-    // Sem onTogglePago - já está pago
-    formatCurrency={formatCurrency}
-  />
-))}
+return (
+  <div className="p-4 bg-background rounded-lg border space-y-3">
+    {/* Linha 1: Descrição */}
+    <div className="flex items-start gap-2">
+      <span className="text-muted-foreground">📄</span>
+      <p className="text-sm font-medium leading-snug flex-1">{lancamento.descricao}</p>
+    </div>
+    
+    {/* Linha 2: Data + Valor */}
+    <div className="flex items-center gap-4 text-sm">
+      <span className="flex items-center gap-1 text-muted-foreground">
+        📅 {dataFormatada}
+      </span>
+      <span className="font-semibold text-foreground">
+        {valorFormatado}
+      </span>
+    </div>
+    
+    {/* Linha 3: Seletores */}
+    <div className="flex items-center gap-3 flex-wrap">
+      <Select value={selectedTipo} onValueChange={...}>
+        <SelectTrigger className="h-9 w-[140px]">
+          <SelectValue />
+        </SelectTrigger>
+        ...
+      </Select>
+      
+      {selectedTipo === 'pagar' && (
+        <div className="flex-1 min-w-[200px]">
+          <FornecedorSelect ... />
+        </div>
+      )}
+    </div>
+    
+    {/* Linha 4: Botões de Ação */}
+    <div className="flex items-center justify-end gap-2 pt-2 border-t">
+      <Button variant="ghost" size="sm" onClick={() => onIgnore(lancamento)}>
+        Ignorar
+      </Button>
+      <Button variant="default" size="sm" onClick={() => onAdd(...)}>
+        <Plus className="h-4 w-4 mr-1" />
+        Adicionar
+      </Button>
+    </div>
+  </div>
+);
 ```
 
-### Arquivo: `src/components/financeiro/ContaItem.tsx`
-
-#### 2. Permitir edição mesmo em contas pagas
-
-**Linha 229-231** - Remover a condição que impede click em contas pagas:
+### Wrapper com z-index dinâmico (~linha 523-534):
 
 ```typescript
-// ANTES:
-onClick={() => !conta.pago && !conta.agendado && setIsEditing(true)}
-
-// DEPOIS:
-onClick={() => setIsEditing(true)}
-```
-
-#### 3. Manter cursor pointer para todas as contas
-
-**Linha 229** - Remover condição do cursor:
-
-```typescript
-// ANTES:
-!conta.pago && !conta.agendado && "cursor-pointer hover:bg-muted/50"
-
-// DEPOIS:
-"cursor-pointer hover:bg-muted/50"
-```
-
-#### 4. Mostrar botão de edição para contas pagas também
-
-**Linhas 344-356** - Ajustar condição do botão de edição:
-
-```typescript
-// ANTES:
-{!conta.pago && !conta.agendado && (
-  <Button ... Pencil />
-)}
-
-// DEPOIS:
-<Button
-  size="sm"
-  variant="ghost"
-  className="h-6 w-6 p-0 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
-  onClick={(e) => {
-    e.stopPropagation();
-    setIsEditing(true);
-  }}
->
-  <Pencil className="h-3 w-3" />
-</Button>
+<div className="space-y-3">
+  {lancamentosParaRevisar.map((lanc, idx) => (
+    <div 
+      key={`${lanc.descricao}-${lanc.valor}-${lanc.dataVencimento}`}
+      style={{ position: 'relative', zIndex: lancamentosParaRevisar.length - idx }}
+    >
+      <ReviewItem
+        lancamento={lanc}
+        fornecedores={fornecedores}
+        onAdd={handleAddRevisado}
+        onIgnore={handleIgnorar}
+        onCreateFornecedor={onCreateFornecedor}
+      />
+    </div>
+  ))}
+</div>
 ```
 
 ---
 
 ## Resultado Esperado
-- Usuário pode clicar em qualquer transação do histórico para editar
-- Pode corrigir tipo de "intercompany" para "receber" ou "pagar"
-- Pode ajustar natureza (operacional/estoque) retroativamente
-- DRE e fluxo de caixa refletem as classificações corretas
-
+- Cada lançamento tem espaço adequado para leitura
+- Seletores são maiores e mais fáceis de clicar
+- Botões de ação claramente visíveis e acessíveis
+- Dropdowns não sobrepõem outros itens incorretamente
+- Layout funciona bem em desktop e mobile
