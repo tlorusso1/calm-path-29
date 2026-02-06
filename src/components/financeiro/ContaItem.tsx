@@ -226,9 +226,9 @@ export function ContaItem({
         className={cn(
           "flex items-center justify-between p-2 rounded border text-sm group transition-colors",
           styles.bg,
-          !conta.pago && !conta.agendado && "cursor-pointer hover:bg-muted/50"
+          "cursor-pointer hover:bg-muted/50"
         )}
-        onClick={() => !conta.pago && !conta.agendado && setIsEditing(true)}
+        onClick={() => setIsEditing(true)}
       >
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className="text-xs text-muted-foreground w-12 shrink-0">
@@ -341,19 +341,17 @@ export function ContaItem({
             </Tooltip>
           )}
           
-          {!conta.pago && !conta.agendado && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 w-6 p-0 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsEditing(true);
-              }}
-            >
-              <Pencil className="h-3 w-3" />
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 w-6 p-0 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsEditing(true);
+            }}
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
           
           <Button
             size="sm"
