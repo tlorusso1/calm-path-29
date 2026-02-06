@@ -2,7 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const MAX_LINHAS_POR_CHUNK = 30;
@@ -47,57 +48,58 @@ const tools = [
         properties: {
           descricao: {
             type: "string",
-            description: "Descrição resumida do lançamento"
+            description: "Descrição resumida do lançamento",
           },
           valor: {
             type: "string",
-            description: "Valor absoluto em formato numérico (ex: 1234.56)"
+            description: "Valor absoluto em formato numérico (ex: 1234.56)",
           },
           dataVencimento: {
             type: "string",
-            description: "Data do lançamento em formato ISO (YYYY-MM-DD)"
+            description: "Data do lançamento em formato ISO (YYYY-MM-DD)",
           },
           tipo: {
             type: "string",
             enum: ["pagar", "receber", "intercompany", "aplicacao", "resgate"],
-            description: "pagar=débitos normais, receber=créditos normais, intercompany=transferências entre empresas do grupo, aplicacao=investimentos CDB/TRUST/etc, resgate=resgates de investimentos"
+            description:
+              "pagar=débitos normais, receber=créditos normais, intercompany=transferências entre empresas do grupo, aplicacao=investimentos CDB/TRUST/etc, resgate=resgates de investimentos",
           },
           subtipo: {
             type: "string",
             enum: ["cdb", "trust", "renda_fixa", "lci", "lca", "tesouro", "outro"],
-            description: "Subtipo para aplicações/resgates (opcional)"
+            description: "Subtipo para aplicações/resgates (opcional)",
           },
           categoria: {
             type: "string",
-            description: "Categoria original do extrato se disponível"
-          }
+            description: "Categoria original do extrato se disponível",
+          },
         },
         required: ["descricao", "valor", "dataVencimento", "tipo"],
-        additionalProperties: false
-      }
-    }
-  }
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 // Valida e corrige datas inválidas (ex: 30/02 -> 28/02)
 function validarData(dataStr: string): string {
   try {
-    const [ano, mes, dia] = dataStr.split('-').map(Number);
-    if (!ano || !mes || !dia) return new Date().toISOString().split('T')[0];
-    
+    const [ano, mes, dia] = dataStr.split("-").map(Number);
+    if (!ano || !mes || !dia) return new Date().toISOString().split("T")[0];
+
     // Encontrar último dia válido do mês
     const ultimoDia = new Date(ano, mes, 0).getDate();
     const diaValido = Math.min(dia, ultimoDia);
-    
-    return `${ano}-${String(mes).padStart(2, '0')}-${String(diaValido).padStart(2, '0')}`;
+
+    return `${ano}-${String(mes).padStart(2, "0")}-${String(diaValido).padStart(2, "0")}`;
   } catch {
-    return new Date().toISOString().split('T')[0];
+    return new Date().toISOString().split("T")[0];
   }
 }
 
 // Processa um chunk do extrato
 async function processarChunk(texto: string, mesAno: string, apiKey: string): Promise<any[]> {
-  const contextoData = mesAno ? `\n\nContexto: Os lançamentos são do mês/ano ${mesAno}.` : '';
+  const contextoData = mesAno ? `\n\nContexto: Os lançamentos são do mês/ano ${mesAno}.` : "";
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -111,8 +113,8 @@ async function processarChunk(texto: string, mesAno: string, apiKey: string): Pr
         { role: "system", content: systemPrompt + contextoData },
         {
           role: "user",
-          content: `Analise este extrato bancário e extraia cada lançamento relevante:\n\n${texto}`
-        }
+          content: `Analise este extrato bancário e extraia cada lançamento relevante:\n\n${texto}`,
+        },
       ],
       tools,
       tool_choice: "auto",
@@ -130,42 +132,42 @@ async function processarChunk(texto: string, mesAno: string, apiKey: string): Pr
   }
 
   const data = await response.json();
-  
+
   const toolCalls = data.choices?.[0]?.message?.tool_calls || [];
   return toolCalls
     .filter((tc: any) => tc.function?.name === "extract_lancamento")
     .map((tc: any) => {
       try {
         const parsed = JSON.parse(tc.function.arguments);
-        
+
         // Classificação de fallback caso a IA não tenha detectado corretamente
         let tipo = parsed.tipo;
         let subtipo = parsed.subtipo;
-        const desc = (parsed.descricao || '').toUpperCase();
-        
+        const desc = (parsed.descricao || "").toUpperCase();
+
         // Detectar aplicações
         if (/APLICACAO|APLIC\.|CDB DI|TRUST DI|IDSELICEMP/i.test(desc)) {
-          tipo = 'aplicacao';
-          if (/CDB/i.test(desc)) subtipo = 'cdb';
-          else if (/TRUST/i.test(desc)) subtipo = 'trust';
-          else if (/LCI/i.test(desc)) subtipo = 'lci';
-          else if (/LCA/i.test(desc)) subtipo = 'lca';
-          else if (/TESOURO/i.test(desc)) subtipo = 'tesouro';
-          else subtipo = 'outro';
+          tipo = "aplicacao";
+          if (/CDB/i.test(desc)) subtipo = "cdb";
+          else if (/TRUST/i.test(desc)) subtipo = "trust";
+          else if (/LCI/i.test(desc)) subtipo = "lci";
+          else if (/LCA/i.test(desc)) subtipo = "lca";
+          else if (/TESOURO/i.test(desc)) subtipo = "tesouro";
+          else subtipo = "outro";
         }
-        
+
         // Detectar resgates
         if (/RESGATE|RESG\./i.test(desc)) {
-          tipo = 'resgate';
-          if (/CDB/i.test(desc)) subtipo = 'cdb';
-          else if (/TRUST/i.test(desc)) subtipo = 'trust';
+          tipo = "resgate";
+          if (/CDB/i.test(desc)) subtipo = "cdb";
+          else if (/TRUST/i.test(desc)) subtipo = "trust";
         }
-        
+
         // Detectar intercompany
-        if (/TED.*NICE|PIX.*NICE|TRANSF.*NICE|SISPAG.*NICE/i.test(desc)) {
-          tipo = 'intercompany';
+        if (/SISPAG NICE FOODS ECOMME/i.test(desc)) {
+          tipo = "intercompany";
         }
-        
+
         return {
           ...parsed,
           tipo,
@@ -187,57 +189,57 @@ serve(async (req) => {
 
   try {
     const { texto, mesAno } = await req.json();
-    
-    if (!texto || typeof texto !== 'string') {
-      return new Response(
-        JSON.stringify({ error: "texto é obrigatório" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+
+    if (!texto || typeof texto !== "string") {
+      return new Response(JSON.stringify({ error: "texto é obrigatório" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       console.error("LOVABLE_API_KEY not configured");
-      return new Response(
-        JSON.stringify({ error: "API key not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "API key not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Dividir texto em chunks para evitar truncamento
-    const linhas = texto.split('\n').filter((l: string) => l.trim());
+    const linhas = texto.split("\n").filter((l: string) => l.trim());
     const chunks: string[] = [];
-    
+
     for (let i = 0; i < linhas.length; i += MAX_LINHAS_POR_CHUNK) {
-      chunks.push(linhas.slice(i, i + MAX_LINHAS_POR_CHUNK).join('\n'));
+      chunks.push(linhas.slice(i, i + MAX_LINHAS_POR_CHUNK).join("\n"));
     }
 
     console.log(`Processing ${linhas.length} lines in ${chunks.length} chunk(s)`);
 
     // Processar cada chunk
     const todosLancamentos: any[] = [];
-    
+
     for (let i = 0; i < chunks.length; i++) {
       try {
         console.log(`Processing chunk ${i + 1}/${chunks.length}`);
-        const lancamentos = await processarChunk(chunks[i], mesAno || '', LOVABLE_API_KEY);
+        const lancamentos = await processarChunk(chunks[i], mesAno || "", LOVABLE_API_KEY);
         todosLancamentos.push(...lancamentos);
         console.log(`Chunk ${i + 1}: ${lancamentos.length} items extracted`);
       } catch (err) {
-        const errMsg = err instanceof Error ? err.message : 'Unknown error';
+        const errMsg = err instanceof Error ? err.message : "Unknown error";
         console.error(`Error processing chunk ${i + 1}:`, errMsg);
-        
+
         if (errMsg === "RATE_LIMIT") {
           return new Response(
             JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
-            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
           );
         }
         if (errMsg === "NO_CREDITS") {
-          return new Response(
-            JSON.stringify({ error: "Créditos insuficientes." }),
-            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return new Response(JSON.stringify({ error: "Créditos insuficientes." }), {
+            status: 402,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
         }
         // Continue com próximos chunks mesmo se um falhar
       }
@@ -246,22 +248,20 @@ serve(async (req) => {
     console.log(`Total extracted: ${todosLancamentos.length} items`);
 
     if (todosLancamentos.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "Nenhum lançamento encontrado no extrato", contas: [] }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Nenhum lançamento encontrado no extrato", contas: [] }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    return new Response(
-      JSON.stringify({ contas: todosLancamentos }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-
+    return new Response(JSON.stringify({ contas: todosLancamentos }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
     console.error("Error in extract-extrato:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Erro desconhecido" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Erro desconhecido" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
