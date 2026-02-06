@@ -1,154 +1,121 @@
 
-# Criar Gestão de Fornecedores Cadastrados
+# Permitir Edição de Tipo nas Contas do Histórico
+
+## Problema Identificado
+As transações que aparecem no **Histórico** (últimos 60 dias - contas já pagas) não podem ser editadas. Isso causa problemas porque:
+- Durante a conciliação bancária, a IA classifica automaticamente algumas transações como "intercompany"
+- Mas nem todas são realmente intercompany - algumas são apenas transferências entre contas da mesma empresa
+- Uma vez conciliada como paga, **não há como corrigir o tipo**
+- Isso causa distorções no DRE e fluxo de caixa
 
 ## Situação Atual
-O componente **FornecedoresManager** foi planejado anteriormente mas **não foi implementado**. Atualmente:
-- Fornecedores são carregados de um CSV estático (~1200 registros)
-- Novos fornecedores podem ser criados durante a conciliação bancária
-- **Não existe UI para visualizar ou gerenciar fornecedores existentes**
-
-## O Que Será Criado
-
-### Interface Visual
 ```text
-┌─────────────────────────────────────────────────────┐
-│ 📋 Fornecedores Cadastrados                  (123)  │
-├─────────────────────────────────────────────────────┤
-│ [🔍 Buscar fornecedor...                         ]  │
-├─────────────────────────────────────────────────────┤
-│ CUSTOS DE PRODUTO VENDIDO (45)              [▼]     │
-│ ┌─────────────────────────────────────────────────┐ │
-│ │ 3TM DISTRIBUIDORA        │ Embalagens   │ [✏️🗑] │ │
-│ │ JUND COCO LTDA           │ Compra MP    │ [✏️🗑] │ │
-│ └─────────────────────────────────────────────────┘ │
-│                                                     │
-│ DESPESAS COMERCIAIS (28)                    [▶]     │
-│ DESPESAS ADMINISTRATIVAS (32)               [▶]     │
-│                                                     │
-│ [+ Adicionar Novo Fornecedor]                       │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│ Histórico (últimos 60d)                                         │
+├─────────────────────────────────────────────────────────────────┤
+│ 03/02  PIX Nice Foods   [conc] [inter]     ↔ R$ 7.707,06   🗑   │ ← NÃO EDITA
+│ 02/02  Sispag Pix       [conc]               - R$ 570,00   🗑   │ ← NÃO EDITA
+│ 02/02  TED Nice F E     [conc] [inter]     ↔ R$ 11.089,36  🗑   │ ← NÃO EDITA
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Funcionalidades
-1. **Visualização**: Lista agrupada por modalidade DRE com busca fuzzy
-2. **Edição**: Click no nome abre edição inline (nome + categoria DRE)
-3. **Exclusão**: Com verificação de contas vinculadas (impede exclusão se houver)
-4. **Adição**: Formulário inline com seletor de categoria DRE
+## Solução
+Adicionar botão de edição em cada item do histórico, similar às contas pendentes, permitindo alterar:
+- **Tipo** (Pagar, Receber, Intercompany, Aplicação, Resgate)
+- **Natureza** (Operacional vs Estoque)
+
+### Nova Interface
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ 03/02  PIX Nice Foods   [conc] [inter]     ↔ R$ 7.707,06  ✏️ 🗑 │
+│                                                                 │
+│ [Click ✏️ abre modo edição:]                                    │
+│ ┌─────────────────────────────────────────────────────────────┐ │
+│ │ [Tipo: Receber ▼] [Data] [Descrição] [Valor] [✓] [✕]        │ │
+│ └─────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Arquivos a Modificar
+## Mudanças Técnicas
 
-| Arquivo | Ação |
-|---------|------|
-| `src/components/financeiro/FornecedoresManager.tsx` | **NOVO** - Componente de gestão |
-| `src/components/modes/FinanceiroMode.tsx` | Adicionar na seção "Parâmetros do Sistema" |
+### Arquivo: `src/components/financeiro/ContasFluxoSection.tsx`
 
----
+#### 1. Substituir renderização manual do histórico por `ContaItem`
 
-## Detalhes Técnicos
-
-### 1. Novo Componente: FornecedoresManager.tsx
+**Linhas 603-641** - Trocar a `div` manual pelo componente `ContaItem`:
 
 ```typescript
-interface FornecedoresManagerProps {
-  fornecedores: Fornecedor[];
-  contasFluxo: ContaFluxo[];  // Para verificar vínculos
-  onAdd: (fornecedor: Omit<Fornecedor, 'id'>) => void;
-  onUpdate: (id: string, updates: Partial<Fornecedor>) => void;
-  onRemove: (id: string) => void;
-  isOpen: boolean;
-  onToggle: () => void;
-}
+{contasPagas.slice(0, historicoLimit).map((conta) => (
+  <ContaItem
+    key={conta.id}
+    conta={conta}
+    variant={conta.tipo}
+    fornecedores={fornecedores}
+    onUpdate={onUpdateConta || (() => {})}
+    onRemove={onRemoveConta}
+    // Sem onTogglePago - já está pago
+    formatCurrency={formatCurrency}
+  />
+))}
 ```
 
-**Estados internos:**
-- `search`: string para busca
-- `openModalidades`: Record<string, boolean> para controlar colapso por grupo
-- `editingId`: string | null para modo edição
-- `showAddForm`: boolean para exibir formulário de adição
+### Arquivo: `src/components/financeiro/ContaItem.tsx`
 
-**Agrupamento por Modalidade:**
+#### 2. Permitir edição mesmo em contas pagas
+
+**Linha 229-231** - Remover a condição que impede click em contas pagas:
+
 ```typescript
-const grouped = useMemo(() => {
-  const filtrados = buscarFornecedores(search, fornecedores, 500);
-  return filtrados.reduce((acc, f) => {
-    const key = f.modalidade || 'Não Classificado';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(f);
-    return acc;
-  }, {} as Record<string, Fornecedor[]>);
-}, [search, fornecedores]);
+// ANTES:
+onClick={() => !conta.pago && !conta.agendado && setIsEditing(true)}
+
+// DEPOIS:
+onClick={() => setIsEditing(true)}
 ```
 
-**Verificação de Vínculo antes de Excluir:**
+#### 3. Manter cursor pointer para todas as contas
+
+**Linha 229** - Remover condição do cursor:
+
 ```typescript
-const isVinculado = (id: string) => contasFluxo.some(c => c.fornecedorId === id);
+// ANTES:
+!conta.pago && !conta.agendado && "cursor-pointer hover:bg-muted/50"
 
-const handleRemove = (id: string) => {
-  const vinculadas = contasFluxo.filter(c => c.fornecedorId === id);
-  if (vinculadas.length > 0) {
-    toast.error(`Não é possível excluir: ${vinculadas.length} conta(s) vinculada(s)`);
-    return;
-  }
-  onRemove(id);
-  toast.success('Fornecedor removido!');
-};
+// DEPOIS:
+"cursor-pointer hover:bg-muted/50"
 ```
 
-### 2. Integração no FinanceiroMode.tsx
+#### 4. Mostrar botão de edição para contas pagas também
 
-**Adicionar estado em `openSections`:**
+**Linhas 344-356** - Ajustar condição do botão de edição:
+
 ```typescript
-const [openSections, setOpenSections] = useState({
-  // ...existentes
-  fornecedores: false,  // NOVO
-});
-```
+// ANTES:
+{!conta.pago && !conta.agendado && (
+  <Button ... Pencil />
+)}
 
-**Handlers:**
-```typescript
-const handleAddFornecedor = (fornecedor: Omit<Fornecedor, 'id'>) => {
-  const novoId = crypto.randomUUID();
-  onUpdateFinanceiroData({
-    fornecedores: [...(data.fornecedores || []), { ...fornecedor, id: novoId }],
-  });
-  toast.success(`Fornecedor "${fornecedor.nome}" criado!`);
-};
-
-const handleUpdateFornecedor = (id: string, updates: Partial<Fornecedor>) => {
-  onUpdateFinanceiroData({
-    fornecedores: (data.fornecedores || []).map(f => 
-      f.id === id ? { ...f, ...updates } : f
-    ),
-  });
-};
-
-const handleRemoveFornecedor = (id: string) => {
-  onUpdateFinanceiroData({
-    fornecedores: (data.fornecedores || []).filter(f => f.id !== id),
-  });
-};
-```
-
-**Adicionar componente após Conciliação Bancária:**
-```tsx
-<FornecedoresManager
-  fornecedores={data.fornecedores || []}
-  contasFluxo={data.contasFluxo || []}
-  onAdd={handleAddFornecedor}
-  onUpdate={handleUpdateFornecedor}
-  onRemove={handleRemoveFornecedor}
-  isOpen={openSections.fornecedores}
-  onToggle={() => toggleSection('fornecedores')}
-/>
+// DEPOIS:
+<Button
+  size="sm"
+  variant="ghost"
+  className="h-6 w-6 p-0 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+  onClick={(e) => {
+    e.stopPropagation();
+    setIsEditing(true);
+  }}
+>
+  <Pencil className="h-3 w-3" />
+</Button>
 ```
 
 ---
 
 ## Resultado Esperado
-- Usuário pode visualizar todos os fornecedores agrupados por modalidade
-- Pode buscar por nome
-- Pode editar nome e categoria DRE
-- Pode excluir fornecedores sem contas vinculadas
-- Pode adicionar novos fornecedores manualmente
+- Usuário pode clicar em qualquer transação do histórico para editar
+- Pode corrigir tipo de "intercompany" para "receber" ou "pagar"
+- Pode ajustar natureza (operacional/estoque) retroativamente
+- DRE e fluxo de caixa refletem as classificações corretas
+
