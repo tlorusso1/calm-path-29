@@ -601,44 +601,15 @@ export function ContasFluxoSection({
                           <ScrollArea className={contasPagas.length > 5 ? 'h-[200px]' : ''}>
                             <div className="space-y-1.5">
                               {contasPagas.slice(0, historicoLimit).map((conta) => (
-                                <div 
+                                <ContaItem
                                   key={conta.id}
-                                  className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border text-xs"
-                                >
-                                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <span className="text-muted-foreground font-mono shrink-0">
-                                      {format(parseISO(conta.dataVencimento), 'dd/MM')}
-                                    </span>
-                                    <span className="truncate" title={conta.descricao}>
-                                      {conta.descricao}
-                                    </span>
-                                    {getBadgeTipoBaixa(conta)}
-                                    {conta.tipo === 'intercompany' && (
-                                      <Badge variant="outline" className="text-[10px] h-4 px-1 bg-purple-50 text-purple-700 border-purple-200">
-                                        <RefreshCw className="h-2 w-2 mr-0.5" />
-                                        inter
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    <span className={`font-medium ml-2 ${
-                                      conta.tipo === 'receber' ? 'text-green-600' : 
-                                      conta.tipo === 'intercompany' ? 'text-purple-600' : 
-                                      'text-muted-foreground'
-                                    }`}>
-                                      {conta.tipo === 'receber' ? '+' : conta.tipo === 'intercompany' ? '↔' : '-'} {formatCurrency(conta.valor)}
-                                    </span>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive ml-1"
-                                      onClick={() => onRemoveConta(conta.id)}
-                                      title="Excluir do histórico"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </div>
+                                  conta={conta}
+                                  variant={conta.tipo}
+                                  fornecedores={fornecedores}
+                                  onUpdate={onUpdateConta || (() => {})}
+                                  onRemove={onRemoveConta}
+                                  formatCurrency={formatCurrency}
+                                />
                               ))}
                             </div>
                           </ScrollArea>
