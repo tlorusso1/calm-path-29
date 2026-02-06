@@ -27,7 +27,7 @@ Regras de extração:
 6. CLASSIFICAÇÃO DE TIPO (IMPORTANTE):
    - "aplicacao": APLICACAO CDB, APLICACAO TRUST, APLICACAO IDSELICEMP INT, LCI, LCA, TESOURO (saídas que são investimentos)
    - "resgate": RESGATE CDB, RESGATE TRUST (entradas de resgate de investimento)
-   - "intercompany": TED ou PIX entre empresas do mesmo grupo (ex: TED NICE, PIX NICE FOODS)
+   - "intercompany": TED, PIX ou SISPAG entre empresas do mesmo grupo (ex: TED NICE, PIX NICE FOODS, SISPAG NICE FOODS)
    - "pagar": débitos/saídas normais (boletos, fornecedores, despesas)
    - "receber": créditos/entradas normais (vendas, recebimentos)
 
@@ -162,7 +162,7 @@ async function processarChunk(texto: string, mesAno: string, apiKey: string): Pr
         }
         
         // Detectar intercompany
-        if (/TED.*NICE|PIX.*NICE|TRANSF.*NICE/i.test(desc)) {
+        if (/TED.*NICE|PIX.*NICE|TRANSF.*NICE|SISPAG.*NICE/i.test(desc)) {
           tipo = 'intercompany';
         }
         
