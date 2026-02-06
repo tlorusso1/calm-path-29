@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -543,34 +543,83 @@ export function ConciliacaoSection({
 
             {/* Painel de Revisão */}
             {showReviewPanel && lancamentosParaRevisar.length > 0 && (
-              <div className="space-y-3 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-300 dark:border-yellow-700">
-                <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  {lancamentosParaRevisar.length} lançamentos precisam de revisão
-                </p>
-                
-                <div className="space-y-2">
-                   {lancamentosParaRevisar.map((lanc, idx) => (
-                     <div 
-                       key={`${lanc.descricao}-${lanc.valor}-${lanc.dataVencimento}-${idx}`}
-                       style={{ position: 'relative', zIndex: lancamentosParaRevisar.length - idx }}
-                     >
-                       <ReviewItem
-                         lancamento={lanc}
-                         fornecedores={fornecedores}
-                         onAdd={handleAddRevisado}
-                         onIgnore={handleIgnorar}
-                         onCreateFornecedor={onCreateFornecedor}
-                       />
-                     </div>
-                   ))}
-                 </div>
-              </div>
+              <ReviewPanel
+                lancamentos={lancamentosParaRevisar}
+                fornecedores={fornecedores}
+                onAdd={handleAddRevisado}
+                onIgnore={handleIgnorar}
+                onCreateFornecedor={onCreateFornecedor}
+              />
             )}
           </CardContent>
         </CollapsibleContent>
       </Card>
     </Collapsible>
+  );
+}
+
+// Componente de painel com keys estáveis
+function ReviewPanel({
+  lancamentos,
+  fornecedores,
+  onAdd,
+  onIgnore,
+  onCreateFornecedor,
+}: {
+  lancamentos: ExtractedLancamento[];
+  fornecedores: Fornecedor[];
+  onAdd: (lanc: ExtractedLancamento, fornecedorId?: string, tipoOverride?: ContaFluxoTipo, naturezaOverride?: ContaFluxoNatureza) => void;
+  onIgnore: (lanc: ExtractedLancamento) => void;
+  onCreateFornecedor?: (fornecedor: Omit<Fornecedor, 'id'>) => void;
+}) {
+  // Ref para IDs estáveis - gerados uma vez por lançamento
+  const stableIdsRef = useRef<Map<string, string>>(new Map());
+  
+  const getStableId = useCallback((lanc: ExtractedLancamento, idx: number) => {
+    const dataKey = `${lanc.descricao}|${lanc.valor}|${lanc.dataVencimento}`;
+    if (!stableIdsRef.current.has(dataKey)) {
+      stableIdsRef.current.set(dataKey, `review-${Date.now()}-${idx}`);
+    }
+    return stableIdsRef.current.get(dataKey)!;
+  }, []);
+  
+  // Limpar IDs órfãos quando lista muda
+  useMemo(() => {
+    const currentKeys = new Set(
+      lancamentos.map(l => `${l.descricao}|${l.valor}|${l.dataVencimento}`)
+    );
+    // Remover IDs de itens que não existem mais
+    stableIdsRef.current.forEach((_, key) => {
+      if (!currentKeys.has(key)) {
+        stableIdsRef.current.delete(key);
+      }
+    });
+  }, [lancamentos]);
+
+  return (
+    <div className="space-y-3 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-300 dark:border-yellow-700">
+      <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
+        <AlertCircle className="h-3 w-3" />
+        {lancamentos.length} lançamentos precisam de revisão
+      </p>
+      
+      <div className="space-y-2">
+        {lancamentos.map((lanc, idx) => (
+          <div 
+            key={getStableId(lanc, idx)}
+            style={{ position: 'relative', zIndex: lancamentos.length - idx }}
+          >
+            <ReviewItem
+              lancamento={lanc}
+              fornecedores={fornecedores}
+              onAdd={onAdd}
+              onIgnore={onIgnore}
+              onCreateFornecedor={onCreateFornecedor}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -592,8 +641,17 @@ function ReviewItem({
   const [selectedTipo, setSelectedTipo] = useState<ContaFluxoTipo>(lancamento.tipo);
   const [selectedNatureza, setSelectedNatureza] = useState<ContaFluxoNatureza>('operacional');
 
+  // Handlers memoizados para evitar re-renders
+  const handleTipoChange = useCallback((v: string) => {
+    setSelectedTipo(v as ContaFluxoTipo);
+  }, []);
+
+  const handleNaturezaChange = useCallback((v: string) => {
+    setSelectedNatureza(v as ContaFluxoNatureza);
+  }, []);
+
   // Auto-selecionar natureza quando fornecedor muda
-  const handleFornecedorChange = (id: string | undefined) => {
+  const handleFornecedorChange = useCallback((id: string | undefined) => {
     setSelectedFornecedor(id);
     if (id) {
       const forn = fornecedores.find(f => f.id === id);
@@ -609,7 +667,7 @@ function ReviewItem({
         }
       }
     }
-  };
+  }, [fornecedores]);
 
   const valorFormatado = useMemo(() => {
     const num = parseValorFlexivel(lancamento.valor);
@@ -633,6 +691,14 @@ function ReviewItem({
     cartao: { label: 'Cartão', emoji: '💳' },
   };
 
+  const handleAdd = useCallback(() => {
+    onAdd(lancamento, selectedFornecedor, selectedTipo, selectedTipo === 'pagar' ? selectedNatureza : undefined);
+  }, [lancamento, selectedFornecedor, selectedTipo, selectedNatureza, onAdd]);
+
+  const handleIgnore = useCallback(() => {
+    onIgnore(lancamento);
+  }, [lancamento, onIgnore]);
+
   return (
     <div className="p-2 bg-background rounded border overflow-visible">
       {/* Linha 1: Descrição + Valor */}
@@ -646,7 +712,7 @@ function ReviewItem({
         <span className="text-[10px] text-muted-foreground shrink-0">{dataFormatada}</span>
         
         {/* Seletor de Tipo */}
-        <Select value={selectedTipo} onValueChange={(v) => setSelectedTipo(v as ContaFluxoTipo)}>
+        <Select value={selectedTipo} onValueChange={handleTipoChange}>
           <SelectTrigger className="h-7 w-[110px] text-xs">
             <SelectValue />
           </SelectTrigger>
@@ -661,7 +727,7 @@ function ReviewItem({
         
         {/* Seletor de Natureza (apenas para tipo pagar) */}
         {selectedTipo === 'pagar' && (
-          <Select value={selectedNatureza} onValueChange={(v) => setSelectedNatureza(v as ContaFluxoNatureza)}>
+          <Select value={selectedNatureza} onValueChange={handleNaturezaChange}>
             <SelectTrigger className="h-7 w-[100px] text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -690,7 +756,7 @@ function ReviewItem({
           size="sm"
           variant="outline"
           className="h-7 px-2 gap-1 shrink-0"
-          onClick={() => onAdd(lancamento, selectedFornecedor, selectedTipo, selectedTipo === 'pagar' ? selectedNatureza : undefined)}
+          onClick={handleAdd}
         >
           <Plus className="h-3 w-3" />
           <span className="hidden sm:inline">Add</span>
@@ -699,7 +765,7 @@ function ReviewItem({
           size="sm"
           variant="ghost"
           className="h-7 px-2 text-xs text-muted-foreground shrink-0"
-          onClick={() => onIgnore(lancamento)}
+          onClick={handleIgnore}
         >
           ✕
         </Button>
