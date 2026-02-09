@@ -1,42 +1,57 @@
 
-# Correcao: Toggle de Natureza para Todos os Tipos de Saida
 
-## Problema Identificado
+# Correcao de Layout: Conciliacao e ContaItem
 
-O toggle de natureza (OP / EST) no `ContaItem.tsx` so aparece quando `conta.tipo === 'pagar'`. Porem, transacoes classificadas como **"cartao"** tambem sao saidas operacionais e precisam do toggle. Alem disso, na conciliacao (`ConciliacaoSection.tsx`), o seletor de natureza tambem so aparece para tipo `'pagar'`.
+## Problemas Identificados
 
-Resumo dos bugs:
-1. Tipo `cartao` e `intercompany` sao saidas mas nao mostram o toggle de natureza
-2. Itens ja pagos no historico nao permitem reclassificar a natureza (pode ser necessario corrigir erro de classificacao retroativamente)
+### 1. Conciliacao Bancaria - Toggle de Natureza invisivel
+O seletor de natureza esta presente no codigo mas aparece como um icone cortado/ilegivel na tela. Na screenshot, aparece como um circulo marrom truncado ("🔵..."). Isso ocorre porque todos os seletores (Tipo + Natureza + Fornecedor + Botoes) estao comprimidos em uma unica linha horizontal.
+
+### 2. ContaItem Desktop - Texto truncado
+Descricoes como "USIBRAS U..." estao cortadas mesmo em telas grandes. O `truncate` com `sm:max-w-[400px]` limita o texto desnecessariamente.
+
+### 3. ContaItem Mobile - Layout quebrado
+No mobile, os valores monetarios e badges sobrepoe o texto. Os numeros do resumo de saidas/entradas/saldo tambem estao sobrepostos ("R$ 113.50R$57.140,56").
 
 ## Solucao
 
-### 1. Expandir a condicao do toggle em `ContaItem.tsx`
+### Arquivo: `src/components/financeiro/ConciliacaoSection.tsx` (ReviewItem)
 
-Trocar a condicao de `conta.tipo === 'pagar'` para incluir todos os tipos que representam saida de caixa:
+Reorganizar o layout do ReviewItem para 3 linhas em vez de 2:
 
-```typescript
-const tiposSaida = ['pagar', 'cartao'];
+```
+Linha 1: Descricao completa + Valor (ja existe)
+Linha 2: Data + Tipo + Natureza  
+Linha 3: Fornecedor + Botoes (Add / X)
 ```
 
-- **Toggle interativo** (contas pendentes): mostrar para `tiposSaida.includes(conta.tipo) && !conta.pago`
-- **Badge estatico** (contas pagas): mostrar para `tiposSaida.includes(conta.tipo) && conta.pago && conta.natureza === 'capitalGiro'`
-- **Toggle editavel no historico**: permitir reclassificacao mesmo em contas pagas (remover a condicao `!conta.pago` do toggle, mantendo o badge estatico apenas como fallback visual)
+Mudancas:
+- Separar a linha 2 atual em duas linhas distintas
+- Natureza aparece SEMPRE para TODOS os tipos (nao apenas pagar/cartao), pois o usuario pediu "em todos"
+- Fornecedor fica em linha propria com mais espaco
+- Remover a condicao `selectedTipo === 'pagar' || selectedTipo === 'cartao'` do seletor de Natureza para mostrar em todos
 
-### 2. Expandir a condicao na conciliacao `ConciliacaoSection.tsx`
+### Arquivo: `src/components/financeiro/ContaItem.tsx`
 
-O seletor de natureza e o seletor de fornecedor na revisao de conciliacao tambem devem aparecer para tipo `'cartao'`:
+**Desktop:**
+- Remover `sm:max-w-[400px] lg:max-w-[500px]` da descricao, deixar `flex-1` natural
+- Descrição usa `truncate` apenas no mobile, no desktop mostra completa com `sm:whitespace-normal sm:overflow-visible`
 
-```typescript
-{(selectedTipo === 'pagar' || selectedTipo === 'cartao') && (
-  <Select value={selectedNatureza} ...>
-```
+**Mobile:**
+- Forcar layout de 3 linhas claras:
+  - Linha 1: Data + Descricao (sem truncar tanto)
+  - Linha 2: Badges (tipo, natureza, status)  
+  - Linha 3: Valor + botoes de acao
+- Reduzir gap e usar `text-xs` consistente
 
-Mesma logica para o seletor de fornecedor logo abaixo.
+### Arquivo: `src/components/financeiro/ContasFluxoSection.tsx` (se necessario)
 
-### Arquivos a Modificar
+Verificar se o resumo de saidas/entradas/saldo no mobile tem espacamento adequado para nao sobrepor os numeros.
+
+## Arquivos a Modificar
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/components/financeiro/ContaItem.tsx` | Expandir condicao do toggle de natureza para incluir tipo `cartao`; permitir toggle mesmo em contas pagas |
-| `src/components/financeiro/ConciliacaoSection.tsx` | Expandir condicao do seletor de natureza e fornecedor para incluir tipo `cartao` |
+| `src/components/financeiro/ConciliacaoSection.tsx` | Reorganizar ReviewItem em 3 linhas; mostrar natureza para todos os tipos |
+| `src/components/financeiro/ContaItem.tsx` | Expandir descricao no desktop; reorganizar mobile em 3 linhas |
+
