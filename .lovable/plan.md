@@ -1,119 +1,73 @@
 
+# Corrigir Perda de Dados: Race Conditions na Persistencia
 
-# Plano: Correcoes e Novas Funcionalidades no Financeiro
+## Problema Raiz Identificado
 
-## Problema 1: Conciliacoes nao aparecem na UI
+O sistema tem **3 bugs criticos** que causam a perda de dados:
 
-### Diagnostico
+### Bug 1: Carga dupla no login
+O `AuthContext` chama `setUser` duas vezes na inicializacao (uma via `onAuthStateChange`, outra via `getSession`). Como o `useEffect` de carga em `useFocusModes.ts` depende de `[user]`, a funcao de carga executa **duas vezes**. A segunda execucao pode sobrescrever edicoes que o usuario ja fez entre a primeira e a segunda carga.
 
-Na linha 347-364 de `ConciliacaoSection.tsx`, entradas (`receber`) sem fornecedor identificado sao adicionadas diretamente ao array `novos` sem fornecedor e sem categoria. Quando esses lancamentos chegam ao DRE (`DRESection.tsx`, linhas 126-134), recebem a categoria "Entradas a Reclassificar" que pertence a modalidade `OUTRAS RECEITAS/DESPESAS`. Porem, no calculo de totais (linhas 197-207), essa modalidade nao e contabilizada em nenhum total (nao e RECEITAS, nao e DESPESAS puras), entao as entradas desaparecem do resultado.
+### Bug 2: Recarga em token refresh
+A cada ~1 hora, o Supabase faz refresh do token de autenticacao. Isso dispara `onAuthStateChange`, que cria uma nova referencia de `user`, que re-executa o efeito de carga. Resultado: todos os dados em memoria sao substituidos pelo que esta no banco -- **descartando tudo que o usuario editou desde o ultimo save**.
 
-### Correcao
+### Bug 3: Arquivo morto `useSupabaseSync.ts`
+O arquivo `src/hooks/useSupabaseSync.ts` contem uma implementacao antiga e nao e importado por ninguem, mas pode causar confusao em manutencoes futuras.
 
-**Arquivo: `ConciliacaoSection.tsx` (linhas 347-364)**
-- Entradas (`receber`) sem fornecedor devem ir para `paraRevisar` em vez de `novos`, igual ao que ja acontece com `pagar` e `cartao`. Somente tipos automaticos (`intercompany`, `aplicacao`, `resgate`) entram direto.
+## Solucao
 
-**Arquivo: `DRESection.tsx` (linhas 126-134 e 197-207)**
-- Fallback de modalidade: quando `tipo === 'receber'` e nao tem categoria, classificar na modalidade `RECEITAS` (grupo `Receitas Diretas`) em vez de `OUTRAS RECEITAS/DESPESAS`.
-- No calculo de totais: incluir entradas dentro de `OUTRAS RECEITAS/DESPESAS` no total de receitas (separar por tipo real do lancamento).
+### Arquivo: `src/hooks/useFocusModes.ts`
 
----
+1. **Adicionar guard `initialLoadDone` no efeito de carga** (linhas 409-479):
+   - Antes de carregar, verificar `if (initialLoadDone.current) return;`
+   - Isso impede recargas duplicadas ou causadas por token refresh
 
-## Feature 2: Grafico de Entrada Media Real vs Minima Necessaria
+2. **Estabilizar referencia do `user`** na dependencia do useEffect:
+   - Usar `user?.id` como dependencia em vez do objeto `user` inteiro
+   - Objeto `user` muda de referencia a cada auth event, mas `user.id` permanece estavel
 
-### Novo componente: `EntradaMediaRealChart.tsx`
+3. **Adicionar log de protecao** para debugging futuro:
+   - Logar quando uma recarga e bloqueada por `initialLoadDone`
 
-Grafico de barras simples com apenas 2 barras:
-- **Barra Verde**: "Entrada media real/dia" = soma de lancamentos conciliados `tipo === 'receber'` dos ultimos 14 dias / 14
-- **Barra Cinza**: "Entrada minima necessaria/dia" = (custos fixos + marketing estrutural + ads base) / dias restantes do mes
+### Arquivo: `src/contexts/AuthContext.tsx`
 
-Sem projecoes, sem edicao manual. Apenas dados conciliados reais.
+4. **Eliminar a chamada dupla de `setUser`**:
+   - Remover o `getSession().then()` que duplica o que `onAuthStateChange` ja faz
+   - Ou alternativamente, usar um ref para controlar se o user ja foi setado
 
-Posicionado na secao "METAS" do FinanceiroMode, abaixo do MetaVendasCard.
+### Arquivo: `src/hooks/useSupabaseSync.ts`
 
----
+5. **Deletar arquivo morto** que nao e mais utilizado.
 
-## Feature 3: Separacao Real vs Projetado no Fluxo de Caixa
+## Resultado Esperado
 
-### Arquivo: `FluxoCaixaDiarioChart.tsx`
+- Dados carregados uma unica vez do banco
+- Edicoes do usuario nunca sobrescritas por recargas fantasma
+- Token refresh nao interfere nos dados em memoria
+- Indicador visual "Salvo" continua funcionando normalmente
 
-Alteracoes visuais (sem mudar calculos):
-- Adicionar toggle no topo: `[Ultimos 60d | Proximos 30d]`
-- Modo "Ultimos 60d": exibe saldo real baseado em lancamentos pagos/conciliados (linha azul continua)
-- Modo "Proximos 30d": comportamento atual (linha azul tracejada para dias estimados, continua para dias com contas conhecidas)
+## Detalhes Tecnicos
 
-### Arquivo: `FluxoCaixaChart.tsx`
-
-Adicionar label "REAL" ou "PROJECAO" no titulo do card conforme `modoProjecao`.
-
----
-
-## Feature 4: Baixa Automatica na Conciliacao (ja implementada, verificar)
-
-A baixa automatica de contas a pagar ja foi implementada nas mensagens anteriores. Verificar que o badge "Conciliado automaticamente" esta visivel.
-
-### Arquivo: `ConciliacaoSection.tsx`
-
-- Apos o match por valor (R$ 0,01) e data (2 dias), verificar que a descricao do resultado inclui indicacao visual
-- No toast de resultado, indicar quantas contas foram baixadas automaticamente
-
----
-
-## Feature 5: Snapshot Mensal Automatico
-
-### Sem tabela nova (salvar dentro de `FinanceiroStage`)
-
-Adicionar campo `snapshotsMensais` ao tipo `FinanceiroStage`:
+### Mudanca principal em `useFocusModes.ts` (efeito de carga):
 
 ```text
-snapshotsMensais: Array<{
-  mesAno: string;        // "2026-01", "2026-02"
-  entradas: number;      // total entradas conciliadas
-  saidas: number;        // total saidas conciliadas
-  saldo: number;         // entradas - saidas
-  geradoEm: string;      // timestamp
-}>
+useEffect(() => {
+  if (!user) { setIsLoading(false); return; }
+  if (initialLoadDone.current) return;  // <-- NOVO: impede recarga
+
+  const loadFromSupabase = async () => { ... };
+  loadFromSupabase();
+}, [user?.id]);  // <-- MUDADO: user.id em vez de user
 ```
 
-### Logica de geracao
+### Mudanca em `AuthContext.tsx`:
 
-No `onConciliar` do `FinanceiroMode.tsx`, apos adicionar lancamentos conciliados, recalcular o snapshot do mes corrente automaticamente iterando todos os lancamentos pagos do mes.
+Remover a chamada redundante `getSession().then(...)` que causa o segundo disparo de `setUser`, ou proteger com um flag para so setar na primeira vez.
 
-### Exibicao
-
-Novo componente `SnapshotsMensais.tsx` na secao ANALISE: lista simples mostrando cada mes com entradas, saidas e saldo liquido, formatado como:
-- Fev/2026: +R$ 45.000 (cor verde ou vermelha conforme saldo)
-
----
-
-## Feature 6: Labels REAL e PROJECAO nos Titulos
-
-### Arquivos afetados
-
-| Componente | Label |
-|------------|-------|
-| `FluxoCaixaChart.tsx` | "PROJECAO" quando `modoProjecao=true`, "REAL" quando false |
-| `FluxoCaixaDiarioChart.tsx` | "PROJECAO" fixo (sempre usa estimativas) |
-| `ExecutiveResume.tsx` | Sem mudanca (ja e calculado) |
-| `MetaVendasCard.tsx` | Sem mudanca |
-| `DRESection.tsx` | "REAL" fixo (so usa lancamentos pagos) |
-| `MargemRealCard.tsx` | "REAL" fixo |
-| `EntradaMediaRealChart.tsx` (novo) | "REAL" fixo |
-
-Implementacao: Badge pequeno ao lado do titulo de cada card, sem mudar logica nenhuma.
-
----
-
-## Resumo de Arquivos
+## Arquivos Afetados
 
 | Arquivo | Acao |
 |---------|------|
-| `src/components/financeiro/ConciliacaoSection.tsx` | Enviar `receber` sem fornecedor para revisao |
-| `src/components/financeiro/DRESection.tsx` | Corrigir fallback de modalidade e totais |
-| `src/components/financeiro/EntradaMediaRealChart.tsx` | **NOVO** - grafico 2 barras |
-| `src/components/financeiro/FluxoCaixaDiarioChart.tsx` | Toggle 60d/30d, separar real vs projetado |
-| `src/components/financeiro/FluxoCaixaChart.tsx` | Label REAL/PROJECAO |
-| `src/components/financeiro/SnapshotsMensais.tsx` | **NOVO** - lista de snapshots mensais |
-| `src/components/modes/FinanceiroMode.tsx` | Integrar novos componentes, gerar snapshots |
-| `src/types/focus-mode.ts` | Adicionar `snapshotsMensais` ao `FinanceiroStage` |
-
+| `src/hooks/useFocusModes.ts` | Guard `initialLoadDone` + dep `user?.id` |
+| `src/contexts/AuthContext.tsx` | Eliminar dupla chamada de `setUser` |
+| `src/hooks/useSupabaseSync.ts` | Deletar (nao utilizado) |
