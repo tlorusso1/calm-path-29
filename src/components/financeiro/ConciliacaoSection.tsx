@@ -51,7 +51,21 @@ interface ConciliacaoSectionProps {
   onAddMapeamento?: (mapeamento: MapeamentoDescricaoFornecedor) => void;
 }
 
-// Match inteligente: valor ± R$0.01 E data ± 1 dia (pagar: ± 2 dias)
+// Extrai nomes próprios (4+ letras) e verifica se há ao menos 1 em comum
+function extrairNomesProprios(descA: string, descB: string): boolean {
+  const extrair = (s: string) => {
+    const tokens = s.toUpperCase().replace(/[^A-Z\s]/g, '').split(/\s+/);
+    return new Set(tokens.filter(t => t.length >= 4));
+  };
+  const nomesA = extrair(descA);
+  const nomesB = extrair(descB);
+  for (const n of nomesA) {
+    if (nomesB.has(n)) return true;
+  }
+  return false;
+}
+
+// Match inteligente: valor ± R$0.01 E data ± 5 dias (pagar) / ± 1 dia (receber)
 function encontrarMatch(
   lancamento: { valor: string; dataVencimento: string; tipo: string },
   contas: ContaFluxo[]
@@ -85,10 +99,10 @@ function encontrarMatch(
       return false;
     }
     
-    // Tolerância: ± R$0,01 no valor; ± 2 dias para pagar, ± 1 dia para demais
+    // Tolerância: ± R$0,01 no valor; ± 5 dias para pagar, ± 1 dia para demais
     const valorMatch = Math.abs(valorLanc - valorConta) <= 0.01;
     const diffDias = Math.abs(differenceInDays(dataLanc, dataConta));
-    const toleranciaDias = lancamento.tipo === 'pagar' ? 2 : 1;
+    const toleranciaDias = lancEhSaida ? 5 : 1;
     const dataMatch = diffDias <= toleranciaDias;
     
     return valorMatch && dataMatch;
@@ -155,10 +169,11 @@ function encontrarMatchPorDescricao(
     try { dataConta = parseISO(conta.dataVencimento); } catch { continue; }
     
     const diffDias = Math.abs(differenceInDays(dataLanc, dataConta));
-    if (diffDias > 5) continue;
+    if (diffDias > 7) continue;
     
     const similaridade = calcularSimilaridade(lancamento.descricao, conta.descricao);
-    if (similaridade < 0.5) continue;
+    const nomeMatch = extrairNomesProprios(lancamento.descricao, conta.descricao);
+    if (similaridade < 0.3 && !nomeMatch) continue;
     
     const score = similaridade - (diffDias * 0.05);
     if (score > melhorScore) {
@@ -498,10 +513,15 @@ export function ConciliacaoSection({
         setTexto('');
       }
       
-      toast.success(
-        `${todosLancamentos.length} lançamentos: ${conciliados.length} conciliados, ${novos.length} novos` +
-        (paraRevisar.length > 0 ? `, ${paraRevisar.length} para revisar` : '')
-      );
+      const partes = [
+        conciliados.length > 0 ? `✅ ${conciliados.length} contas baixadas automaticamente` : null,
+        novos.length > 0 ? `📥 ${novos.length} lançamentos novos no histórico` : null,
+        paraRevisar.length > 0 ? `⚠️ ${paraRevisar.length} para revisar` : null,
+      ].filter(Boolean);
+      toast.success(`Conciliação: ${todosLancamentos.length} lançamentos processados`, {
+        description: partes.join('\n'),
+        duration: 8000,
+      });
 
     } catch (err) {
       console.error('Error processing extrato:', err);
