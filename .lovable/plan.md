@@ -1,57 +1,64 @@
 
 
-# Correcao de Layout: Conciliacao e ContaItem
+# Correcao: Entradas (receber) devem passar por revisao na conciliacao
 
-## Problemas Identificados
+## Problema
 
-### 1. Conciliacao Bancaria - Toggle de Natureza invisivel
-O seletor de natureza esta presente no codigo mas aparece como um icone cortado/ilegivel na tela. Na screenshot, aparece como um circulo marrom truncado ("🔵..."). Isso ocorre porque todos os seletores (Tipo + Natureza + Fornecedor + Botoes) estao comprimidos em uma unica linha horizontal.
+Na conciliacao bancaria, entradas (`tipo === 'receber'`) sem fornecedor identificado automaticamente sao adicionadas **direto ao historico sem classificacao** (linha 347-358 do `ConciliacaoSection.tsx`). Isso faz com que:
 
-### 2. ContaItem Desktop - Texto truncado
-Descricoes como "USIBRAS U..." estao cortadas mesmo em telas grandes. O `truncate` com `sm:max-w-[400px]` limita o texto desnecessariamente.
+1. Entradas fiquem sem fornecedor e sem categoria
+2. No DRE, caiam como "Entradas a Reclassificar" numa modalidade que nao e contabilizada
+3. Receitas desaparecam do resultado operacional
 
-### 3. ContaItem Mobile - Layout quebrado
-No mobile, os valores monetarios e badges sobrepoe o texto. Os numeros do resumo de saidas/entradas/saldo tambem estao sobrepostos ("R$ 113.50R$57.140,56").
+O usuario precisa poder classificar TODAS as entradas como B2C, B2B, etc., atribuindo fornecedor e categoria.
 
 ## Solucao
 
-### Arquivo: `src/components/financeiro/ConciliacaoSection.tsx` (ReviewItem)
+### Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`
 
-Reorganizar o layout do ReviewItem para 3 linhas em vez de 2:
+**1. Enviar entradas sem fornecedor para o painel de revisao**
+
+Alterar a logica na linha 341-358. Em vez de tratar `receber` como caso especial que entra direto, enviar TODOS os lancamentos sem fornecedor para revisao:
 
 ```
-Linha 1: Descricao completa + Valor (ja existe)
-Linha 2: Data + Tipo + Natureza  
-Linha 3: Fornecedor + Botoes (Add / X)
+Antes:
+  } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao') {
+    paraRevisar.push(...)
+  } else {
+    novos.push(...) // receber entra direto SEM classificacao
+  }
+
+Depois:
+  } else {
+    // TODOS os tipos sem fornecedor vao para revisao
+    // (exceto intercompany/aplicacao/resgate que sao automaticos)
+    if (['intercompany', 'aplicacao', 'resgate'].includes(lanc.tipo)) {
+      novos.push({ ...lanc, pago: true, conciliado: true });
+    } else {
+      paraRevisar.push({ ...lanc, needsReview: true });
+    }
+  }
 ```
 
-Mudancas:
-- Separar a linha 2 atual em duas linhas distintas
-- Natureza aparece SEMPRE para TODOS os tipos (nao apenas pagar/cartao), pois o usuario pediu "em todos"
-- Fornecedor fica em linha propria com mais espaco
-- Remover a condicao `selectedTipo === 'pagar' || selectedTipo === 'cartao'` do seletor de Natureza para mostrar em todos
+Isso garante que `pagar`, `cartao` e `receber` sem fornecedor passem pelo painel de revisao com seletor de fornecedor, tipo e natureza.
 
-### Arquivo: `src/components/financeiro/ContaItem.tsx`
+**2. Corrigir fallback no DRE**
 
-**Desktop:**
-- Remover `sm:max-w-[400px] lg:max-w-[500px]` da descricao, deixar `flex-1` natural
-- Descrição usa `truncate` apenas no mobile, no desktop mostra completa com `sm:whitespace-normal sm:overflow-visible`
+No arquivo `src/components/financeiro/DRESection.tsx`, ajustar o fallback de modalidade para que entradas sem categoria caiam em `RECEITAS` (nao em `OUTRAS RECEITAS/DESPESAS`):
 
-**Mobile:**
-- Forcar layout de 3 linhas claras:
-  - Linha 1: Data + Descricao (sem truncar tanto)
-  - Linha 2: Badges (tipo, natureza, status)  
-  - Linha 3: Valor + botoes de acao
-- Reduzir gap e usar `text-xs` consistente
+```
+const modalidade = catDRE?.modalidade 
+  || (lanc.tipo === 'receber' ? 'RECEITAS' : 'OUTRAS RECEITAS/DESPESAS');
+const grupo = catDRE?.grupo 
+  || (lanc.tipo === 'receber' ? 'Receitas Diretas' : 'Outras Saidas');
+```
 
-### Arquivo: `src/components/financeiro/ContasFluxoSection.tsx` (se necessario)
-
-Verificar se o resumo de saidas/entradas/saldo no mobile tem espacamento adequado para nao sobrepor os numeros.
+Isso garante que mesmo entradas que ainda nao foram reclassificadas aparecam no DRE dentro de Receitas Brutas.
 
 ## Arquivos a Modificar
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/components/financeiro/ConciliacaoSection.tsx` | Reorganizar ReviewItem em 3 linhas; mostrar natureza para todos os tipos |
-| `src/components/financeiro/ContaItem.tsx` | Expandir descricao no desktop; reorganizar mobile em 3 linhas |
+| `src/components/financeiro/ConciliacaoSection.tsx` | Enviar `receber` sem fornecedor para revisao em vez de adicionar direto |
+| `src/components/financeiro/DRESection.tsx` | Fallback de modalidade: entradas sem categoria vao para RECEITAS |
 
