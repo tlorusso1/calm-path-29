@@ -405,10 +405,15 @@ export function useFocusModes() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load from Supabase when user is available
+  // Load from Supabase when user is available (once only)
   useEffect(() => {
     if (!user) {
       setIsLoading(false);
+      return;
+    }
+
+    if (initialLoadDone.current) {
+      console.log('[useFocusModes] Recarga bloqueada por initialLoadDone (token refresh ou auth event)');
       return;
     }
 
@@ -476,7 +481,8 @@ export function useFocusModes() {
     };
 
     loadFromSupabase();
-  }, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Helper function to build and save payload
   const saveToSupabase = useCallback(async () => {
