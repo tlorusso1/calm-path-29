@@ -32,7 +32,7 @@ interface ExtractedLancamento {
 }
 
 interface ConciliacaoResult {
-  conciliados: { id: string; descricao: string }[];
+  conciliados: { id: string; descricao: string; dataPagamento?: string; lancamentoConciliadoId?: string }[];
   novos: Omit<ContaFluxo, 'id'>[];
   ignorados: number;
   paraRevisar: ExtractedLancamento[];
@@ -51,7 +51,7 @@ interface ConciliacaoSectionProps {
   onAddMapeamento?: (mapeamento: MapeamentoDescricaoFornecedor) => void;
 }
 
-// Match inteligente: valor ± R$0.01 E data ± 1 dia
+// Match inteligente: valor ± R$0.01 E data ± 1 dia (pagar: ± 2 dias)
 function encontrarMatch(
   lancamento: { valor: string; dataVencimento: string; tipo: string },
   contas: ContaFluxo[]
@@ -76,10 +76,11 @@ function encontrarMatch(
       return false;
     }
     
-    // Tolerância: ± R$0,01 e ± 1 dia
+    // Tolerância: ± R$0,01 no valor; ± 2 dias para pagar, ± 1 dia para demais
     const valorMatch = Math.abs(valorLanc - valorConta) <= 0.01;
     const diffDias = Math.abs(differenceInDays(dataLanc, dataConta));
-    const dataMatch = diffDias <= 1;
+    const toleranciaDias = lancamento.tipo === 'pagar' ? 2 : 1;
+    const dataMatch = diffDias <= toleranciaDias;
     
     return valorMatch && dataMatch;
   }) || null;
@@ -291,8 +292,13 @@ export function ConciliacaoSection({
         const match = encontrarMatch(lanc, contasNaoPagas);
         
         if (match) {
-          // Match encontrado - marcar como conciliado
-          conciliados.push({ id: match.id, descricao: lanc.descricao });
+          // Match encontrado - marcar como conciliado com data de pagamento do extrato
+          conciliados.push({ 
+            id: match.id, 
+            descricao: lanc.descricao, 
+            dataPagamento: lanc.dataVencimento,
+            lancamentoConciliadoId: match.id,
+          });
           // Remover da lista para não fazer match duplo
           const idx = contasNaoPagas.findIndex(c => c.id === match.id);
           if (idx >= 0) contasNaoPagas.splice(idx, 1);
