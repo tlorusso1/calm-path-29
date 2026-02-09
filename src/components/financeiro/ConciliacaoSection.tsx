@@ -282,7 +282,7 @@ export function ConciliacaoSection({
 
       // Processar cada lançamento - tentar match
       const contasNaoPagas = contasExistentes.filter(c => !c.pago);
-      const conciliados: { id: string; descricao: string }[] = [];
+      const conciliados: { id: string; descricao: string; dataPagamento?: string; lancamentoConciliadoId?: string }[] = [];
       const novos: Omit<ContaFluxo, 'id'>[] = [];
       const paraRevisar: ExtractedLancamento[] = [];
       let ignorados = 0;
