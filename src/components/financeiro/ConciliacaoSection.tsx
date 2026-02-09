@@ -735,7 +735,7 @@ function ReviewItem({
   };
 
   const handleAdd = useCallback(() => {
-    onAdd(lancamento, selectedFornecedor, selectedTipo, selectedTipo === 'pagar' ? selectedNatureza : undefined);
+    onAdd(lancamento, selectedFornecedor, selectedTipo, selectedNatureza);
   }, [lancamento, selectedFornecedor, selectedTipo, selectedNatureza, onAdd]);
 
   const handleIgnore = useCallback(() => {
@@ -743,18 +743,17 @@ function ReviewItem({
   }, [lancamento, onIgnore]);
 
   return (
-    <div className="p-2 bg-background rounded border overflow-visible">
+    <div className="p-2 bg-background rounded border overflow-visible space-y-2">
       {/* Linha 1: Descrição + Valor */}
-      <div className="flex items-start justify-between gap-2 mb-2">
+      <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-medium leading-tight flex-1 min-w-0">{lancamento.descricao}</p>
         <p className="text-xs font-medium shrink-0">{valorFormatado}</p>
       </div>
       
-      {/* Linha 2: Data + Tipo + Natureza + Fornecedor + Ações */}
-      <div className="flex items-center gap-2 flex-wrap">
+      {/* Linha 2: Data + Tipo + Natureza */}
+      <div className="flex items-center gap-2">
         <span className="text-[10px] text-muted-foreground shrink-0">{dataFormatada}</span>
         
-        {/* Seletor de Tipo */}
         <Select value={selectedTipo} onValueChange={handleTipoChange}>
           <SelectTrigger className="h-7 w-[110px] text-xs">
             <SelectValue />
@@ -768,32 +767,29 @@ function ReviewItem({
           </SelectContent>
         </Select>
         
-        {/* Seletor de Natureza (apenas para tipo pagar) */}
-        {(selectedTipo === 'pagar' || selectedTipo === 'cartao') && (
-          <Select value={selectedNatureza} onValueChange={handleNaturezaChange}>
-            <SelectTrigger className="h-7 w-[100px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="operacional" className="text-xs">⚙️ Operac.</SelectItem>
-              <SelectItem value="capitalGiro" className="text-xs">📦 Estoque</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
-        
-        {/* Seletor de Fornecedor (apenas para tipo pagar) */}
-         {(selectedTipo === 'pagar' || selectedTipo === 'cartao') && (
-           <div className="flex-1 min-w-0 relative">
-             <FornecedorSelect
-               fornecedores={fornecedores}
-               value={selectedFornecedor}
-               onChange={handleFornecedorChange}
-               placeholder="Fornecedor..."
-               descricaoSugerida={lancamento.descricao}
-               onCreateNew={onCreateFornecedor}
-             />
-           </div>
-         )}
+        <Select value={selectedNatureza} onValueChange={handleNaturezaChange}>
+          <SelectTrigger className="h-7 w-[110px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="operacional" className="text-xs">⚙️ Operacional</SelectItem>
+            <SelectItem value="capitalGiro" className="text-xs">📦 Estoque</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      {/* Linha 3: Fornecedor + Ações */}
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0 relative">
+          <FornecedorSelect
+            fornecedores={fornecedores}
+            value={selectedFornecedor}
+            onChange={handleFornecedorChange}
+            placeholder="Fornecedor..."
+            descricaoSugerida={lancamento.descricao}
+            onCreateNew={onCreateFornecedor}
+          />
+        </div>
         
         <Button
           size="sm"
