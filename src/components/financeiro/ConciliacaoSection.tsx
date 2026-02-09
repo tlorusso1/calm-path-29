@@ -116,6 +116,20 @@ function calcularSimilaridade(a: string, b: string): number {
   return comuns / Math.max(tokensA.size, tokensB.size);
 }
 
+// Match por canal: SHPP/SHOPEE no extrato → vincular a conta aberta SHPP/SHOPEE (receber)
+function encontrarMatchPorCanal(
+  lancamento: { descricao: string; tipo: string },
+  contas: ContaFluxo[]
+): ContaFluxo | null {
+  if (!/SHPP|SHOPEE/i.test(lancamento.descricao)) return null;
+  
+  return contas.find(c => {
+    if (c.pago) return false;
+    if (c.tipo !== 'receber') return false;
+    return /SHPP|SHOPEE/i.test(c.descricao);
+  }) || null;
+}
+
 // Match por descrição similar: mesmo tipo de fluxo, descrição ≥50% similar, data ± 5 dias
 function encontrarMatchPorDescricao(
   lancamento: { valor: string; dataVencimento: string; tipo: string; descricao: string },
@@ -146,7 +160,6 @@ function encontrarMatchPorDescricao(
     const similaridade = calcularSimilaridade(lancamento.descricao, conta.descricao);
     if (similaridade < 0.5) continue;
     
-    // Score: priorizar similaridade alta e diferença de dias baixa
     const score = similaridade - (diffDias * 0.05);
     if (score > melhorScore) {
       melhorScore = score;
@@ -374,7 +387,21 @@ export function ConciliacaoSection({
           continue;
         }
         
-        // 2. Match por descrição similar (estimativa vs valor real)
+        // 2. Match por canal (SHPP/SHOPEE → conta aberta SHPP/SHOPEE)
+        const matchCanal = encontrarMatchPorCanal(lanc, contasNaoPagas);
+        if (matchCanal) {
+          conciliados.push({ 
+            id: matchCanal.id, 
+            descricao: `${lanc.descricao} (canal: ${matchCanal.descricao})`,
+            dataPagamento: lanc.dataVencimento,
+            lancamentoConciliadoId: matchCanal.id,
+          });
+          const idx = contasNaoPagas.findIndex(c => c.id === matchCanal.id);
+          if (idx >= 0) contasNaoPagas.splice(idx, 1);
+          continue;
+        }
+        
+        // 3. Match por descrição similar (estimativa vs valor real)
         const matchDesc = encontrarMatchPorDescricao(lanc, contasNaoPagas);
         if (matchDesc) {
           conciliados.push({ 
@@ -853,10 +880,10 @@ function ReviewItem({
         <span className="text-[10px] text-muted-foreground shrink-0">{dataFormatada}</span>
         
         <Select value={selectedTipo} onValueChange={handleTipoChange}>
-          <SelectTrigger className="h-7 w-[110px] text-xs">
+          <SelectTrigger className="h-7 w-auto min-w-[130px] text-xs">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[200] bg-popover" position="popper" sideOffset={4}>
             {Object.entries(tipoLabels).map(([tipo, { label, emoji }]) => (
               <SelectItem key={tipo} value={tipo} className="text-xs">
                 {emoji} {label}
@@ -866,10 +893,10 @@ function ReviewItem({
         </Select>
         
         <Select value={selectedNatureza} onValueChange={handleNaturezaChange}>
-          <SelectTrigger className="h-7 w-[110px] text-xs">
+          <SelectTrigger className="h-7 w-auto min-w-[130px] text-xs">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[200] bg-popover" position="popper" sideOffset={4}>
             <SelectItem value="operacional" className="text-xs">⚙️ Operacional</SelectItem>
             <SelectItem value="capitalGiro" className="text-xs">📦 Estoque</SelectItem>
           </SelectContent>
@@ -935,16 +962,29 @@ function VincularContaAberta({
   
   const valorLanc = parseValorFlexivel(lancamento.valor);
   
-  // Filtrar contas abertas com valor similar (± 30%)
+  // Filtrar contas abertas com valor similar (± 30%) E mesmo tipo
   const contasSimilares = useMemo(() => {
+    const tiposSaida = ['pagar', 'cartao'];
+    const lancEhSaida = tiposSaida.includes(lancamento.tipo);
+    
     return contasExistentes.filter(c => {
       if (c.pago) return false;
+      
+      // Filtrar por tipo: receber só vê receber, pagar/cartao só vê pagar/cartao
+      if (lancEhSaida) {
+        if (!tiposSaida.includes(c.tipo)) return false;
+      } else if (lancamento.tipo === 'receber') {
+        if (c.tipo !== 'receber') return false;
+      } else {
+        if (c.tipo !== lancamento.tipo) return false;
+      }
+      
       const valorConta = parseValorFlexivel(c.valor);
       if (valorConta === 0 && valorLanc === 0) return true;
       const diff = Math.abs(valorLanc - valorConta) / Math.max(valorConta, valorLanc, 1);
       return diff <= 0.30;
     }).slice(0, 10);
-  }, [contasExistentes, valorLanc]);
+  }, [contasExistentes, valorLanc, lancamento.tipo]);
   
   if (contasSimilares.length === 0) return null;
   
