@@ -1,82 +1,86 @@
 
-# Auto-classificar Receitas por Origem Bancária na Conciliação
 
-## Problema
+# Corrigir Auto-classificacao de Receitas e Emprestimos na Conciliacao
 
-Entradas (tipo `receber`) que passam pela conciliação sem match de fornecedor ficam sem categoria DRE, caindo em "Entradas a Reclassificar". Isso faz o DRE ficar incompleto e o card de Entrada Media Real mostrar valores baixos.
+## Problemas Identificados
 
-O usuario ja sabe a regra:
-- Extrato com "ITAUBBA" ou "ITAU BBA" na descricao = conta da NICE FOODS ECOMMERCE LTDA (B2C)
-- Extrato com "ITAU" ou "CONTA CORRENTE" (sem ser BBA) = conta da NICE FOODS LTDA (B2B)
+### 1. Receitas (B2B vs B2C) nao classificam automaticamente
+A funcao `autoAtribuirFornecedorReceita` busca "ITAUBBA", "ITAU BBA", "CONTA CORRENTE" na descricao do lancamento. Porem, a IA do edge function simplifica as descricoes (ex: "TED ITAUBBA NICE FOODS LTDA" vira "TED Nice Foods"), removendo as palavras-chave que identificam a origem bancaria.
+
+Alem disso, o `matchFornecedor` faz match parcial com "NICE FOODS" e retorna o primeiro resultado encontrado, sem distinguir LTDA vs ECOMMERCE LTDA.
+
+### 2. Emprestimos nao classificam automaticamente
+Nao existe nenhuma regra para classificar automaticamente parcelas de emprestimos (PRONAMPE, PEAC FGI, Simples Nacional, etc.) durante a conciliacao.
+
+---
 
 ## Solucao
 
-### Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`
+### Arquivo 1: `supabase/functions/extract-extrato/index.ts`
 
-Adicionar uma funcao `autoAtribuirFornecedorReceita` que e chamada ANTES do match por fornecedor, especificamente para lancamentos tipo `receber` sem match. A logica:
+Alterar o prompt da IA para preservar a **descricao original completa** do extrato em um campo adicional `descricaoOriginal`. Adicionar esse campo ao schema da tool `extract_lancamento`.
 
-1. Verificar a descricao do lancamento para detectar a origem bancaria
-2. Se contem "ITAUBBA" ou "ITAU BBA" -> atribuir fornecedor "NICE FOODS ECOMMERCE LTDA" (categoria: Clientes Nacionais B2C)
-3. Se contem "ITAU" ou "CONTA CORRENTE" -> atribuir fornecedor "NICE FOODS LTDA" (categoria: Clientes Nacionais B2B)
-4. Isso acontece no bloco de processamento (linhas ~458-488), onde lancamentos sem match sao processados
+Isso garante que a descricao crua com "ITAUBBA", "CONTA CORRENTE", "PRONAMPE", etc. chega ao frontend para matching.
 
-Ponto de insercao: no trecho que hoje faz `matchFornecedor(lanc.descricao, fornecedores)` (linha 459), adicionar uma checagem previa para receitas:
+Alteracoes:
+- Adicionar instrucao no systemPrompt: "Inclua a descricao original/crua da linha do extrato no campo descricaoOriginal"
+- Adicionar campo `descricaoOriginal` na tool `extract_lancamento`
 
-```
-// Para receitas sem match, tentar auto-atribuir por origem bancaria
-if (lanc.tipo === 'receber') {
-  const fornecedorPorOrigem = autoAtribuirFornecedorReceita(lanc.descricao, fornecedores);
-  if (fornecedorPorOrigem) {
-    novos.push({
-      tipo: lanc.tipo,
-      subtipo: lanc.subtipo,
-      descricao: lanc.descricao,
-      valor: lanc.valor,
-      dataVencimento: lanc.dataVencimento,
-      pago: true,
-      fornecedorId: fornecedorPorOrigem.id,
-      categoria: fornecedorPorOrigem.categoria,
-      conciliado: true,
-    });
-    continue; // ou return para o contexto do loop
-  }
-}
-```
+### Arquivo 2: `src/components/financeiro/ConciliacaoSection.tsx`
 
-A funcao `autoAtribuirFornecedorReceita`:
+**2a. Propagar descricaoOriginal**:
+- Atualizar interface `ExtractedLancamento` para incluir `descricaoOriginal?: string`
+- No `processarLote`, mapear o campo `descricaoOriginal` do retorno da API
 
-```
-function autoAtribuirFornecedorReceita(
-  descricao: string, 
-  fornecedores: Fornecedor[]
-): Fornecedor | null {
-  const desc = descricao.toUpperCase();
-  
-  if (desc.includes('ITAUBBA') || desc.includes('ITAU BBA')) {
-    return fornecedores.find(f => 
-      f.nome === 'NICE FOODS ECOMMERCE LTDA'
-    ) || null;
-  }
-  
-  if (desc.includes('ITAU') || desc.includes('CONTA CORRENTE')) {
-    return fornecedores.find(f => 
-      f.nome === 'NICE FOODS LTDA'
-    ) || null;
-  }
-  
-  return null;
-}
+**2b. Melhorar `autoAtribuirFornecedorReceita`**:
+- Receber tambem `descricaoOriginal` e buscar keywords em AMBAS as descricoes
+- Adicionar regras para emprestimos:
+  - "PRONAMPE" -> tipo `pagar`, match com fornecedor do banco correspondente
+  - "PEAC" ou "FGI" -> tipo `pagar`
+  - "SIMPLES NACIONAL" ou "PARCELAMENTO" -> tipo `pagar`
+
+**2c. Criar funcao `autoClassificarEmprestimos`**:
+- Detectar parcelas de emprestimo pela descricao (PRONAMPE, PEAC FGI, PARCELAMENTO SIMPLES)
+- Atribuir categoria DRE: DESPESAS FINANCEIRAS > Juros e Encargos > Emprestimos
+- Evitar que sejam enviados para revisao manual
+
+**2d. Integrar no fluxo de processamento (linha ~476)**:
+- Chamar `autoAtribuirFornecedorReceita` com ambas as descricoes (original + processada)
+- Chamar `autoClassificarEmprestimos` para detectar parcelas de emprestimo
+- Ordem: auto-receita -> auto-emprestimo -> matchFornecedor -> revisao manual
+
+### Arquivo 3: `src/utils/fornecedoresParser.ts`
+
+Adicionar fornecedores de emprestimos ao `FORNECEDORES_INICIAIS` para que o `matchFornecedor` tambem consiga detecta-los:
+
+```text
+PRONAMPE ITAU -> DESPESAS FINANCEIRAS > Juros e Encargos > Emprestimos
+PEAC FGI ITAU -> DESPESAS FINANCEIRAS > Juros e Encargos > Emprestimos  
+SIMPLES NACIONAL -> DEDUCOES > Impostos > Parcelamento Simples Nacional
 ```
 
-## Resultado esperado
+### Arquivo 4: `src/data/categorias-dre.ts`
 
-- Receitas de extrato Itau BBA -> automaticamente classificadas como B2C no DRE
-- Receitas de extrato Itau CC -> automaticamente classificadas como B2B no DRE  
-- Card "Entrada Media Real" passa a refletir corretamente todas as entradas conciliadas
-- DRE fica confiavel com receitas classificadas por canal
+Verificar se ja existe a categoria "Emprestimos" dentro de DESPESAS FINANCEIRAS. Se nao existir, adicionar:
+- Modalidade: DESPESAS FINANCEIRAS
+- Grupo: Juros e Encargos
+- Categoria: Emprestimos
 
-## Arquivos afetados
+---
+
+## Resultado Esperado
+
+- Receitas com "ITAUBBA" na descricao original -> NICE FOODS ECOMMERCE LTDA (B2C)
+- Receitas com "CONTA CORRENTE" ou "ITAU" -> NICE FOODS LTDA (B2B)
+- Parcelas PRONAMPE, PEAC FGI -> classificadas automaticamente como Emprestimos
+- Parcelamento Simples Nacional -> classificado como Deducoes/Impostos
+- Nenhuma dessas categorias devera aparecer no painel de revisao manual
+
+## Arquivos Afetados
 
 | Arquivo | Acao |
 |---------|------|
-| `src/components/financeiro/ConciliacaoSection.tsx` | Adicionar funcao `autoAtribuirFornecedorReceita` e integrar no fluxo de processamento de lancamentos sem match |
+| `supabase/functions/extract-extrato/index.ts` | Adicionar campo `descricaoOriginal` na extracao |
+| `src/components/financeiro/ConciliacaoSection.tsx` | Propagar descricaoOriginal, melhorar auto-classificacao receitas + emprestimos |
+| `src/utils/fornecedoresParser.ts` | Adicionar fornecedores de emprestimos ao array inicial |
+| `src/data/categorias-dre.ts` | Garantir categorias DRE para emprestimos |
