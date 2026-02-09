@@ -5,16 +5,17 @@ import { TrendingDown, TrendingUp, Calendar, AlertTriangle } from 'lucide-react'
 import { ContaFluxo } from '@/types/focus-mode';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
 import { 
-  AreaChart, 
-  Area, 
+  LineChart, 
+  Line, 
   XAxis, 
   YAxis, 
   Tooltip, 
   ResponsiveContainer, 
   ReferenceLine,
-  CartesianGrid 
+  CartesianGrid,
+  Legend
 } from 'recharts';
-import { parseISO, subDays, addDays, format, isWithinInterval, startOfDay, endOfDay, isBefore } from 'date-fns';
+import { parseISO, subDays, addDays, format, isWithinInterval, startOfDay, isBefore } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -30,14 +31,16 @@ interface DiaProjecao {
   saldo: number;
   entradas: number;
   saidas: number;
+  entradasAcumuladas: number;
+  saidasAcumuladas: number;
   alertaMinimo: boolean;
+  estimado: boolean;
 }
 
 // Tipos que afetam caixa como entrada
 const TIPOS_ENTRADA = ['receber', 'resgate'];
 // Tipos que afetam caixa como saída
 const TIPOS_SAIDA = ['pagar', 'aplicacao'];
-// Intercompany depende do contexto, mas assumimos que não afeta projeção média
 
 function calcularMediaDiaria90d(contasFluxo: ContaFluxo[]): { mediaEntrada: number; mediaSaida: number } {
   const hoje = new Date();
@@ -64,7 +67,6 @@ function calcularMediaDiaria90d(contasFluxo: ContaFluxo[]): { mediaEntrada: numb
     } else if (TIPOS_SAIDA.includes(lanc.tipo)) {
       totalSaidas += valor;
     }
-    // Intercompany não conta para média
   }
   
   // Calcular dias reais com dados
@@ -110,6 +112,8 @@ export function FluxoCaixaDiarioChart({
     const hoje = startOfDay(new Date());
     const dados: DiaProjecao[] = [];
     let saldoAcumulado = caixaAtual;
+    let entradasAcumuladas = 0;
+    let saidasAcumuladas = 0;
     
     for (let i = 0; i <= 30; i++) {
       const diaData = addDays(hoje, i);
@@ -120,6 +124,7 @@ export function FluxoCaixaDiarioChart({
       
       let entradasDia = 0;
       let saidasDia = 0;
+      let estimado = false;
       
       // Somar contas conhecidas
       for (const conta of contasDoDia) {
@@ -135,7 +140,12 @@ export function FluxoCaixaDiarioChart({
       if (contasDoDia.length === 0 && i > 0) {
         entradasDia = mediaEntrada;
         saidasDia = mediaSaida;
+        estimado = true;
       }
+      
+      // Acumular
+      entradasAcumuladas += entradasDia;
+      saidasAcumuladas += saidasDia;
       
       // Calcular saldo do dia (dia 0 é o saldo atual)
       if (i > 0) {
@@ -148,7 +158,10 @@ export function FluxoCaixaDiarioChart({
         saldo: Math.round(saldoAcumulado),
         entradas: Math.round(entradasDia),
         saidas: Math.round(saidasDia),
+        entradasAcumuladas: Math.round(entradasAcumuladas),
+        saidasAcumuladas: Math.round(saidasAcumuladas),
         alertaMinimo: saldoAcumulado < caixaMinimo,
+        estimado,
       });
     }
     
@@ -198,13 +211,14 @@ export function FluxoCaixaDiarioChart({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          Projeção baseada na média dos últimos 90 dias + contas conhecidas
+          3 linhas: Entradas acumuladas (verde), Saídas acumuladas (vermelho), Saldo (azul). 
+          <span className="ml-1 opacity-70">Dias estimados usam média 90d.</span>
         </p>
         
-        {/* Gráfico */}
-        <div className="h-[200px]">
+        {/* Gráfico com 3 linhas */}
+        <div className="h-[220px]">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={projecao}>
+            <LineChart data={projecao}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
               <XAxis 
                 dataKey="dia" 
@@ -217,17 +231,35 @@ export function FluxoCaixaDiarioChart({
                 width={45}
               />
               <Tooltip
-                formatter={(value: number, name: string) => [
-                  formatCurrency(value),
-                  name === 'saldo' ? 'Saldo' : name === 'entradas' ? 'Entradas' : 'Saídas'
-                ]}
-                labelFormatter={(label) => `Dia: ${label}`}
+                formatter={(value: number, name: string) => {
+                  const labels: Record<string, string> = {
+                    saldo: 'Saldo',
+                    entradasAcumuladas: 'Entradas Acum.',
+                    saidasAcumuladas: 'Saídas Acum.',
+                  };
+                  return [formatCurrency(value), labels[name] || name];
+                }}
+                labelFormatter={(label, payload) => {
+                  const item = payload?.[0]?.payload as DiaProjecao | undefined;
+                  return `${label}${item?.estimado ? ' (estimado)' : ''}`;
+                }}
                 contentStyle={{
                   backgroundColor: 'hsl(var(--background))',
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '6px',
                   fontSize: '12px',
                 }}
+              />
+              <Legend 
+                formatter={(value) => {
+                  const labels: Record<string, string> = {
+                    saldo: 'Saldo',
+                    entradasAcumuladas: 'Entradas',
+                    saidasAcumuladas: 'Saídas',
+                  };
+                  return labels[value] || value;
+                }}
+                wrapperStyle={{ fontSize: '11px' }}
               />
               <ReferenceLine 
                 y={caixaMinimo} 
@@ -240,15 +272,31 @@ export function FluxoCaixaDiarioChart({
                   fill: 'hsl(var(--destructive))',
                 }}
               />
-              <Area
+              {/* Linha de Entradas Acumuladas */}
+              <Line
+                type="monotone"
+                dataKey="entradasAcumuladas"
+                stroke="hsl(142, 76%, 36%)"
+                strokeWidth={2}
+                dot={false}
+              />
+              {/* Linha de Saídas Acumuladas */}
+              <Line
+                type="monotone"
+                dataKey="saidasAcumuladas"
+                stroke="hsl(var(--destructive))"
+                strokeWidth={2}
+                dot={false}
+              />
+              {/* Linha de Saldo */}
+              <Line
                 type="monotone"
                 dataKey="saldo"
                 stroke="hsl(var(--primary))"
-                fill="hsl(var(--primary))"
-                fillOpacity={0.2}
-                strokeWidth={2}
+                strokeWidth={2.5}
+                dot={false}
               />
-            </AreaChart>
+            </LineChart>
           </ResponsiveContainer>
         </div>
         
@@ -256,7 +304,7 @@ export function FluxoCaixaDiarioChart({
         <div className="grid grid-cols-3 gap-3 text-center">
           <div className="p-2 rounded-lg bg-muted/50">
             <p className="text-[10px] text-muted-foreground">Média entrada/dia</p>
-            <p className="text-sm font-medium text-green-600">
+            <p className="text-sm font-medium text-green-600 dark:text-green-500">
               +{formatCurrency(mediaEntrada)}
             </p>
           </div>
@@ -270,7 +318,7 @@ export function FluxoCaixaDiarioChart({
             <p className="text-[10px] text-muted-foreground">Saldo em 30d</p>
             <p className={cn(
               "text-sm font-medium",
-              saldoFinal >= caixaMinimo ? "text-green-600" : "text-destructive"
+              saldoFinal >= caixaMinimo ? "text-green-600 dark:text-green-500" : "text-destructive"
             )}>
               {formatCurrency(saldoFinal)}
             </p>

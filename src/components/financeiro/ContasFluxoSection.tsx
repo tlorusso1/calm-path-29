@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw, Building2, List, Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw, Building2, List, Search, Copy } from 'lucide-react';
 import { ContaFluxo, Fornecedor, ContaFluxoTipo } from '@/types/focus-mode';
 import { format, parseISO, isAfter, isBefore, isToday, addDays, subDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -208,6 +208,31 @@ export function ContasFluxoSection({
     c.tipo !== 'pagar' && c.tipo !== 'receber'
   );
 
+  // ========== DETECÇÃO DE DUPLICATAS ==========
+  const duplicatasSuspeitas = useMemo(() => {
+    // Agrupar contas não pagas por data+valor
+    const contasNaoPagas = contas.filter(c => !c.pago && c.tipo === 'pagar');
+    const grupos: Record<string, ContaFluxo[]> = {};
+    
+    for (const conta of contasNaoPagas) {
+      const valorNum = parseValorFlexivel(conta.valor);
+      const key = `${conta.dataVencimento}|${valorNum.toFixed(2)}`;
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(conta);
+    }
+    
+    // Filtrar apenas grupos com mais de 1 item (possíveis duplicatas)
+    const suspeitas: ContaFluxo[][] = [];
+    for (const key in grupos) {
+      if (grupos[key].length > 1) {
+        suspeitas.push(grupos[key]);
+      }
+    }
+    return suspeitas;
+  }, [contas]);
+
+  const totalDuplicatasSuspeitas = duplicatasSuspeitas.reduce((acc, grupo) => acc + grupo.length, 0);
+
   // Totais 30 dias
   const totalPagar30d = contasPagar.reduce((acc, c) => acc + parseValorFlexivel(c.valor), 0);
   const totalReceber30d = contasReceber.reduce((acc, c) => acc + parseValorFlexivel(c.valor), 0);
@@ -354,6 +379,12 @@ export function ContasFluxoSection({
                 📑 Contas a Pagar/Receber
               </span>
               <div className="flex items-center gap-2">
+                {totalDuplicatasSuspeitas > 0 && (
+                  <Badge variant="destructive" className="text-xs gap-1">
+                    <Copy className="h-3 w-3" />
+                    {duplicatasSuspeitas.length} duplicata(s)?
+                  </Badge>
+                )}
                 {contas.length > 0 && (
                   <Badge variant="secondary" className="text-xs">
                     {contas.filter(c => !c.pago).length} pendente(s)

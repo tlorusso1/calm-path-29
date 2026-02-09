@@ -457,6 +457,7 @@ export interface ItemEstoque {
   unidade: string;
   demandaSemanal?: number;  // Consumo específico do item por semana
   dataValidade?: string;   // ISO date string
+  precoCusto?: number;     // Preço de custo unitário (R$)
   // Calculados automaticamente
   coberturaDias?: number;
   status?: 'verde' | 'amarelo' | 'vermelho';
