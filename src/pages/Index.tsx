@@ -228,6 +228,29 @@ const Index = () => {
             onNavigateTo={setActiveMode}
           />
         )}
+        function encontrarContaParaBaixa(
+  lancamento,
+  contas
+) {
+  return contas.find(conta => {
+    if (conta.tipo !== 'pagar') return false;
+    if (conta.pago) return false;
+
+    const valorMatch =
+      Math.abs(parseValor(conta.valor) - parseValor(lancamento.valor)) <= 0.01;
+
+    const diffDias =
+      Math.abs(
+        differenceInDays(
+          new Date(lancamento.data),
+          new Date(conta.dataVencimento)
+        )
+      );
+
+    return valorMatch && diffDias <= 2;
+  });
+}
+
       </main>
     </div>
   );
