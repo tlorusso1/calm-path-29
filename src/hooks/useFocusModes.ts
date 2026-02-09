@@ -384,8 +384,15 @@ export function useFocusModes() {
   const jwtRef = React.useRef<string | null>(null);
   const stateRef = React.useRef(state);
 
-  // Keep stateRef always up-to-date (anti-stale closure)
-  React.useEffect(() => { stateRef.current = state; }, [state]);
+  // Keep stateRef always up-to-date SYNCHRONOUSLY (not via useEffect which runs after render)
+  // This ensures flushSave called in the same handler as setState gets the latest state
+  const setStateAndRef = useCallback((updater: FocusModeState | ((prev: FocusModeState) => FocusModeState)) => {
+    setState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      stateRef.current = next; // ← Synchronous update BEFORE React re-renders
+      return next;
+    });
+  }, []);
 
   // Manter JWT atualizado para uso no beforeunload
   useEffect(() => {
@@ -416,7 +423,7 @@ export function useFocusModes() {
         if (error) {
           console.error('Error loading focus modes:', error);
           const result = processLoadedState(null);
-          setState(result.state);
+          setStateAndRef(result.state);
         } else if (data) {
           const loadedState: FocusModeState = {
             date: data.date,
@@ -453,15 +460,15 @@ export function useFocusModes() {
             await saveWeeklySnapshot(user.id, result.prevWeekStart, loadedState.modes);
           }
           
-          setState(result.state);
+          setStateAndRef(result.state);
         } else {
           const result = processLoadedState(null);
-          setState(result.state);
+          setStateAndRef(result.state);
         }
       } catch (err) {
         console.error('Error loading focus modes:', err);
         const result = processLoadedState(null);
-        setState(result.state);
+        setStateAndRef(result.state);
       } finally {
         setIsLoading(false);
         initialLoadDone.current = true;
@@ -475,13 +482,14 @@ export function useFocusModes() {
   const saveToSupabase = useCallback(async () => {
     if (!user || !initialLoadDone.current) return;
     
+    // 🔒 Usar stateRef para SEMPRE ter o estado mais recente
+    const currentState = stateRef.current;
+    
     // 🔒 PROTEÇÃO ANTI-PERDA: Verificar se estamos tentando salvar dados vazios
-    const currentHasData = hasRealData(state.modes);
+    const currentHasData = hasRealData(currentState.modes);
     
     if (!currentHasData && wasLoadedWithData.current) {
       console.warn('⚠️ BLOQUEADO: Tentativa de salvar dados vazios quando havia dados carregados!');
-      console.warn('Estado atual sem dados, mas wasLoadedWithData =', wasLoadedWithData.current);
-      // NÃO SALVAR - isso protege contra resets acidentais
       return;
     }
     
@@ -490,13 +498,14 @@ export function useFocusModes() {
       wasLoadedWithData.current = true;
     }
     
+    setSaveStatus('saving');
     const payload = {
       user_id: user.id,
-      date: state.date,
-      week_start: state.weekStart,
-      active_mode: state.activeMode,
-      modes: JSON.parse(JSON.stringify(state.modes)) as Json,
-      last_completed_mode: state.lastCompletedMode,
+      date: currentState.date,
+      week_start: currentState.weekStart,
+      active_mode: currentState.activeMode,
+      modes: JSON.parse(JSON.stringify(currentState.modes)) as Json,
+      last_completed_mode: currentState.lastCompletedMode,
       updated_at: new Date().toISOString(),
     };
 
@@ -506,19 +515,19 @@ export function useFocusModes() {
 
     if (error) {
       console.error('Error saving focus modes:', error);
+      setSaveStatus('error');
     } else {
       console.log('✅ Dados salvos com sucesso');
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
     }
-  }, [user, state]);
+  }, [user]); // ← Remove state dependency! Uses stateRef instead
 
   // flushSave: cancel debounce and save immediately
   const flushSave = useCallback(async () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    setSaveStatus('saving');
     try {
       await saveToSupabase();
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
     } catch {
       setSaveStatus('error');
     }
@@ -539,7 +548,7 @@ export function useFocusModes() {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [state, user, saveToSupabase]);
+  }, [state, user, saveToSupabase]); // state dep triggers debounce; saveToSupabase reads stateRef
 
   // Flush immediately on page unload to prevent data loss
   // Uses stateRef to avoid stale closure issues
@@ -646,11 +655,11 @@ export function useFocusModes() {
 
   // ============= Ações Básicas =============
   const setActiveMode = useCallback((modeId: FocusModeId | null) => {
-    setState(prev => ({ ...prev, activeMode: modeId }));
+    setStateAndRef(prev => ({ ...prev, activeMode: modeId }));
   }, []);
 
   const toggleItemComplete = useCallback((modeId: FocusModeId, itemId: string) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const updatedItems = prev.modes[modeId].items.map(item =>
         item.id === itemId ? { ...item, completed: !item.completed } : item
       );
@@ -671,7 +680,7 @@ export function useFocusModes() {
   }, []);
 
   const setItemClassification = useCallback((modeId: FocusModeId, itemId: string, classification: 'A' | 'B' | 'C') => {
-    setState(prev => ({
+    setStateAndRef(prev => ({
       ...prev,
       modes: {
         ...prev.modes,
@@ -686,7 +695,7 @@ export function useFocusModes() {
   }, []);
 
   const setItemDecision = useCallback((modeId: FocusModeId, itemId: string, decision: string) => {
-    setState(prev => ({
+    setStateAndRef(prev => ({
       ...prev,
       modes: {
         ...prev.modes,
@@ -701,7 +710,7 @@ export function useFocusModes() {
   }, []);
 
   const setItemNotes = useCallback((modeId: FocusModeId, itemId: string, notes: string) => {
-    setState(prev => ({
+    setStateAndRef(prev => ({
       ...prev,
       modes: {
         ...prev.modes,
@@ -722,7 +731,7 @@ export function useFocusModes() {
       completed: false,
     };
     
-    setState(prev => {
+    setStateAndRef(prev => {
       const updatedItems = [...prev.modes[modeId].items, newItem];
       const newStatus = calculateChecklistStatus(updatedItems);
       
@@ -743,7 +752,7 @@ export function useFocusModes() {
   }, []);
 
   const removeItem = useCallback((modeId: FocusModeId, itemId: string) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const updatedItems = prev.modes[modeId].items.filter(item => item.id !== itemId);
       const newStatus = calculateChecklistStatus(updatedItems);
       
@@ -762,7 +771,7 @@ export function useFocusModes() {
   }, []);
 
   const completeMode = useCallback((modeId: FocusModeId) => {
-    setState(prev => ({
+    setStateAndRef(prev => ({
       ...prev,
       activeMode: null,
       lastCompletedMode: modeId,
@@ -778,7 +787,7 @@ export function useFocusModes() {
   }, []);
 
   const resetMode = useCallback((modeId: FocusModeId) => {
-    setState(prev => ({
+    setStateAndRef(prev => ({
       ...prev,
       modes: {
         ...prev.modes,
@@ -789,7 +798,7 @@ export function useFocusModes() {
 
   // ============= Financeiro V2 =============
   const updateFinanceiroData = useCallback((data: Partial<FinanceiroStage>) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
       const newFinanceiroData: FinanceiroStage = {
         ...currentData,
@@ -834,7 +843,7 @@ export function useFocusModes() {
       completed: false,
     };
     
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
       const newFinanceiroData = {
         ...currentData,
@@ -859,7 +868,7 @@ export function useFocusModes() {
   }, []);
 
   const toggleFinanceiroItemComplete = useCallback((itemId: string) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
       const newFinanceiroData = {
         ...currentData,
@@ -884,7 +893,7 @@ export function useFocusModes() {
   }, []);
 
   const setFinanceiroItemClassification = useCallback((itemId: string, classification: 'A' | 'B' | 'C') => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
       const newFinanceiroData = {
         ...currentData,
@@ -909,7 +918,7 @@ export function useFocusModes() {
   }, []);
 
   const removeFinanceiroItem = useCallback((itemId: string) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes.financeiro.financeiroData ?? DEFAULT_FINANCEIRO_DATA;
       const newFinanceiroData = {
         ...currentData,
@@ -933,7 +942,7 @@ export function useFocusModes() {
 
   // ============= Marketing =============
   const updateMarketingData = useCallback((data: Partial<MarketingStage>) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes.marketing.marketingData ?? DEFAULT_MARKETING_DATA;
       const newMarketingData = {
         ...currentData,
@@ -961,7 +970,7 @@ export function useFocusModes() {
 
   // ============= Supply Chain V2 =============
   const updateSupplyChainData = useCallback((data: Partial<SupplyChainStage>) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
       const newSupplyChainData = {
         ...currentData,
@@ -1002,7 +1011,7 @@ export function useFocusModes() {
       id: generateId(),
     };
     
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
       const currentItens = currentData.itens ?? [];
       const newData = {
@@ -1028,7 +1037,7 @@ export function useFocusModes() {
   }, []);
 
   const updateSupplyItem = useCallback((id: string, data: Partial<ItemEstoque>) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
       const currentItens = currentData.itens ?? [];
       const newData = {
@@ -1054,7 +1063,7 @@ export function useFocusModes() {
   }, []);
 
   const removeSupplyItem = useCallback((id: string) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes.supplychain.supplyChainData ?? DEFAULT_SUPPLYCHAIN_DATA;
       const currentItens = currentData.itens ?? [];
       const newData = {
@@ -1079,7 +1088,7 @@ export function useFocusModes() {
 
   // ============= Pre-Reunião Geral =============
   const updatePreReuniaoGeralData = useCallback((data: Partial<PreReuniaoGeralStage>) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes['pre-reuniao-geral'].preReuniaoGeralData ?? DEFAULT_PREREUNIAO_GERAL_DATA;
       const newData: PreReuniaoGeralStage = {
         ...currentData,
@@ -1107,7 +1116,7 @@ export function useFocusModes() {
 
   // ============= Reunião Ads =============
   const updateReuniaoAdsData = useCallback((data: Partial<ReuniaoAdsStage>) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes['reuniao-ads'].reuniaoAdsData ?? DEFAULT_REUNIAO_ADS_DATA;
       const newData: ReuniaoAdsStage = {
         ...currentData,
@@ -1143,7 +1152,7 @@ export function useFocusModes() {
       id: generateId(),
     };
     
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes['reuniao-ads'].reuniaoAdsData ?? DEFAULT_REUNIAO_ADS_DATA;
       const newData = {
         ...currentData,
@@ -1168,7 +1177,7 @@ export function useFocusModes() {
   }, []);
 
   const removeReuniaoAdsAcao = useCallback((id: string) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentData = prev.modes['reuniao-ads'].reuniaoAdsData ?? DEFAULT_REUNIAO_ADS_DATA;
       const newData = {
         ...currentData,
@@ -1192,7 +1201,7 @@ export function useFocusModes() {
 
   // ============= Tasks =============
   const updateBacklogData = useCallback((data: Partial<BacklogStage>) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       // PROTEÇÃO: Garantir que backlogData nunca seja undefined
       const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
@@ -1224,7 +1233,7 @@ export function useFocusModes() {
       id: generateId(),
     };
     
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
@@ -1250,7 +1259,7 @@ export function useFocusModes() {
   }, []);
 
   const updateBacklogTarefa = useCallback((id: string, data: Partial<BacklogTarefa>) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
@@ -1283,7 +1292,7 @@ export function useFocusModes() {
   }, []);
 
   const setTarefaEmFoco = useCallback((id: string | null) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
@@ -1310,7 +1319,7 @@ export function useFocusModes() {
   }, []);
 
   const removeBacklogTarefa = useCallback((id: string) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
@@ -1339,7 +1348,7 @@ export function useFocusModes() {
       texto: texto.trim(),
     };
     
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
@@ -1365,7 +1374,7 @@ export function useFocusModes() {
   }, []);
 
   const removeBacklogIdeia = useCallback((id: string) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
@@ -1389,7 +1398,7 @@ export function useFocusModes() {
   }, []);
 
   const updateBacklogIdeia = useCallback((id: string, texto: string) => {
-    setState(prev => {
+    setStateAndRef(prev => {
       const currentBacklog = prev.modes.tasks.backlogData ?? {
         tempoDisponivelHoje: 480,
         tarefas: [],
@@ -1416,7 +1425,7 @@ export function useFocusModes() {
 
   // ============= Ritmo & Expectativa =============
   const updateTimestamp = useCallback((key: keyof RitmoTimestamps) => {
-    setState(prev => ({
+    setStateAndRef(prev => ({
       ...prev,
       timestamps: {
         ...(prev.timestamps ?? {}),
