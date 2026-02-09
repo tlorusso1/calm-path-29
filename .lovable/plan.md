@@ -1,73 +1,83 @@
 
-# Corrigir Perda de Dados: Race Conditions na Persistencia
+# Plano: Corrigir Parsing de Valores e Melhorar Conciliacao
 
-## Problema Raiz Identificado
+## Problema 1: Valor "11.178,47" vira "R$ 11,18"
 
-O sistema tem **3 bugs criticos** que causam a perda de dados:
+### Causa raiz
 
-### Bug 1: Carga dupla no login
-O `AuthContext` chama `setUser` duas vezes na inicializacao (uma via `onAuthStateChange`, outra via `getSession`). Como o `useEffect` de carga em `useFocusModes.ts` depende de `[user]`, a funcao de carga executa **duas vezes**. A segunda execucao pode sobrescrever edicoes que o usuario ja fez entre a primeira e a segunda carga.
-
-### Bug 2: Recarga em token refresh
-A cada ~1 hora, o Supabase faz refresh do token de autenticacao. Isso dispara `onAuthStateChange`, que cria uma nova referencia de `user`, que re-executa o efeito de carga. Resultado: todos os dados em memoria sao substituidos pelo que esta no banco -- **descartando tudo que o usuario editou desde o ultimo save**.
-
-### Bug 3: Arquivo morto `useSupabaseSync.ts`
-O arquivo `src/hooks/useSupabaseSync.ts` contem uma implementacao antiga e nao e importado por ninguem, mas pode causar confusao em manutencoes futuras.
-
-## Solucao
-
-### Arquivo: `src/hooks/useFocusModes.ts`
-
-1. **Adicionar guard `initialLoadDone` no efeito de carga** (linhas 409-479):
-   - Antes de carregar, verificar `if (initialLoadDone.current) return;`
-   - Isso impede recargas duplicadas ou causadas por token refresh
-
-2. **Estabilizar referencia do `user`** na dependencia do useEffect:
-   - Usar `user?.id` como dependencia em vez do objeto `user` inteiro
-   - Objeto `user` muda de referencia a cada auth event, mas `user.id` permanece estavel
-
-3. **Adicionar log de protecao** para debugging futuro:
-   - Logar quando uma recarga e bloqueada por `initialLoadDone`
-
-### Arquivo: `src/contexts/AuthContext.tsx`
-
-4. **Eliminar a chamada dupla de `setUser`**:
-   - Remover o `getSession().then()` que duplica o que `onAuthStateChange` ja faz
-   - Ou alternativamente, usar um ref para controlar se o user ja foi setado
-
-### Arquivo: `src/hooks/useSupabaseSync.ts`
-
-5. **Deletar arquivo morto** que nao e mais utilizado.
-
-## Resultado Esperado
-
-- Dados carregados uma unica vez do banco
-- Edicoes do usuario nunca sobrescritas por recargas fantasma
-- Token refresh nao interfere nos dados em memoria
-- Indicador visual "Salvo" continua funcionando normalmente
-
-## Detalhes Tecnicos
-
-### Mudanca principal em `useFocusModes.ts` (efeito de carga):
-
-```text
-useEffect(() => {
-  if (!user) { setIsLoading(false); return; }
-  if (initialLoadDone.current) return;  // <-- NOVO: impede recarga
-
-  const loadFromSupabase = async () => { ... };
-  loadFromSupabase();
-}, [user?.id]);  // <-- MUDADO: user.id em vez de user
+A funcao `formatCurrency` em `ContasFluxoSection.tsx` (linha 367-369) usa logica simplista:
+```
+val.replace(/[^\d,.-]/g, '').replace(',', '.')
 ```
 
-### Mudanca em `AuthContext.tsx`:
+Para "11.178,47", isso produz "11.178.47", e `parseFloat("11.178.47")` = 11.178.
 
-Remover a chamada redundante `getSession().then(...)` que causa o segundo disparo de `setUser`, ou proteger com um flag para so setar na primeira vez.
+A funcao `parseValorFlexivel` em `fluxoCaixaCalculator.ts` ja resolve isso corretamente (detecta se virgula ou ponto e o ultimo separador). Basta substituir.
 
-## Arquivos Afetados
+### Correcao
+
+**Arquivo: `src/components/financeiro/ContasFluxoSection.tsx`**
+- Substituir a funcao local `formatCurrency` (linha 367-370) para usar `parseValorFlexivel` em vez de parsing manual:
+```
+const formatCurrency = (val: string): string => {
+  const num = parseValorFlexivel(val);
+  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+};
+```
+
+**Arquivo: `src/components/financeiro/ContaItem.tsx`**
+- Verificar se `formatCurrency` passada como prop usa a mesma logica (sim, vem do mesmo lugar). A correcao no ContasFluxoSection resolve automaticamente.
+
+---
+
+## Problema 2: Conciliacao nao deu baixa automatica em contas abertas
+
+### Causa raiz
+
+A funcao `encontrarMatch` (linha 55-87 de `ConciliacaoSection.tsx`) filtra por `conta.tipo !== lancamento.tipo`. Ou seja, se o extrato classifica o lancamento como tipo `pagar` e a conta existente tambem e `pagar`, o match funciona. Porem, os pagamentos no extrato podem vir com tipo diferente do esperado (ex: "cartao" vs "pagar").
+
+Alem disso, o match exige que o tipo do lancamento do extrato seja exatamente igual ao tipo da conta aberta. Para saidas, devemos ampliar: se o lancamento e uma saida (pagar/cartao), tentar match com contas a pagar abertas independente do subtipo.
+
+### Correcao
+
+**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`**
+- Na funcao `encontrarMatch`, relaxar o filtro de tipo para saidas: se o lancamento e `pagar` ou `cartao`, fazer match com contas `pagar` ou `cartao` (ambas sao saidas)
+- Adicionar tolerancia de tipo para saidas
+
+---
+
+## Problema 3: Nao aparece label "Conciliado automaticamente"
+
+### Causa raiz
+
+Nenhum componente exibe essa informacao. O campo `conciliado: true` e `lancamentoConciliadoId` sao salvos na conta, mas o `ContaItem.tsx` so mostra um badge "conc" pequeno no historico (linha 170-171) e nao diferencia entre conciliacao manual e automatica (baixa de conta existente).
+
+### Correcao
+
+**Arquivo: `src/components/financeiro/ContaItem.tsx`**
+- Quando `conta.conciliado === true` E `conta.lancamentoConciliadoId` existe, mostrar badge "Conciliado auto" em azul nas contas marcadas como pagas
+- Tornar o badge mais visivel (nao so no historico, mas tambem logo apos a baixa)
+
+---
+
+## Problema 4: Nao da opcao de conciliar manualmente com contas abertas
+
+### Causa raiz
+
+No painel de revisao (`ReviewItem`), nao existe nenhum mecanismo para o usuario vincular um lancamento do extrato a uma conta aberta existente. O usuario so pode adicionar como novo ou ignorar.
+
+### Correcao
+
+**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`**
+- Adicionar no `ReviewItem` um botao "Vincular a conta aberta" que mostra uma lista filtrada de contas nao pagas com valor similar (tolerancia 30%) para o usuario selecionar
+- Ao vincular, marcar a conta como paga e conciliada (mesmo fluxo do match automatico)
+
+---
+
+## Resumo de Arquivos
 
 | Arquivo | Acao |
 |---------|------|
-| `src/hooks/useFocusModes.ts` | Guard `initialLoadDone` + dep `user?.id` |
-| `src/contexts/AuthContext.tsx` | Eliminar dupla chamada de `setUser` |
-| `src/hooks/useSupabaseSync.ts` | Deletar (nao utilizado) |
+| `src/components/financeiro/ContasFluxoSection.tsx` | Corrigir `formatCurrency` para usar `parseValorFlexivel` |
+| `src/components/financeiro/ConciliacaoSection.tsx` | Relaxar tipo no match de saidas + adicionar opcao "Vincular a conta aberta" no ReviewItem |
+| `src/components/financeiro/ContaItem.tsx` | Adicionar badge "Conciliado auto" visivel quando `lancamentoConciliadoId` existe |
