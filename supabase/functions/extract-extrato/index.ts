@@ -171,6 +171,11 @@ async function processarChunk(texto: string, mesAno: string, apiKey: string): Pr
           tipo = "cartao";
         }
 
+        // SHPP/SHOPEE são recebimentos (marketplace B2C)
+        if (/SHPP|SHOPEE/i.test(desc) && tipo !== "aplicacao" && tipo !== "resgate" && tipo !== "cartao") {
+          tipo = "receber";
+        }
+
         return {
           ...parsed,
           tipo,
