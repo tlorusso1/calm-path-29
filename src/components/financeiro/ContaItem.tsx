@@ -162,7 +162,7 @@ export function ContaItem({
           </Select>
           
           {/* Seletor de Natureza (somente para tipo "pagar") */}
-          {editTipo === 'pagar' && (
+          {['pagar', 'cartao'].includes(editTipo) && (
             <Select 
               value={editNatureza || 'operacional'} 
               onValueChange={(val) => setEditNatureza(val as ContaFluxoNatureza)}
@@ -349,7 +349,7 @@ export function ContaItem({
             </Badge>
           )}
           {/* Toggle de Natureza - apenas para contas a pagar pendentes */}
-          {conta.tipo === 'pagar' && !conta.pago && (
+          {['pagar', 'cartao'].includes(conta.tipo) && !conta.pago && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -376,7 +376,7 @@ export function ContaItem({
             </Tooltip>
           )}
           {/* Badge estático para contas pagas (histórico) */}
-          {conta.tipo === 'pagar' && conta.pago && conta.natureza === 'capitalGiro' && (
+          {['pagar', 'cartao'].includes(conta.tipo) && conta.pago && conta.natureza === 'capitalGiro' && (
             <Badge variant="outline" className="text-[10px] bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700 shrink-0 gap-1">
               <Package className="h-2.5 w-2.5" />
               Estoque

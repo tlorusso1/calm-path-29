@@ -769,7 +769,7 @@ function ReviewItem({
         </Select>
         
         {/* Seletor de Natureza (apenas para tipo pagar) */}
-        {selectedTipo === 'pagar' && (
+        {(selectedTipo === 'pagar' || selectedTipo === 'cartao') && (
           <Select value={selectedNatureza} onValueChange={handleNaturezaChange}>
             <SelectTrigger className="h-7 w-[100px] text-xs">
               <SelectValue />
@@ -782,7 +782,7 @@ function ReviewItem({
         )}
         
         {/* Seletor de Fornecedor (apenas para tipo pagar) */}
-         {selectedTipo === 'pagar' && (
+         {(selectedTipo === 'pagar' || selectedTipo === 'cartao') && (
            <div className="flex-1 min-w-0 relative">
              <FornecedorSelect
                fornecedores={fornecedores}
