@@ -1,4 +1,5 @@
 import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, DEFAULT_FINANCEIRO_CONTAS, ContaFluxo, Fornecedor, UserRitmoExpectativa, RitmoTimestamps, MapeamentoDescricaoFornecedor } from '@/types/focus-mode';
+import { gerarContasReceberProjecao } from '@/utils/gerarContasReceberProjecao';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +39,7 @@ interface FinanceiroModeProps {
   onUpdateFinanceiroData: (data: Partial<FinanceiroStage>) => void;
   ritmoExpectativa?: UserRitmoExpectativa;
   onUpdateTimestamp?: (key: keyof RitmoTimestamps) => void;
+  flushSave?: () => Promise<void>;
 }
 
 export function FinanceiroMode({
@@ -45,6 +47,7 @@ export function FinanceiroMode({
   onUpdateFinanceiroData,
   ritmoExpectativa,
   onUpdateTimestamp,
+  flushSave,
 }: FinanceiroModeProps) {
   const [openSections, setOpenSections] = useState({
     // Posição Atual (Real)
@@ -166,6 +169,7 @@ export function FinanceiroMode({
     onUpdateFinanceiroData({
       contasFluxo: [...(data.contasFluxo || []), novasConta],
     });
+    flushSave?.();
   };
   
   const handleAddMultipleContas = (novasContas: Omit<ContaFluxo, 'id'>[]) => {
@@ -176,12 +180,14 @@ export function FinanceiroMode({
     onUpdateFinanceiroData({
       contasFluxo: [...(data.contasFluxo || []), ...contasComId],
     });
+    flushSave?.();
   };
   
   const handleRemoveConta = (id: string) => {
     onUpdateFinanceiroData({
       contasFluxo: (data.contasFluxo || []).filter(c => c.id !== id),
     });
+    flushSave?.();
   };
   
   const handleUpdateConta = (id: string, updates: Partial<ContaFluxo>) => {
@@ -198,6 +204,7 @@ export function FinanceiroMode({
         c.id === id ? { ...c, pago: !c.pago } : c
       ),
     });
+    flushSave?.();
   };
   
   const handleToggleAgendado = (id: string) => {
@@ -248,6 +255,14 @@ export function FinanceiroMode({
     if (data.faturamentoEsperado30d !== prevPremissasRef.current && data.faturamentoEsperado30d) {
       prevPremissasRef.current = data.faturamentoEsperado30d;
       onUpdateTimestamp?.('lastPremissasReview');
+      
+      // Gerar projeções de contas a receber por canal
+      const valorNum = parseCurrency(data.faturamentoEsperado30d);
+      if (valorNum > 0) {
+        const contasAtualizadas = gerarContasReceberProjecao(valorNum, data.contasFluxo || []);
+        onUpdateFinanceiroData({ contasFluxo: contasAtualizadas });
+        flushSave?.();
+      }
     }
   }, [data.faturamentoEsperado30d, onUpdateTimestamp]);
 
@@ -727,6 +742,7 @@ export function FinanceiroMode({
                 
                 if (result.conciliados.length > 0 || result.novos.length > 0) {
                   onUpdateTimestamp?.('lastConciliacaoCheck');
+                  flushSave?.();
                 }
               }}
               onCreateFornecedor={(novoFornecedor) => {

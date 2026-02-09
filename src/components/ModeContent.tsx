@@ -1,5 +1,6 @@
 import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, ScoreNegocio, ItemEstoque, UserRitmoExpectativa, RitmoTimestamps, WeeklySnapshot } from '@/types/focus-mode';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { FinanceiroMode } from '@/components/modes/FinanceiroMode';
 import { MarketingMode } from '@/components/modes/MarketingMode';
 import { SupplyChainMode } from '@/components/modes/SupplyChainMode';
@@ -12,6 +13,9 @@ import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 export interface ModeContentProps {
   mode: FocusMode;
   onComplete: () => void;
+  // Persistência
+  flushSave?: () => Promise<void>;
+  saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
   onToggleItem: (itemId: string) => void;
   onSetClassification: (itemId: string, classification: 'A' | 'B' | 'C') => void;
   onSetDecision: (itemId: string, decision: string) => void;
@@ -58,6 +62,8 @@ export interface ModeContentProps {
 export function ModeContent({
   mode,
   onComplete,
+  flushSave,
+  saveStatus,
   onToggleItem,
   onSetClassification,
   onSetDecision,
@@ -105,6 +111,7 @@ export function ModeContent({
             onUpdateFinanceiroData={onUpdateFinanceiroData!}
             ritmoExpectativa={ritmoExpectativa}
             onUpdateTimestamp={onUpdateTimestamp}
+            flushSave={flushSave}
           />
         );
       case 'marketing':
@@ -122,6 +129,7 @@ export function ModeContent({
             onAddItem={onAddSupplyItem!}
             onUpdateItem={onUpdateSupplyItem!}
             onRemoveItem={onRemoveSupplyItem!}
+            flushSave={flushSave}
           />
         );
       case 'pre-reuniao-geral':
@@ -181,7 +189,20 @@ export function ModeContent({
 
   return (
     <div className="flex-1 flex flex-col p-6 space-y-8">
-      <div className="text-center space-y-2">
+      <div className="text-center space-y-2 relative">
+        {/* Save Status Indicator */}
+        {saveStatus && saveStatus !== 'idle' && (
+          <div className="absolute top-0 right-0">
+            <Badge
+              variant={saveStatus === 'saved' ? 'secondary' : saveStatus === 'error' ? 'destructive' : 'outline'}
+              className="text-[10px] h-5 gap-1"
+            >
+              {saveStatus === 'saving' && '⏳ Salvando...'}
+              {saveStatus === 'saved' && '✓ Salvo'}
+              {saveStatus === 'error' && '✗ Erro ao salvar'}
+            </Badge>
+          </div>
+        )}
         <p className="text-3xl">{mode.icon}</p>
         <h1 className="text-xl font-semibold text-foreground">
           Você está no modo: {mode.title}

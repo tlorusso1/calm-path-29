@@ -230,15 +230,23 @@ export function ContaItem({
     );
   }
 
+  const canalLabels: Record<string, string> = {
+    b2b: 'B2B',
+    ecomNuvem: 'NUVEM',
+    ecomShopee: 'SHOPEE',
+    ecomAssinaturas: 'ASSIN',
+  };
+
   return (
     <TooltipProvider>
       <div
         className={cn(
           "flex flex-wrap items-center gap-2 p-2 rounded border text-sm group transition-colors",
           styles.bg,
-          "cursor-pointer hover:bg-muted/50"
+          conta.projecao ? "border-dashed opacity-70" : "",
+          conta.projecao ? "cursor-default" : "cursor-pointer hover:bg-muted/50"
         )}
-        onClick={() => setIsEditing(true)}
+        onClick={() => !conta.projecao && setIsEditing(true)}
       >
         {/* Linha 1: Data + Descrição - Desktop expandido, Mobile empilha */}
         <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto sm:flex-1">
@@ -297,6 +305,15 @@ export function ContaItem({
             );
           })()}
           
+          {conta.projecao && (
+            <Badge 
+              variant="outline" 
+              className="text-[10px] border-dashed border-blue-400 text-blue-600 dark:text-blue-400 shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              📊 Projeção {conta.canalOrigem ? canalLabels[conta.canalOrigem] || conta.canalOrigem : ''}
+            </Badge>
+          )}
           {conta.agendado && !conta.pago && (
             <Badge 
               variant="secondary" 
