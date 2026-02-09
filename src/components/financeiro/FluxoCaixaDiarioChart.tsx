@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrendingDown, TrendingUp, Calendar, AlertTriangle } from 'lucide-react';
 import { ContaFluxo } from '@/types/focus-mode';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
@@ -87,6 +88,8 @@ export function FluxoCaixaDiarioChart({
   caixaAtual,
   caixaMinimo,
 }: FluxoCaixaDiarioChartProps) {
+  const [viewMode, setViewMode] = useState<'passado' | 'futuro'>('futuro');
+  
   // Calcular média diária dos últimos 90 dias
   const { mediaEntrada, mediaSaida } = useMemo(
     () => calcularMediaDiaria90d(contasFluxo),
@@ -168,6 +171,62 @@ export function FluxoCaixaDiarioChart({
     return dados;
   }, [caixaAtual, caixaMinimo, contasFuturas, mediaEntrada, mediaSaida]);
   
+  // Gerar visão dos últimos 60 dias (dados reais)
+  const historico60d = useMemo((): DiaProjecao[] => {
+    const hoje = startOfDay(new Date());
+    const inicio60d = subDays(hoje, 60);
+    const dados: DiaProjecao[] = [];
+    
+    for (let i = 60; i >= 0; i--) {
+      const diaData = subDays(hoje, i);
+      const diaStr = format(diaData, 'yyyy-MM-dd');
+      
+      const lancsDoDia = contasFluxo.filter(c => {
+        if (!c.pago) return false;
+        return c.dataVencimento === diaStr;
+      });
+      
+      let entradasDia = 0;
+      let saidasDia = 0;
+      
+      for (const lanc of lancsDoDia) {
+        const valor = parseValorFlexivel(lanc.valor);
+        if (TIPOS_ENTRADA.includes(lanc.tipo)) {
+          entradasDia += valor;
+        } else if (TIPOS_SAIDA.includes(lanc.tipo)) {
+          saidasDia += valor;
+        }
+      }
+      
+      dados.push({
+        dia: format(diaData, 'dd/MM', { locale: ptBR }),
+        data: diaData,
+        saldo: 0, // não usado na visão histórica individual
+        entradas: Math.round(entradasDia),
+        saidas: Math.round(saidasDia),
+        entradasAcumuladas: 0,
+        saidasAcumuladas: 0,
+        alertaMinimo: false,
+        estimado: false,
+      });
+    }
+    
+    // Calcular acumulados
+    let entAcum = 0;
+    let saiAcum = 0;
+    for (const d of dados) {
+      entAcum += d.entradas;
+      saiAcum += d.saidas;
+      d.entradasAcumuladas = Math.round(entAcum);
+      d.saidasAcumuladas = Math.round(saiAcum);
+      d.saldo = Math.round(entAcum - saiAcum);
+    }
+    
+    return dados;
+  }, [contasFluxo]);
+  
+  const dadosAtivos = viewMode === 'futuro' ? projecao : historico60d;
+  
   // Contar dias em alerta
   const diasEmAlerta = projecao.filter(d => d.alertaMinimo).length;
   const primeiroDiaAlerta = projecao.find(d => d.alertaMinimo);
@@ -183,30 +242,45 @@ export function FluxoCaixaDiarioChart({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center justify-between text-base">
-          <span className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            📅 Projeção Diária (30 dias)
-          </span>
-          <div className="flex items-center gap-2">
-            {diasEmAlerta > 0 && (
-              <Badge variant="destructive" className="text-xs gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                {diasEmAlerta} dias abaixo do mínimo
-              </Badge>
-            )}
-            <Badge 
-              variant={variacaoEsperada >= 0 ? "default" : "destructive"}
-              className="text-xs gap-1"
-            >
-              {variacaoEsperada >= 0 ? (
-                <TrendingUp className="h-3 w-3" />
+        <CardTitle className="flex flex-col gap-2 text-base">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              📅 Fluxo Diário
+              {viewMode === 'futuro' ? (
+                <span className="text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 px-1.5 py-0.5 rounded">PROJEÇÃO</span>
               ) : (
-                <TrendingDown className="h-3 w-3" />
+                <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 px-1.5 py-0.5 rounded">REAL</span>
               )}
-              {formatCurrency(variacaoEsperada)}
-            </Badge>
+            </span>
+            <div className="flex items-center gap-2">
+              {viewMode === 'futuro' && diasEmAlerta > 0 && (
+                <Badge variant="destructive" className="text-xs gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  {diasEmAlerta} dias abaixo do mínimo
+                </Badge>
+              )}
+              {viewMode === 'futuro' && (
+                <Badge 
+                  variant={variacaoEsperada >= 0 ? "default" : "destructive"}
+                  className="text-xs gap-1"
+                >
+                  {variacaoEsperada >= 0 ? (
+                    <TrendingUp className="h-3 w-3" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3" />
+                  )}
+                  {formatCurrency(variacaoEsperada)}
+                </Badge>
+              )}
+            </div>
           </div>
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'passado' | 'futuro')} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 h-8">
+              <TabsTrigger value="passado" className="text-xs">Últimos 60 dias</TabsTrigger>
+              <TabsTrigger value="futuro" className="text-xs">Próximos 30 dias</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -218,7 +292,7 @@ export function FluxoCaixaDiarioChart({
         {/* Gráfico com 3 linhas */}
         <div className="h-[220px]">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={projecao}>
+            <LineChart data={dadosAtivos}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
               <XAxis 
                 dataKey="dia" 

@@ -20,6 +20,8 @@ import { DRESection } from '@/components/financeiro/DRESection';
 import { CustosFixosCard } from '@/components/financeiro/CustosFixosCard';
 import { ExecutiveResume } from '@/components/financeiro/ExecutiveResume';
 import { MargemRealCard } from '@/components/financeiro/MargemRealCard';
+import { EntradaMediaRealChart } from '@/components/financeiro/EntradaMediaRealChart';
+import { SnapshotsMensais } from '@/components/financeiro/SnapshotsMensais';
 import { SectionHeader } from '@/components/financeiro/SectionHeader';
 import { CaixaContratadoCard } from '@/components/financeiro/CaixaContratadoCard';
 import { RitmoChecklist } from '@/components/financeiro/RitmoChecklist';
@@ -639,6 +641,13 @@ export function FinanceiroMode({
           
           <MetaVendasCard contas={data.contasFluxo || []} />
           
+          <EntradaMediaRealChart
+            contasFluxo={data.contasFluxo || []}
+            custoFixoMensal={totalCustosFixos}
+            marketingEstrutural={parseCurrency(data.marketingEstrutural || data.marketingBase || '')}
+            adsBase={parseCurrency(data.adsBase || '')}
+          />
+          
           <MetaMensalCard
             contasFluxo={data.contasFluxo || []}
             custoFixoMensal={formatCurrency(totalCustosFixos).replace('R$', '').trim()}
@@ -671,6 +680,8 @@ export function FinanceiroMode({
             contasFluxo={data.contasFluxo || []}
             faturamentoMes={data.faturamentoMes}
           />
+          
+          <SnapshotsMensais snapshots={data.snapshotsMensais || []} />
         </CardContent>
       </Card>
       
@@ -742,8 +753,37 @@ export function FinanceiroMode({
                   id: crypto.randomUUID(),
                 }));
                 
+                const todasContas = [...contasAtualizadas, ...novasContas];
+                
+                // Gerar snapshot mensal automático
+                const hoje = new Date();
+                const mesAtual = format(hoje, 'yyyy-MM');
+                const TIPOS_ENTRADA_SNAP = ['receber', 'resgate'];
+                const TIPOS_SAIDA_SNAP = ['pagar', 'aplicacao', 'cartao'];
+                
+                let totalEntradas = 0;
+                let totalSaidas = 0;
+                for (const c of todasContas) {
+                  if (!c.pago) continue;
+                  if (!c.dataVencimento?.startsWith(mesAtual)) continue;
+                  if (['intercompany'].includes(c.tipo)) continue;
+                  const valor = parseCurrency(c.valor?.toString() || '');
+                  if (TIPOS_ENTRADA_SNAP.includes(c.tipo)) totalEntradas += valor;
+                  else if (TIPOS_SAIDA_SNAP.includes(c.tipo)) totalSaidas += valor;
+                }
+                
+                const snapExistentes = (data.snapshotsMensais || []).filter(s => s.mesAno !== mesAtual);
+                const novoSnapshot = {
+                  mesAno: mesAtual,
+                  entradas: totalEntradas,
+                  saidas: totalSaidas,
+                  saldo: totalEntradas - totalSaidas,
+                  geradoEm: new Date().toISOString(),
+                };
+                
                 onUpdateFinanceiroData({
-                  contasFluxo: [...contasAtualizadas, ...novasContas],
+                  contasFluxo: todasContas,
+                  snapshotsMensais: [...snapExistentes, novoSnapshot],
                 });
                 
                 if (result.conciliados.length > 0 || result.novos.length > 0) {
