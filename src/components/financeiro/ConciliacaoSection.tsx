@@ -14,6 +14,24 @@ import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
 import { parseISO, differenceInDays, format, startOfWeek, endOfWeek } from 'date-fns';
 import { matchFornecedor } from '@/utils/fornecedoresParser';
 
+// Auto-atribuir fornecedor para receitas baseado na origem bancária
+function autoAtribuirFornecedorReceita(
+  descricao: string,
+  fornecedores: Fornecedor[]
+): Fornecedor | null {
+  const desc = descricao.toUpperCase();
+
+  if (desc.includes('ITAUBBA') || desc.includes('ITAU BBA')) {
+    return fornecedores.find(f => f.nome === 'NICE FOODS ECOMMERCE LTDA') || null;
+  }
+
+  if (desc.includes('ITAU') || desc.includes('CONTA CORRENTE')) {
+    return fornecedores.find(f => f.nome === 'NICE FOODS LTDA') || null;
+  }
+
+  return null;
+}
+
 const BATCH_SIZE = 80; // Linhas por lote (seguro para timeout)
 import { FornecedorSelect } from './FornecedorSelect';
 
@@ -456,7 +474,11 @@ export function ConciliacaoSection({
             conciliado: true,
           });
         } else {
-          const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
+          // Para receitas sem match, tentar auto-atribuir por origem bancária
+          const fornecedorAutoReceita = lanc.tipo === 'receber' 
+            ? autoAtribuirFornecedorReceita(lanc.descricao, fornecedores) 
+            : null;
+          const fornecedorMatch = fornecedorAutoReceita || matchFornecedor(lanc.descricao, fornecedores);
           
           if (fornecedorMatch) {
             novos.push({
