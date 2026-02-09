@@ -724,11 +724,17 @@ export function FinanceiroMode({
               }}
               onConciliar={(result) => {
                 const contasAtualizadas = (data.contasFluxo || []).map(c => {
-                  const conciliado = result.conciliados.find(cc => cc.id === c.id);
-                  if (conciliado) {
-                    return { ...c, pago: true, conciliado: true };
-                  }
-                  return c;
+                   const conciliado = result.conciliados.find(cc => cc.id === c.id);
+                   if (conciliado) {
+                     return { 
+                       ...c, 
+                       pago: true, 
+                       conciliado: true,
+                       ...(conciliado.dataPagamento ? { dataPagamento: conciliado.dataPagamento } : {}),
+                       ...(conciliado.lancamentoConciliadoId ? { lancamentoConciliadoId: conciliado.lancamentoConciliadoId } : {}),
+                     };
+                   }
+                   return c;
                 });
                 
                 const novasContas: ContaFluxo[] = result.novos.map(n => ({
