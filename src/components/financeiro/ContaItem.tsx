@@ -255,7 +255,7 @@ export function ContaItem({
           </span>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="truncate flex-1 sm:max-w-[400px] lg:max-w-[500px] cursor-default">{conta.descricao}</span>
+              <span className="truncate sm:whitespace-normal sm:overflow-visible flex-1 cursor-default">{conta.descricao}</span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[400px] text-xs">
               {conta.descricao}
@@ -264,7 +264,7 @@ export function ContaItem({
         </div>
         
         {/* Linha 2: Badges + Valor + Ações */}
-        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto sm:flex-shrink-0">
           {/* Badge de tipo clicável com cycling */}
           {(() => {
             const tipoConfig = {
