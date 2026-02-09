@@ -238,6 +238,15 @@ export interface FinanceiroStage {
   
   // NOVO: Mapeamentos descrição→fornecedor para conciliação automática
   mapeamentosDescricao?: MapeamentoDescricaoFornecedor[];
+  
+  // NOVO: Snapshots mensais (gerados após conciliação)
+  snapshotsMensais?: {
+    mesAno: string;
+    entradas: number;
+    saidas: number;
+    saldo: number;
+    geradoEm: string;
+  }[];
 }
 
 // Mapeamento de descrições bancárias para fornecedores

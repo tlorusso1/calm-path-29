@@ -78,6 +78,11 @@ export function FluxoCaixaChart({
           <span className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             Fluxo de Caixa (30d)
+            {modoProjecao ? (
+              <span className="text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 px-1.5 py-0.5 rounded">PROJEÇÃO</span>
+            ) : (
+              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 px-1.5 py-0.5 rounded">REAL</span>
+            )}
           </span>
           <div className="flex items-center gap-2">
             {temRiscoVermelho && (

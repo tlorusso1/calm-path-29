@@ -81,7 +81,7 @@ export function MargemRealCard({ contasFluxo, faturamentoMes }: MargemRealCardPr
         <CardTitle className="text-sm flex items-center gap-2">
           <Calculator className="h-4 w-4" />
           📊 Margem Real Estimada
-          <Badge variant="outline" className="text-[10px]">LEITURA</Badge>
+          <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 px-1.5 py-0.5 rounded">REAL</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">

@@ -130,8 +130,11 @@ export function DRESection({
       
       // Buscar estrutura DRE da categoria
       const catDRE = findCategoria(categoria);
-      const modalidade = catDRE?.modalidade || 'OUTRAS RECEITAS/DESPESAS';
-      const grupo = catDRE?.grupo || (lanc.tipo === 'pagar' ? 'Outras Saídas' : 'Outras Entradas');
+      // Entradas sem categoria vão para RECEITAS (não OUTRAS RECEITAS/DESPESAS)
+      const modalidadeFallback = lanc.tipo === 'receber' ? 'RECEITAS' : 'OUTRAS RECEITAS/DESPESAS';
+      const grupoFallback = lanc.tipo === 'receber' ? 'Receitas Diretas' : (lanc.tipo === 'pagar' ? 'Outras Saídas' : 'Outras Entradas');
+      const modalidade = catDRE?.modalidade || modalidadeFallback;
+      const grupo = catDRE?.grupo || grupoFallback;
       
       // Adicionar ao mapa
       if (!modalidadesMap.has(modalidade)) {
@@ -201,6 +204,17 @@ export function DRESection({
         deducoes += mod.total;
       } else if (mod.modalidade === 'CUSTOS DE PRODUTO VENDIDO') {
         cpv += mod.total;
+      } else if (mod.modalidade === 'OUTRAS RECEITAS/DESPESAS') {
+        // Separar entradas e saídas dentro de OUTRAS
+        for (const g of mod.grupos) {
+          for (const cat of g.categorias) {
+            if (cat.categoria.toLowerCase().includes('entrada') || g.grupo.toLowerCase().includes('entrada')) {
+              receitas += cat.valor;
+            } else {
+              despesas += cat.valor;
+            }
+          }
+        }
       } else if (mod.tipo === 'DESPESAS') {
         despesas += mod.total;
       }
@@ -237,6 +251,7 @@ export function DRESection({
               <span className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
                 📊 DRE - Resultado do Exercício
+                <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 px-1.5 py-0.5 rounded">REAL</span>
               </span>
               <div className="flex items-center gap-2">
                 <span className={cn(

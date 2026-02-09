@@ -344,14 +344,14 @@ export function ConciliacaoSection({
                 categoria: fornecedorMatch.categoria,
                 conciliado: true,
               });
-            } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao') {
-              // Conta a pagar sem fornecedor - precisa de revisão
+            } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
+              // Conta sem fornecedor - precisa de revisão (pagar, cartao E receber)
               paraRevisar.push({
                 ...lanc,
                 needsReview: true,
               });
             } else {
-              // Recebimento, aplicação, resgate, intercompany - adicionar direto
+              // Apenas tipos automáticos (intercompany, aplicação, resgate) - adicionar direto
               novos.push({
                 tipo: lanc.tipo,
                 subtipo: lanc.subtipo,
