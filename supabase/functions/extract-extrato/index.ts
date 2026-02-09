@@ -28,7 +28,7 @@ Regras de extração:
 6. CLASSIFICAÇÃO DE TIPO (IMPORTANTE):
    - "aplicacao": APLICACAO CDB, APLICACAO TRUST, APLICACAO IDSELICEMP INT, LCI, LCA, TESOURO (saídas que são investimentos)
    - "resgate": RESGATE CDB, RESGATE TRUST (entradas de resgate de investimento)
-   - "intercompany": TED, PIX ou SISPAG entre empresas do mesmo grupo (ex: TED NICE, PIX NICE FOODS, SISPAG NICE FOODS)
+   - "intercompany": NÃO classifique como intercompany. Classifique como "pagar" ou "receber" normalmente. A detecção de intercompany será feita automaticamente após o processamento.
    - "cartao": pagamento consolidado de fatura de cartão de crédito (BUSINESS 4004-0126, VISA, MASTERCARD) - NÃO entra no DRE
    - "pagar": débitos/saídas normais (boletos, fornecedores, despesas)
    - "receber": créditos/entradas normais (vendas, recebimentos)
@@ -164,10 +164,7 @@ async function processarChunk(texto: string, mesAno: string, apiKey: string): Pr
           else if (/TRUST/i.test(desc)) subtipo = "trust";
         }
 
-        // Detectar intercompany
-        if (/SISPAG NICE FOODS ECOM/i.test(desc)) {
-          tipo = "intercompany";
-        }
+        // Intercompany é detectado por pós-processamento (pares de mesmo valor)
         
         // Detectar pagamento consolidado de cartão de crédito
         if (/BUSINESS \d{4}-\d{4}/i.test(desc)) {
@@ -186,6 +183,41 @@ async function processarChunk(texto: string, mesAno: string, apiKey: string): Pr
       }
     })
     .filter(Boolean);
+}
+
+// Detecta intercompany por pares: 2 lançamentos de mesmo valor absoluto (±0.01),
+// um sendo saída (pagar/cartao) e outro entrada (receber), são marcados como intercompany.
+function detectarIntercompany(lancamentos: any[]): any[] {
+  const usados = new Set<number>();
+
+  for (let i = 0; i < lancamentos.length; i++) {
+    if (usados.has(i)) continue;
+    const a = lancamentos[i];
+    const valA = Math.abs(parseFloat(a.valor) || 0);
+    const tipoA = a.tipo;
+
+    for (let j = i + 1; j < lancamentos.length; j++) {
+      if (usados.has(j)) continue;
+      const b = lancamentos[j];
+      const valB = Math.abs(parseFloat(b.valor) || 0);
+      const tipoB = b.tipo;
+
+      const mesmovalor = Math.abs(valA - valB) <= 0.01;
+      const parSaidaEntrada =
+        (["pagar", "cartao"].includes(tipoA) && tipoB === "receber") ||
+        (["pagar", "cartao"].includes(tipoB) && tipoA === "receber");
+
+      if (mesmovalor && parSaidaEntrada) {
+        lancamentos[i].tipo = "intercompany";
+        lancamentos[j].tipo = "intercompany";
+        usados.add(i);
+        usados.add(j);
+        break;
+      }
+    }
+  }
+
+  return lancamentos;
 }
 
 serve(async (req) => {
@@ -251,16 +283,18 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Total extracted: ${todosLancamentos.length} items`);
+    // Pós-processamento: detectar intercompany por pares de mesmo valor
+    const lancamentosProcessados = detectarIntercompany(todosLancamentos);
+    console.log(`Total extracted: ${lancamentosProcessados.length} items`);
 
-    if (todosLancamentos.length === 0) {
+    if (lancamentosProcessados.length === 0) {
       return new Response(JSON.stringify({ error: "Nenhum lançamento encontrado no extrato", contas: [] }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({ contas: todosLancamentos }), {
+    return new Response(JSON.stringify({ contas: lancamentosProcessados }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
