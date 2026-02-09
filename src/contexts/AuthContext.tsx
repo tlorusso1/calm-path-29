@@ -28,14 +28,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Then check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // Fallback: se onAuthStateChange não disparar em 2s, buscar sessão manualmente
+    const fallbackTimeout = setTimeout(() => {
+      if (loading) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setLoading(false);
+        });
+      }
+    }, 2000);
 
     return () => {
+      clearTimeout(fallbackTimeout);
       subscription.unsubscribe();
     };
   }, []);
