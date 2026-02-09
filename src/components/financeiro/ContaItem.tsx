@@ -240,16 +240,16 @@ export function ContaItem({
         )}
         onClick={() => setIsEditing(true)}
       >
-        {/* Linha 1: Data + Descrição */}
+        {/* Linha 1: Data + Descrição - Desktop expandido, Mobile empilha */}
         <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto sm:flex-1">
           <span className="text-xs text-muted-foreground w-12 shrink-0">
             {format(parseISO(conta.dataVencimento), 'dd/MM', { locale: ptBR })}
           </span>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="truncate flex-1 sm:max-w-[300px] cursor-default">{conta.descricao}</span>
+              <span className="truncate flex-1 sm:max-w-[400px] lg:max-w-[500px] cursor-default">{conta.descricao}</span>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[350px] text-xs">
+            <TooltipContent side="top" className="max-w-[400px] text-xs">
               {conta.descricao}
             </TooltipContent>
           </Tooltip>

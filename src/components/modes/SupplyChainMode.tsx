@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { FocusMode, SupplyChainStage, ItemEstoque, TipoEstoque, DEFAULT_SUPPLYCHAIN_DATA } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -54,6 +54,7 @@ export function SupplyChainMode({
     unidade: 'un',
     demandaSemanal: '',
     dataValidade: '',
+    precoCusto: '',
   });
   const [textoColado, setTextoColado] = useState('');
   const [tabAtiva, setTabAtiva] = useState('itens');
@@ -78,6 +79,7 @@ export function SupplyChainMode({
       unidade: novoItem.unidade,
       demandaSemanal: novoItem.demandaSemanal ? parseFloat(novoItem.demandaSemanal) : undefined,
       dataValidade: novoItem.dataValidade || undefined,
+      precoCusto: novoItem.precoCusto ? parseFloat(novoItem.precoCusto) : undefined,
     });
 
     setNovoItem({
@@ -87,6 +89,7 @@ export function SupplyChainMode({
       unidade: 'un',
       demandaSemanal: '',
       dataValidade: '',
+      precoCusto: '',
     });
   };
 
@@ -182,6 +185,29 @@ export function SupplyChainMode({
     return { ...item, coberturaDias, status };
   });
 
+  // Calcular valor do estoque
+  const valorEstoque = useMemo(() => {
+    let custo = 0;
+    let itensComPreco = 0;
+    
+    for (const item of data.itens) {
+      if (item.precoCusto && item.precoCusto > 0) {
+        custo += item.quantidade * item.precoCusto;
+        itensComPreco++;
+      }
+    }
+    
+    return {
+      custoProdutos: custo,
+      valorVendavel: custo * 3, // Margem 3x
+      itensComPreco,
+      totalItens: data.itens.length,
+    };
+  }, [data.itens]);
+
+  const formatCurrency = (val: number) =>
+    val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
   return (
     <div className="space-y-6">
       {/* ========== DEMANDA SEMANAL ========== */}
@@ -259,6 +285,30 @@ export function SupplyChainMode({
               </div>
             </div>
           </div>
+          
+          {/* 💰 Valor do Estoque */}
+          {valorEstoque.itensComPreco > 0 && (
+            <div className="p-3 rounded-lg border bg-muted/30">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-muted-foreground">💰 Valor do Estoque</span>
+                <span className="text-[10px] text-muted-foreground">
+                  ({valorEstoque.itensComPreco}/{valorEstoque.totalItens} itens com preço)
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Custo Total</p>
+                  <p className="text-sm font-medium">{formatCurrency(valorEstoque.custoProdutos)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Valor Vendável (3x)</p>
+                  <p className="text-sm font-medium text-green-600 dark:text-green-500">
+                    {formatCurrency(valorEstoque.valorVendavel)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Alertas */}
           {/* Alertas como Lista Estruturada */}
@@ -505,6 +555,16 @@ export function SupplyChainMode({
                   value={novoItem.demandaSemanal}
                   onChange={(e) => setNovoItem(prev => ({ ...prev, demandaSemanal: e.target.value }))}
                 />
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                  <Input
+                    type="number"
+                    placeholder="Custo un."
+                    value={novoItem.precoCusto}
+                    onChange={(e) => setNovoItem(prev => ({ ...prev, precoCusto: e.target.value }))}
+                    className="pl-7"
+                  />
+                </div>
                 <DatePasteInput
                   placeholder="Validade"
                   value={novoItem.dataValidade}
@@ -613,6 +673,33 @@ export function SupplyChainMode({
                           {usandoGlobal && data.demandaSemanalMedia > 0 && (
                             <span className="text-[10px] text-muted-foreground italic">
                               (global)
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Preço Custo */}
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                            Custo:
+                          </Label>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">R$</span>
+                            <Input
+                              type="number"
+                              placeholder="0,00"
+                              value={item.precoCusto ?? ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                onUpdateItem(item.id, { 
+                                  precoCusto: val ? parseFloat(val) : undefined 
+                                });
+                              }}
+                              className="h-7 w-20 text-xs pl-7"
+                            />
+                          </div>
+                          {item.precoCusto && item.precoCusto > 0 && (
+                            <span className="text-[10px] text-muted-foreground">
+                              = {formatCurrency(item.quantidade * item.precoCusto)}
                             </span>
                           )}
                         </div>

@@ -25,6 +25,7 @@ import { RitmoChecklist } from '@/components/financeiro/RitmoChecklist';
 import { RitmoContextualAlert } from '@/components/RitmoContextualAlert';
 import { FornecedoresManager } from '@/components/financeiro/FornecedoresManager';
 import { GerarContasFixasButton } from '@/components/financeiro/GerarContasFixasButton';
+import { AlertaCaixaInsuficiente } from '@/components/financeiro/AlertaCaixaInsuficiente';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 import { DEFAULT_CUSTOS_FIXOS, calcularTotalCustosFixos, DEFAULT_EMPRESTIMOS } from '@/data/custos-fixos-default';
@@ -265,6 +266,12 @@ export function FinanceiroMode({
         <RitmoContextualAlert taskId="caixa" status={getCaixaStatus()} />
         <RitmoContextualAlert taskId="contas-hoje" status={getContasHojeStatus()} />
       </div>
+      
+      {/* ========== ALERTA DE CAIXA INSUFICIENTE ========== */}
+      <AlertaCaixaInsuficiente 
+        contasFluxo={data.contasFluxo || []}
+        contasBancarias={data.contas}
+      />
       
       {/* ========== 1. EXECUTIVE RESUME ========== */}
       <ExecutiveResume exports={exports} caixaContratado={totaisContas.aReceber} />
