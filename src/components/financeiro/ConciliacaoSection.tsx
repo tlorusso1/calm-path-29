@@ -64,9 +64,18 @@ function encontrarMatch(
     return null;
   }
   
+  const tiposSaida: string[] = ['pagar', 'cartao'];
+  const lancEhSaida = tiposSaida.includes(lancamento.tipo);
+  
   return contas.find(conta => {
     if (conta.pago) return false;
-    if (conta.tipo !== lancamento.tipo) return false;
+    // Para saídas: pagar e cartao são equivalentes
+    const contaEhSaida = tiposSaida.includes(conta.tipo);
+    if (lancEhSaida && contaEhSaida) {
+      // OK - ambos são saída
+    } else if (conta.tipo !== lancamento.tipo) {
+      return false;
+    }
     
     const valorConta = parseValorFlexivel(conta.valor);
     let dataConta: Date;
@@ -600,9 +609,11 @@ export function ConciliacaoSection({
               <ReviewPanel
                 lancamentos={lancamentosParaRevisar}
                 fornecedores={fornecedores}
+                contasExistentes={contasExistentes}
                 onAdd={handleAddRevisado}
                 onIgnore={handleIgnorar}
                 onCreateFornecedor={onCreateFornecedor}
+                onConciliar={onConciliar}
               />
             )}
           </CardContent>
@@ -616,15 +627,19 @@ export function ConciliacaoSection({
 function ReviewPanel({
   lancamentos,
   fornecedores,
+  contasExistentes,
   onAdd,
   onIgnore,
   onCreateFornecedor,
+  onConciliar,
 }: {
   lancamentos: ExtractedLancamento[];
   fornecedores: Fornecedor[];
+  contasExistentes: ContaFluxo[];
   onAdd: (lanc: ExtractedLancamento, fornecedorId?: string, tipoOverride?: ContaFluxoTipo, naturezaOverride?: ContaFluxoNatureza) => void;
   onIgnore: (lanc: ExtractedLancamento) => void;
   onCreateFornecedor?: (fornecedor: Omit<Fornecedor, 'id'>) => void;
+  onConciliar: (result: ConciliacaoResult) => void;
 }) {
   // Ref para IDs estáveis - gerados uma vez por lançamento
   const stableIdsRef = useRef<Map<string, string>>(new Map());
@@ -661,9 +676,11 @@ function ReviewPanel({
             <ReviewItem
               lancamento={lanc}
               fornecedores={fornecedores}
+              contasExistentes={contasExistentes}
               onAdd={onAdd}
               onIgnore={onIgnore}
               onCreateFornecedor={onCreateFornecedor}
+              onConciliar={onConciliar}
             />
           </div>
         ))}
@@ -676,15 +693,19 @@ function ReviewPanel({
 function ReviewItem({
   lancamento,
   fornecedores,
+  contasExistentes,
   onAdd,
   onIgnore,
   onCreateFornecedor,
+  onConciliar,
 }: {
   lancamento: ExtractedLancamento;
   fornecedores: Fornecedor[];
+  contasExistentes: ContaFluxo[];
   onAdd: (lanc: ExtractedLancamento, fornecedorId?: string, tipoOverride?: ContaFluxoTipo, naturezaOverride?: ContaFluxoNatureza) => void;
   onIgnore: (lanc: ExtractedLancamento) => void;
   onCreateFornecedor?: (fornecedor: Omit<Fornecedor, 'id'>) => void;
+  onConciliar: (result: ConciliacaoResult) => void;
 }) {
   const [selectedFornecedor, setSelectedFornecedor] = useState<string | undefined>();
   const [selectedTipo, setSelectedTipo] = useState<ContaFluxoTipo>(lancamento.tipo);
@@ -815,6 +836,94 @@ function ReviewItem({
           ✕
         </Button>
       </div>
+      
+      {/* Linha 4: Vincular a conta aberta */}
+      <VincularContaAberta
+        lancamento={lancamento}
+        contasExistentes={contasExistentes}
+        onConciliar={onConciliar}
+        onIgnore={onIgnore}
+      />
+    </div>
+  );
+}
+
+// Componente para vincular lançamento a uma conta aberta existente
+function VincularContaAberta({
+  lancamento,
+  contasExistentes,
+  onConciliar,
+  onIgnore,
+}: {
+  lancamento: ExtractedLancamento;
+  contasExistentes: ContaFluxo[];
+  onConciliar: (result: ConciliacaoResult) => void;
+  onIgnore: (lanc: ExtractedLancamento) => void;
+}) {
+  const [showList, setShowList] = useState(false);
+  
+  const valorLanc = parseValorFlexivel(lancamento.valor);
+  
+  // Filtrar contas abertas com valor similar (± 30%)
+  const contasSimilares = useMemo(() => {
+    return contasExistentes.filter(c => {
+      if (c.pago) return false;
+      const valorConta = parseValorFlexivel(c.valor);
+      if (valorConta === 0 && valorLanc === 0) return true;
+      const diff = Math.abs(valorLanc - valorConta) / Math.max(valorConta, valorLanc, 1);
+      return diff <= 0.30;
+    }).slice(0, 10);
+  }, [contasExistentes, valorLanc]);
+  
+  if (contasSimilares.length === 0) return null;
+  
+  const handleVincular = (conta: ContaFluxo) => {
+    onConciliar({
+      conciliados: [{ 
+        id: conta.id, 
+        descricao: lancamento.descricao,
+        dataPagamento: lancamento.dataVencimento,
+        lancamentoConciliadoId: conta.id,
+      }],
+      novos: [],
+      ignorados: 0,
+      paraRevisar: [],
+    });
+    onIgnore(lancamento);
+    toast.success(`Vinculado a "${conta.descricao}"`);
+  };
+  
+  return (
+    <div>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-6 px-2 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+        onClick={() => setShowList(!showList)}
+      >
+        <Link2 className="h-3 w-3" />
+        Vincular a conta aberta ({contasSimilares.length})
+      </Button>
+      
+      {showList && (
+        <div className="mt-1 space-y-1 pl-2 border-l-2 border-blue-200">
+          {contasSimilares.map(conta => {
+            const valorFmt = parseValorFlexivel(conta.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            let dataFmt = conta.dataVencimento;
+            try { dataFmt = format(parseISO(conta.dataVencimento), 'dd/MM'); } catch {}
+            return (
+              <button
+                key={conta.id}
+                className="w-full text-left p-1.5 rounded text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center justify-between gap-2 transition-colors"
+                onClick={() => handleVincular(conta)}
+              >
+                <span className="truncate flex-1">{dataFmt} - {conta.descricao}</span>
+                <span className="font-medium shrink-0">{valorFmt}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
