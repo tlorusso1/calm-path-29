@@ -125,6 +125,7 @@ export interface ContaFluxo {
   fornecedorId?: string;    // Referência ao fornecedor
   categoria?: string;       // Categoria para DRE
   conciliado?: boolean;     // Flag: veio de conciliação bancária
+  lancamentoConciliadoId?: string; // ID da conta original que foi conciliada automaticamente
   // Natureza financeira - determina se impacta meta de faturamento
   natureza?: ContaFluxoNatureza; // undefined = operacional (default)
   // Projeção automática de receita por canal

@@ -375,6 +375,13 @@ export function ContaItem({
               </TooltipContent>
             </Tooltip>
           )}
+          {/* Badge "Conciliado auto" para contas baixadas por conciliação */}
+          {conta.pago && conta.conciliado && conta.lancamentoConciliadoId && (
+            <Badge variant="outline" className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-700 shrink-0 gap-1">
+              <CheckCircle className="h-2.5 w-2.5" />
+              Conciliado auto
+            </Badge>
+          )}
           {/* Badge estático para contas pagas (histórico) */}
           {['pagar', 'cartao'].includes(conta.tipo) && conta.pago && conta.natureza === 'capitalGiro' && (
             <Badge variant="outline" className="text-[10px] bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700 shrink-0 gap-1">

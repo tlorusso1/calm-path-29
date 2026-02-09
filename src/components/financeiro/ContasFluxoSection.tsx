@@ -365,7 +365,7 @@ export function ContasFluxoSection({
   };
 
   const formatCurrency = (val: string): string => {
-    const num = parseFloat(val.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+    const num = parseValorFlexivel(val);
     return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
