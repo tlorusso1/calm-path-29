@@ -338,7 +338,7 @@ export function ConciliacaoSection({
                 categoria: fornecedorMatch.categoria,
                 conciliado: true,
               });
-            } else if (lanc.tipo === 'pagar') {
+            } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao') {
               // Conta a pagar sem fornecedor - precisa de revisão
               paraRevisar.push({
                 ...lanc,
