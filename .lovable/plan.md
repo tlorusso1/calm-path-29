@@ -1,49 +1,35 @@
 
 
-# Corrigir Vinculacao por Tipo e Dropdowns Ilegiveis
+# Vincular SHPP com contas SHOPEE independente de valor
 
-## Problema 1: Vincular mostra contas do tipo errado
+## Problema
 
-Quando um recebimento (tipo `receber`) vai para revisao, o botao "Vincular a conta aberta" mostra contas a pagar em vez de contas a receber. Falta filtrar por tipo.
+A lista "Vincular a conta aberta" filtra contas por valor similar (+-30%). Quando o lancamento do extrato e SHPP (ex: R$ 2.500) e a projecao ECOM-SHOPEE e R$ 1.875, a diferenca pode ultrapassar 30% e a conta nao aparece na lista.
 
-### Correcao
+## Correcao
 
-**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`** (VincularContaAberta, linhas 938-947)
+**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`** (funcao `VincularContaAberta`, linhas 966-986)
 
-Adicionar filtro por tipo no `contasSimilares`:
-- Se `lancamento.tipo === 'receber'`, mostrar apenas contas com `tipo === 'receber'`
-- Se `lancamento.tipo === 'pagar'` ou `'cartao'`, mostrar apenas contas com `tipo === 'pagar'` ou `'cartao'`
+Adicionar regra extra no filtro `contasSimilares`: se a descricao do lancamento contem "SHPP" ou "SHOPEE", incluir tambem contas cuja descricao contenha "SHOPEE" -- mesmo que o valor nao esteja dentro dos 30% de tolerancia. Isso garante que as projecoes ECOM-SHOPEE aparecam como opcao de vinculacao.
 
-## Problema 2: Dropdowns ilegiveis (texto cortado, sem fundo visivel)
+Logica atualizada:
 
-Os Select de Tipo e Natureza no ReviewItem tem largura fixa pequena e o conteudo do dropdown pode ficar sem contraste.
+```text
+Para cada conta aberta, incluir se:
+  1. Tipo compativel (receber com receber, pagar com pagar) [ja existe]
+  2. E uma das condicoes:
+     a. Valor similar (+-30%) [ja existe]
+     b. OU descricao do lancamento contem SHPP/SHOPEE E descricao da conta contem SHOPEE [NOVO]
+```
 
-### Correcao
+## Detalhes tecnicos
 
-**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`** (ReviewItem, linhas 855-876)
+Na linha 982-985 do `contasSimilares`, trocar a verificacao pura de valor por:
 
-- Trocar `w-[110px]` por `w-auto min-w-[120px]` nos SelectTrigger
-- Adicionar `className="z-[200] bg-popover"` e `position="popper"` nos SelectContent para garantir visibilidade e fundo solido
+```
+const valorSimilar = diff <= 0.30;
+const matchCanal = /SHPP|SHOPEE/i.test(lancamento.descricao) && /SHOPEE/i.test(c.descricao);
+return valorSimilar || matchCanal;
+```
 
-## Problema 3: Recebimentos devem mostrar categorias DRE corretas
-
-No painel de revisao, recebimentos devem ser classificados como "Clientes Nacionais (B2B)" ou "Clientes Nacionais (B2C)" na DRE. Alem disso, se a descricao conter "SHPP" ou "SHOPEE", ja pode ser auto-vinculado a Shopee (B2C).
-
-### Correcao
-
-**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`**
-
-- Na funcao `encontrarMatch` ou `encontrarMatchPorDescricao`, adicionar regra especifica: se a descricao do lancamento contem "SHPP" ou "SHOPEE", tentar match com contas abertas que tambem contenham "SHPP" ou "SHOPEE" na descricao (independente de valor similar), priorizando contas a receber
-- Isso funciona como um "match por canal" antes do match por valor
-
-**Arquivo: `supabase/functions/extract-extrato/index.ts`**
-
-- Adicionar regex de fallback: se descricao contem `SHPP|SHOPEE`, classificar automaticamente como `receber` (garantia extra)
-
-## Resumo de Arquivos
-
-| Arquivo | Acao |
-|---------|------|
-| `src/components/financeiro/ConciliacaoSection.tsx` | Filtrar VincularContaAberta por tipo + melhorar dropdowns (z-index, largura, fundo) + match por canal SHPP/SHOPEE |
-| `supabase/functions/extract-extrato/index.ts` | Regex fallback para SHPP/SHOPEE como `receber` |
-
+Apenas 1 arquivo afetado: `src/components/financeiro/ConciliacaoSection.tsx`
