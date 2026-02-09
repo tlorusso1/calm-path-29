@@ -982,7 +982,9 @@ function VincularContaAberta({
       const valorConta = parseValorFlexivel(c.valor);
       if (valorConta === 0 && valorLanc === 0) return true;
       const diff = Math.abs(valorLanc - valorConta) / Math.max(valorConta, valorLanc, 1);
-      return diff <= 0.30;
+      const valorSimilar = diff <= 0.30;
+      const matchCanal = /SHPP|SHOPEE/i.test(lancamento.descricao) && /SHOPEE/i.test(c.descricao);
+      return valorSimilar || matchCanal;
     }).slice(0, 10);
   }, [contasExistentes, valorLanc, lancamento.tipo]);
   
