@@ -1,43 +1,49 @@
 
 
-# Corrigir Regra de Classificacao Intercompany
+# Corrigir Vinculacao por Tipo e Dropdowns Ilegiveis
 
-## Problema
+## Problema 1: Vincular mostra contas do tipo errado
 
-Hoje, qualquer lancamento com "NICE FOODS" na descricao e automaticamente marcado como `intercompany`. Isso esta errado porque uma transferencia de cliente que mencione "NICE" pode ser uma entrada real de receita.
+Quando um recebimento (tipo `receber`) vai para revisao, o botao "Vincular a conta aberta" mostra contas a pagar em vez de contas a receber. Falta filtrar por tipo.
 
-A regra correta e: **so marcar como INTER quando existem 2 lancamentos de mesmo valor no mesmo extrato** (um debito e um credito), pois isso indica que o dinheiro saiu de uma conta e entrou na outra dentro do mesmo grupo.
+### Correcao
 
-## Onde mudar
+**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`** (VincularContaAberta, linhas 938-947)
 
-### 1. Edge Function: `supabase/functions/extract-extrato/index.ts`
+Adicionar filtro por tipo no `contasSimilares`:
+- Se `lancamento.tipo === 'receber'`, mostrar apenas contas com `tipo === 'receber'`
+- Se `lancamento.tipo === 'pagar'` ou `'cartao'`, mostrar apenas contas com `tipo === 'pagar'` ou `'cartao'`
 
-**Prompt da IA (linha 31):** Alterar a instrucao para a IA nao classificar como `intercompany` automaticamente. Remover a regra baseada em nome e instruir: "Classificar como pagar ou receber normalmente. A deteccao de intercompany sera feita apos o processamento."
+## Problema 2: Dropdowns ilegiveis (texto cortado, sem fundo visivel)
 
-**Regex fallback (linha 168-170):** Remover a regra `if (/SISPAG NICE FOODS ECOM/i.test(desc)) tipo = "intercompany"`. Transacoes com NICE devem entrar como `pagar` ou `receber` normalmente.
+Os Select de Tipo e Natureza no ReviewItem tem largura fixa pequena e o conteudo do dropdown pode ficar sem contraste.
 
-**Nova logica pos-processamento (apos linha 188):** Adicionar funcao `detectarIntercompany(lancamentos)` que:
-- Agrupa lancamentos por valor absoluto
-- Se encontrar 2 lancamentos com mesmo valor (um debito/saida e um credito/entrada), marca ambos como `intercompany`
-- Tolerancia de R$ 0,01 no valor
+### Correcao
 
-```text
-Exemplo:
-  - "SISPAG NICE FOODS ECOM" -R$ 5.000  (saida)
-  - "TED NICE FOODS"         +R$ 5.000  (entrada)
-  -> Ambos viram intercompany
-  
-  - "PIX NICE FOODS"         +R$ 3.200  (entrada, sem par)
-  -> Permanece como 'receber' (pode ser venda real)
-```
+**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`** (ReviewItem, linhas 855-876)
 
-### 2. Frontend: `src/components/financeiro/ConciliacaoSection.tsx`
+- Trocar `w-[110px]` por `w-auto min-w-[120px]` nos SelectTrigger
+- Adicionar `className="z-[200] bg-popover"` e `position="popper"` nos SelectContent para garantir visibilidade e fundo solido
 
-Nenhuma mudanca necessaria no frontend. A classificacao ja vem correta da edge function. O painel de revisao permite reclassificar manualmente se necessario.
+## Problema 3: Recebimentos devem mostrar categorias DRE corretas
 
-## Resumo
+No painel de revisao, recebimentos devem ser classificados como "Clientes Nacionais (B2B)" ou "Clientes Nacionais (B2C)" na DRE. Alem disso, se a descricao conter "SHPP" ou "SHOPEE", ja pode ser auto-vinculado a Shopee (B2C).
+
+### Correcao
+
+**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`**
+
+- Na funcao `encontrarMatch` ou `encontrarMatchPorDescricao`, adicionar regra especifica: se a descricao do lancamento contem "SHPP" ou "SHOPEE", tentar match com contas abertas que tambem contenham "SHPP" ou "SHOPEE" na descricao (independente de valor similar), priorizando contas a receber
+- Isso funciona como um "match por canal" antes do match por valor
+
+**Arquivo: `supabase/functions/extract-extrato/index.ts`**
+
+- Adicionar regex de fallback: se descricao contem `SHPP|SHOPEE`, classificar automaticamente como `receber` (garantia extra)
+
+## Resumo de Arquivos
 
 | Arquivo | Acao |
 |---------|------|
-| `supabase/functions/extract-extrato/index.ts` | Remover regex NICE=intercompany, atualizar prompt IA, adicionar deteccao por pares de mesmo valor |
+| `src/components/financeiro/ConciliacaoSection.tsx` | Filtrar VincularContaAberta por tipo + melhorar dropdowns (z-index, largura, fundo) + match por canal SHPP/SHOPEE |
+| `supabase/functions/extract-extrato/index.ts` | Regex fallback para SHPP/SHOPEE como `receber` |
 
