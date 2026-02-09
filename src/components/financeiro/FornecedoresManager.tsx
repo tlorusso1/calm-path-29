@@ -204,7 +204,7 @@ export function FornecedoresManager({
                             <CategoriaSelect
                               value={editingCategoria}
                               onChange={setEditingCategoria}
-                              tipo="DESPESAS"
+                            
                               compact
                             />
                             <div className="flex gap-1 justify-end">
@@ -284,7 +284,7 @@ export function FornecedoresManager({
             <CategoriaSelect
               value={newCategoria}
               onChange={setNewCategoria}
-              tipo="DESPESAS"
+              
             />
             <div className="flex gap-2 justify-end">
               <Button

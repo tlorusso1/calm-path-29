@@ -113,4 +113,6 @@ export const FORNECEDORES_INICIAIS: Partial<Fornecedor>[] = [
   { nome: 'Meta', modalidade: 'DESPESAS COMERCIAIS', grupo: 'Despesas de Marketing', categoria: 'Anuncios Online' },
   { nome: 'Google Ads', modalidade: 'DESPESAS COMERCIAIS', grupo: 'Despesas de Marketing', categoria: 'Anuncios Online' },
   { nome: 'Bytedance Brasil Tecnologia LTDA', modalidade: 'DESPESAS COMERCIAIS', grupo: 'Despesas de Marketing', categoria: 'Anuncios Online' },
+  { nome: 'NICE FOODS LTDA', modalidade: 'RECEITAS', grupo: 'Receitas Diretas', categoria: 'Clientes Nacionais (B2B)' },
+  { nome: 'NICE FOODS ECOMMERCE LTDA', modalidade: 'RECEITAS', grupo: 'Receitas Diretas', categoria: 'Clientes Nacionais (B2C)' },
 ];
