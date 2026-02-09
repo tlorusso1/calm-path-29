@@ -1,35 +1,47 @@
 
+# Melhorar Match da Conciliacao e Visibilidade dos Resultados
 
-# Vincular SHPP com contas SHOPEE independente de valor
+## Problema 1: Contas de Folha nao conciliam automaticamente
 
-## Problema
+As contas tipo "Folha: Gabrielle - CLT" com vencimento 06/02 tem 3 dias de atraso. O match exato exige data +/- 2 dias, entao falha. O match por descricao exige +/- 5 dias E 50% de similaridade de tokens -- "SISPAG GABRIELLE" vs "Folha: Gabrielle - CLT" pode nao atingir 50% porque os tokens sao diferentes (SISPAG vs Folha, CLT vs nada no extrato).
 
-A lista "Vincular a conta aberta" filtra contas por valor similar (+-30%). Quando o lancamento do extrato e SHPP (ex: R$ 2.500) e a projecao ECOM-SHOPEE e R$ 1.875, a diferenca pode ultrapassar 30% e a conta nao aparece na lista.
+### Correcoes no match
 
-## Correcao
+**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`**
 
-**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`** (funcao `VincularContaAberta`, linhas 966-986)
+1. **Aumentar tolerancia de data no match exato** (funcao `encontrarMatch`, linha 91):
+   - De `pagar: 2 dias` para `pagar: 5 dias` -- contas a pagar frequentemente sao pagas com atraso
+   - Manter `receber: 1 dia`
 
-Adicionar regra extra no filtro `contasSimilares`: se a descricao do lancamento contem "SHPP" ou "SHOPEE", incluir tambem contas cuja descricao contenha "SHOPEE" -- mesmo que o valor nao esteja dentro dos 30% de tolerancia. Isso garante que as projecoes ECOM-SHOPEE aparecam como opcao de vinculacao.
+2. **Reduzir threshold de similaridade** (funcao `encontrarMatchPorDescricao`, linha 161):
+   - De `0.5` (50%) para `0.3` (30%) -- porque descricoes de extrato sao muito abreviadas vs descricoes manuais
+   - Aumentar tolerancia de data de 5 para 7 dias
 
-Logica atualizada:
+3. **Adicionar match por nome proprio**: Nova logica que extrai nomes proprios (palavras com 4+ letras, capitalizadas) e tenta match. Se o extrato diz "SISPAG GABRIELLE" e a conta diz "Folha: Gabrielle", o nome "GABRIELLE" em comum ja seria suficiente para vincular.
 
-```text
-Para cada conta aberta, incluir se:
-  1. Tipo compativel (receber com receber, pagar com pagar) [ja existe]
-  2. E uma das condicoes:
-     a. Valor similar (+-30%) [ja existe]
-     b. OU descricao do lancamento contem SHPP/SHOPEE E descricao da conta contem SHOPEE [NOVO]
-```
+## Problema 2: Onde ver o resultado da conciliacao?
 
-## Detalhes tecnicos
+Atualmente a conciliacao faz 3 coisas:
+- Marca contas existentes como pagas (badge "Conciliado auto")
+- Adiciona lancamentos novos como historico pago
+- Gera um Snapshot Mensal (total entradas/saidas do mes)
 
-Na linha 982-985 do `contasSimilares`, trocar a verificacao pura de valor por:
+O usuario pode ver os resultados em:
+- **Contas a Pagar/Receber**: contas baixadas aparecem no historico (colapsavel) com badge "Conciliado auto"
+- **Snapshots Mensais**: na secao de Analise, mostra totais conciliados por mes
+- **DRE**: lancamentos pagos alimentam o demonstrativo de resultado
 
-```
-const valorSimilar = diff <= 0.30;
-const matchCanal = /SHPP|SHOPEE/i.test(lancamento.descricao) && /SHOPEE/i.test(c.descricao);
-return valorSimilar || matchCanal;
-```
+Nao ha mudanca de codigo necessaria aqui -- ja funciona. Mas podemos melhorar a visibilidade:
 
-Apenas 1 arquivo afetado: `src/components/financeiro/ConciliacaoSection.tsx`
+**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`**
+
+4. **Melhorar o resumo pos-conciliacao**: Apos conciliar, mostrar um toast mais detalhado com:
+   - Quantas contas foram baixadas automaticamente
+   - Quantos lancamentos novos adicionados ao historico
+   - Link rapido para ver o Snapshot Mensal atualizado
+
+## Resumo tecnico
+
+| Arquivo | Acao |
+|---------|------|
+| `src/components/financeiro/ConciliacaoSection.tsx` | Aumentar tolerancia de data para pagar (2->5 dias), reduzir threshold similaridade (50%->30%), adicionar match por nome proprio, melhorar toast pos-conciliacao |
