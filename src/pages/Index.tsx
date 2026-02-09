@@ -1,20 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useFocusModes } from '@/hooks/useFocusModes';
-import { useAuth } from '@/contexts/AuthContext';
-import { useUserRole } from '@/hooks/useUserRole';
-import { ModeSelector } from '@/components/ModeSelector';
-import { ModeContent } from '@/components/ModeContent';
-import { NoModeSelected } from '@/components/NoModeSelected';
-import { LocalStorageMigration } from '@/components/LocalStorageMigration';
-import { RitmoStatusBar, taskToMode } from '@/components/RitmoStatusBar';
-import { Button } from '@/components/ui/button';
-import { LogOut, Moon, Sun } from 'lucide-react';
-import { useTheme } from 'next-themes';
-import niceFoodsLogo from '@/assets/nice-foods-logo.png';
-import { RitmoTaskId } from '@/types/focus-mode';
+import { useState, useEffect, useCallback } from "react";
+import { useFocusModes } from "@/hooks/useFocusModes";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
+import { ModeSelector } from "@/components/ModeSelector";
+import { ModeContent } from "@/components/ModeContent";
+import { NoModeSelected } from "@/components/NoModeSelected";
+import { LocalStorageMigration } from "@/components/LocalStorageMigration";
+import { RitmoStatusBar, taskToMode } from "@/components/RitmoStatusBar";
+import { Button } from "@/components/ui/button";
+import { LogOut, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import niceFoodsLogo from "@/assets/nice-foods-logo.png";
+import { RitmoTaskId } from "@/types/focus-mode";
 
-const FOCUS_MODES_KEY = 'focoagora_focus_modes';
-const PROJECTS_KEY = 'focoagora_projects';
+const FOCUS_MODES_KEY = "focoagora_focus_modes";
+const PROJECTS_KEY = "focoagora_projects";
 
 const Index = () => {
   const { signOut } = useAuth();
@@ -101,7 +101,7 @@ const Index = () => {
   }
 
   const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark');
+    setTheme(theme === "dark" ? "light" : "dark");
   };
 
   return (
@@ -110,67 +110,53 @@ const Index = () => {
       <div className="border-b border-border bg-card">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img 
-              src={niceFoodsLogo} 
-              alt="NICE FOODS" 
-              className="h-8 object-contain dark:invert"
-            />
+            <img src={niceFoodsLogo} alt="NICE FOODS" className="h-8 object-contain dark:invert" />
             <div className="hidden sm:block">
               <h1 className="text-sm font-semibold text-foreground">NICE TASKS</h1>
               <p className="text-[10px] text-muted-foreground">Thiago Edition v1.0 Beta</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
               onClick={toggleTheme}
-              title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+              title={theme === "dark" ? "Modo claro" : "Modo escuro"}
             >
-              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={signOut}
-              title="Sair"
-            >
+            <Button variant="ghost" size="icon" onClick={signOut} title="Sair">
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </div>
 
-      <RitmoStatusBar 
-        ritmo={ritmoExpectativa} 
+      <RitmoStatusBar
+        ritmo={ritmoExpectativa}
         onNavigateTo={(modeId, taskId) => {
           setActiveMode(modeId as any);
-          
+
           // Scroll para o elemento específico após navegação
           if (taskId) {
             const { elementId } = taskToMode[taskId];
             setTimeout(() => {
               const element = document.getElementById(elementId);
               if (element) {
-                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                element.scrollIntoView({ behavior: "smooth", block: "center" });
                 // Highlight temporário
-                element.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+                element.classList.add("ring-2", "ring-primary", "ring-offset-2");
                 setTimeout(() => {
-                  element.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+                  element.classList.remove("ring-2", "ring-primary", "ring-offset-2");
                 }, 2000);
               }
             }, 100);
           }
-        }} 
+        }}
       />
 
-      <ModeSelector
-        activeMode={activeMode}
-        modes={modes}
-        onSelectMode={setActiveMode}
-        canAccess={canAccess}
-      />
+      <ModeSelector activeMode={activeMode} modes={modes} onSelectMode={setActiveMode} canAccess={canAccess} />
 
       <main className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4">
         {activeMode ? (
@@ -222,35 +208,8 @@ const Index = () => {
             onUpdateTimestamp={updateTimestamp}
           />
         ) : (
-          <NoModeSelected 
-            lastCompletedMode={lastCompletedMode} 
-            ritmo={ritmoExpectativa}
-            onNavigateTo={setActiveMode}
-          />
+          <NoModeSelected lastCompletedMode={lastCompletedMode} ritmo={ritmoExpectativa} onNavigateTo={setActiveMode} />
         )}
-        function encontrarContaParaBaixa(
-  lancamento,
-  contas
-) {
-  return contas.find(conta => {
-    if (conta.tipo !== 'pagar') return false;
-    if (conta.pago) return false;
-
-    const valorMatch =
-      Math.abs(parseValor(conta.valor) - parseValor(lancamento.valor)) <= 0.01;
-
-    const diffDias =
-      Math.abs(
-        differenceInDays(
-          new Date(lancamento.data),
-          new Date(conta.dataVencimento)
-        )
-      );
-
-    return valorMatch && diffDias <= 2;
-  });
-}
-
       </main>
     </div>
   );
