@@ -95,6 +95,68 @@ function encontrarMatch(
   }) || null;
 }
 
+// Normaliza descrição para comparação fuzzy
+function normalizarDescricao(desc: string): string {
+  return desc
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Similaridade simples: quantos tokens em comum / total de tokens
+function calcularSimilaridade(a: string, b: string): number {
+  const tokensA = new Set(normalizarDescricao(a).split(' ').filter(t => t.length >= 3));
+  const tokensB = new Set(normalizarDescricao(b).split(' ').filter(t => t.length >= 3));
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+  let comuns = 0;
+  for (const t of tokensA) {
+    if (tokensB.has(t)) comuns++;
+  }
+  return comuns / Math.max(tokensA.size, tokensB.size);
+}
+
+// Match por descrição similar: mesmo tipo de fluxo, descrição ≥50% similar, data ± 5 dias
+function encontrarMatchPorDescricao(
+  lancamento: { valor: string; dataVencimento: string; tipo: string; descricao: string },
+  contas: ContaFluxo[]
+): ContaFluxo | null {
+  const valorLanc = parseValorFlexivel(lancamento.valor);
+  let dataLanc: Date;
+  try { dataLanc = parseISO(lancamento.dataVencimento); } catch { return null; }
+  
+  const tiposSaida: string[] = ['pagar', 'cartao'];
+  const lancEhSaida = tiposSaida.includes(lancamento.tipo);
+  
+  let melhorMatch: ContaFluxo | null = null;
+  let melhorScore = 0;
+  
+  for (const conta of contas) {
+    if (conta.pago) continue;
+    const contaEhSaida = tiposSaida.includes(conta.tipo);
+    if (lancEhSaida && !contaEhSaida) continue;
+    if (!lancEhSaida && conta.tipo !== lancamento.tipo) continue;
+    
+    let dataConta: Date;
+    try { dataConta = parseISO(conta.dataVencimento); } catch { continue; }
+    
+    const diffDias = Math.abs(differenceInDays(dataLanc, dataConta));
+    if (diffDias > 5) continue;
+    
+    const similaridade = calcularSimilaridade(lancamento.descricao, conta.descricao);
+    if (similaridade < 0.5) continue;
+    
+    // Score: priorizar similaridade alta e diferença de dias baixa
+    const score = similaridade - (diffDias * 0.05);
+    if (score > melhorScore) {
+      melhorScore = score;
+      melhorMatch = conta;
+    }
+  }
+  
+  return melhorMatch;
+}
+
 // Match projeção: valor ± 30% E mesma semana
 function encontrarMatchProjecao(
   lancamento: { valor: string; dataVencimento: string; tipo: string },
@@ -297,35 +359,64 @@ export function ConciliacaoSection({
       let ignorados = 0;
 
       for (const lanc of todosLancamentos) {
-        // Tentar match com contas existentes (exato)
+        // 1. Match exato: valor ± R$0.01 E data ± 2 dias
         const match = encontrarMatch(lanc, contasNaoPagas);
         
         if (match) {
-          // Match encontrado - marcar como conciliado com data de pagamento do extrato
           conciliados.push({ 
             id: match.id, 
             descricao: lanc.descricao, 
             dataPagamento: lanc.dataVencimento,
             lancamentoConciliadoId: match.id,
           });
-          // Remover da lista para não fazer match duplo
           const idx = contasNaoPagas.findIndex(c => c.id === match.id);
           if (idx >= 0) contasNaoPagas.splice(idx, 1);
+          continue;
+        }
+        
+        // 2. Match por descrição similar (estimativa vs valor real)
+        const matchDesc = encontrarMatchPorDescricao(lanc, contasNaoPagas);
+        if (matchDesc) {
+          conciliados.push({ 
+            id: matchDesc.id, 
+            descricao: `${lanc.descricao} (≈ ${matchDesc.descricao})`,
+            dataPagamento: lanc.dataVencimento,
+            lancamentoConciliadoId: matchDesc.id,
+          });
+          const idx = contasNaoPagas.findIndex(c => c.id === matchDesc.id);
+          if (idx >= 0) contasNaoPagas.splice(idx, 1);
+          continue;
+        }
+        
+        // 3. Match com projeções (tolerância 30% valor, mesma semana)
+        const matchProj = encontrarMatchProjecao(lanc, contasNaoPagas);
+        if (matchProj) {
+          conciliados.push({ id: matchProj.id, descricao: `${lanc.descricao} (proj: ${matchProj.descricao})` });
+          const idx = contasNaoPagas.findIndex(c => c.id === matchProj.id);
+          if (idx >= 0) contasNaoPagas.splice(idx, 1);
+          continue;
+        }
+        
+        // 4. Sem match - tentar identificar fornecedor
+        const fornecedorIdMapeado = encontrarMapeamento(lanc.descricao, mapeamentos);
+        
+        if (fornecedorIdMapeado) {
+          const fornecedorMapeado = fornecedores.find(f => f.id === fornecedorIdMapeado);
+          novos.push({
+            tipo: lanc.tipo,
+            subtipo: lanc.subtipo,
+            descricao: lanc.descricao,
+            valor: lanc.valor,
+            dataVencimento: lanc.dataVencimento,
+            pago: true,
+            fornecedorId: fornecedorIdMapeado,
+            categoria: fornecedorMapeado?.categoria,
+            conciliado: true,
+          });
         } else {
-          // Tentar match com projeções (tolerância 30% valor, mesma semana)
-          const matchProj = encontrarMatchProjecao(lanc, contasNaoPagas);
-          if (matchProj) {
-            // Consumir projeção: ajustar valor para o real e marcar como pago
-            conciliados.push({ id: matchProj.id, descricao: `${lanc.descricao} (proj: ${matchProj.descricao})` });
-            const idx = contasNaoPagas.findIndex(c => c.id === matchProj.id);
-            if (idx >= 0) contasNaoPagas.splice(idx, 1);
-          } else {
-          // Sem match - tentar identificar fornecedor
-          // 1. Primeiro: verificar mapeamentos salvos pelo usuário
-          const fornecedorIdMapeado = encontrarMapeamento(lanc.descricao, mapeamentos);
+          const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
           
-          if (fornecedorIdMapeado) {
-            const fornecedorMapeado = fornecedores.find(f => f.id === fornecedorIdMapeado);
+          if (fornecedorMatch) {
             novos.push({
               tipo: lanc.tipo,
               subtipo: lanc.subtipo,
@@ -333,45 +424,25 @@ export function ConciliacaoSection({
               valor: lanc.valor,
               dataVencimento: lanc.dataVencimento,
               pago: true,
-              fornecedorId: fornecedorIdMapeado,
-              categoria: fornecedorMapeado?.categoria,
+              fornecedorId: fornecedorMatch.id,
+              categoria: fornecedorMatch.categoria,
               conciliado: true,
             });
+          } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
+            paraRevisar.push({
+              ...lanc,
+              needsReview: true,
+            });
           } else {
-            // 2. Segundo: tentar match automático por nome/alias
-            const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
-          
-            if (fornecedorMatch) {
-              novos.push({
-                tipo: lanc.tipo,
-                subtipo: lanc.subtipo,
-                descricao: lanc.descricao,
-                valor: lanc.valor,
-                dataVencimento: lanc.dataVencimento,
-                pago: true,
-                fornecedorId: fornecedorMatch.id,
-                categoria: fornecedorMatch.categoria,
-                conciliado: true,
-              });
-            } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
-              // Conta sem fornecedor - precisa de revisão (pagar, cartao E receber)
-              paraRevisar.push({
-                ...lanc,
-                needsReview: true,
-              });
-            } else {
-              // Apenas tipos automáticos (intercompany, aplicação, resgate) - adicionar direto
-              novos.push({
-                tipo: lanc.tipo,
-                subtipo: lanc.subtipo,
-                descricao: lanc.descricao,
-                valor: lanc.valor,
-                dataVencimento: lanc.dataVencimento,
-                pago: true,
-                conciliado: true,
-              });
-            }
-          }
+            novos.push({
+              tipo: lanc.tipo,
+              subtipo: lanc.subtipo,
+              descricao: lanc.descricao,
+              valor: lanc.valor,
+              dataVencimento: lanc.dataVencimento,
+              pago: true,
+              conciliado: true,
+            });
           }
         }
       }
