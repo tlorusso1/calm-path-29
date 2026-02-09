@@ -11,7 +11,7 @@ import { ContaFluxo, ContaFluxoTipo, ContaFluxoSubtipo, ContaFluxoNatureza, Forn
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
-import { parseISO, differenceInDays, format } from 'date-fns';
+import { parseISO, differenceInDays, format, startOfWeek, endOfWeek } from 'date-fns';
 import { matchFornecedor } from '@/utils/fornecedoresParser';
 
 const BATCH_SIZE = 80; // Linhas por lote (seguro para timeout)
@@ -82,6 +82,45 @@ function encontrarMatch(
     const dataMatch = diffDias <= 1;
     
     return valorMatch && dataMatch;
+  }) || null;
+}
+
+// Match projeção: valor ± 30% E mesma semana
+function encontrarMatchProjecao(
+  lancamento: { valor: string; dataVencimento: string; tipo: string },
+  contas: ContaFluxo[]
+): ContaFluxo | null {
+  if (lancamento.tipo !== 'receber') return null;
+  
+  const valorLanc = parseValorFlexivel(lancamento.valor);
+  let dataLanc: Date;
+  try {
+    dataLanc = parseISO(lancamento.dataVencimento);
+  } catch {
+    return null;
+  }
+  
+  const semanaInicio = startOfWeek(dataLanc, { weekStartsOn: 1 });
+  const semanaFim = endOfWeek(dataLanc, { weekStartsOn: 1 });
+  
+  return contas.find(conta => {
+    if (conta.pago || !conta.projecao) return false;
+    if (conta.tipo !== 'receber') return false;
+    
+    const valorConta = parseValorFlexivel(conta.valor);
+    let dataConta: Date;
+    try {
+      dataConta = parseISO(conta.dataVencimento);
+    } catch {
+      return false;
+    }
+    
+    // Tolerância: ± 30% no valor e mesma semana
+    const diff = Math.abs(valorLanc - valorConta) / Math.max(valorConta, 1);
+    const valorMatch = diff <= 0.30;
+    const mesmaSemana = dataConta >= semanaInicio && dataConta <= semanaFim;
+    
+    return valorMatch && mesmaSemana;
   }) || null;
 }
 
@@ -248,7 +287,7 @@ export function ConciliacaoSection({
       let ignorados = 0;
 
       for (const lanc of todosLancamentos) {
-        // Tentar match com contas existentes
+        // Tentar match com contas existentes (exato)
         const match = encontrarMatch(lanc, contasNaoPagas);
         
         if (match) {
@@ -258,6 +297,14 @@ export function ConciliacaoSection({
           const idx = contasNaoPagas.findIndex(c => c.id === match.id);
           if (idx >= 0) contasNaoPagas.splice(idx, 1);
         } else {
+          // Tentar match com projeções (tolerância 30% valor, mesma semana)
+          const matchProj = encontrarMatchProjecao(lanc, contasNaoPagas);
+          if (matchProj) {
+            // Consumir projeção: ajustar valor para o real e marcar como pago
+            conciliados.push({ id: matchProj.id, descricao: `${lanc.descricao} (proj: ${matchProj.descricao})` });
+            const idx = contasNaoPagas.findIndex(c => c.id === matchProj.id);
+            if (idx >= 0) contasNaoPagas.splice(idx, 1);
+          } else {
           // Sem match - tentar identificar fornecedor
           // 1. Primeiro: verificar mapeamentos salvos pelo usuário
           const fornecedorIdMapeado = encontrarMapeamento(lanc.descricao, mapeamentos);
@@ -309,6 +356,7 @@ export function ConciliacaoSection({
                 conciliado: true,
               });
             }
+          }
           }
         }
       }

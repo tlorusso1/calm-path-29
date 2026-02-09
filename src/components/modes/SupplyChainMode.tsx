@@ -38,6 +38,7 @@ interface SupplyChainModeProps {
   onAddItem: (item: Omit<ItemEstoque, 'id'>) => void;
   onUpdateItem: (id: string, data: Partial<ItemEstoque>) => void;
   onRemoveItem: (id: string) => void;
+  flushSave?: () => Promise<void>;
 }
 
 export function SupplyChainMode({
@@ -46,6 +47,7 @@ export function SupplyChainMode({
   onAddItem,
   onUpdateItem,
   onRemoveItem,
+  flushSave,
 }: SupplyChainModeProps) {
   const [novoItem, setNovoItem] = useState({
     nome: '',
@@ -81,6 +83,7 @@ export function SupplyChainMode({
       dataValidade: novoItem.dataValidade || undefined,
       precoCusto: novoItem.precoCusto ? parseFloat(novoItem.precoCusto) : undefined,
     });
+    flushSave?.();
 
     setNovoItem({
       nome: '',
@@ -140,6 +143,7 @@ export function SupplyChainMode({
       title: "Estoque Atualizado",
       description: `${itensAtualizados.length} itens atualizados${novosItens > 0 ? `, ${novosItens} novos` : ''}`,
     });
+    flushSave?.();
     
     setTextoColado('');
   };

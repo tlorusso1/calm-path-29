@@ -28,6 +28,8 @@ const Index = () => {
     modes,
     lastCompletedMode,
     isLoading,
+    flushSave,
+    saveStatus,
     financeiroExports,
     prioridadeSemana,
     marketingExports,
@@ -181,6 +183,9 @@ const Index = () => {
             onSetNotes={(itemId, n) => setItemNotes(activeMode, itemId, n)}
             onAddItem={(text) => addItem(activeMode, text)}
             onRemoveItem={(itemId) => removeItem(activeMode, itemId)}
+            // Persistência
+            flushSave={flushSave}
+            saveStatus={saveStatus}
             // Financeiro
             onUpdateFinanceiroData={updateFinanceiroData}
             onAddFinanceiroItem={addFinanceiroItem}

@@ -127,6 +127,9 @@ export interface ContaFluxo {
   conciliado?: boolean;     // Flag: veio de conciliação bancária
   // Natureza financeira - determina se impacta meta de faturamento
   natureza?: ContaFluxoNatureza; // undefined = operacional (default)
+  // Projeção automática de receita por canal
+  projecao?: boolean;        // true = conta fictícia gerada automaticamente
+  canalOrigem?: string;      // 'b2b' | 'ecomNuvem' | 'ecomShopee' | 'ecomAssinaturas'
 }
 
 // ============= Financeiro V2 =============

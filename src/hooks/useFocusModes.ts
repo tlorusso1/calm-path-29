@@ -377,10 +377,15 @@ export function useFocusModes() {
   const { user } = useAuth();
   const [state, setState] = useState<FocusModeState>(createDefaultState);
   const [isLoading, setIsLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const debounceRef = React.useRef<NodeJS.Timeout | null>(null);
   const initialLoadDone = React.useRef(false);
   const wasLoadedWithData = React.useRef(false);
   const jwtRef = React.useRef<string | null>(null);
+  const stateRef = React.useRef(state);
+
+  // Keep stateRef always up-to-date (anti-stale closure)
+  React.useEffect(() => { stateRef.current = state; }, [state]);
 
   // Manter JWT atualizado para uso no beforeunload
   useEffect(() => {
@@ -506,6 +511,19 @@ export function useFocusModes() {
     }
   }, [user, state]);
 
+  // flushSave: cancel debounce and save immediately
+  const flushSave = useCallback(async () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setSaveStatus('saving');
+    try {
+      await saveToSupabase();
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch {
+      setSaveStatus('error');
+    }
+  }, [saveToSupabase]);
+
   // Save to Supabase with debounce
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -524,11 +542,13 @@ export function useFocusModes() {
   }, [state, user, saveToSupabase]);
 
   // Flush immediately on page unload to prevent data loss
+  // Uses stateRef to avoid stale closure issues
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (user && initialLoadDone.current) {
+        const currentState = stateRef.current;
         // 🔒 PROTEÇÃO: Não salvar dados vazios via beacon também
-        const currentHasData = hasRealData(state.modes);
+        const currentHasData = hasRealData(currentState.modes);
         if (!currentHasData && wasLoadedWithData.current) {
           console.warn('⚠️ BEACON BLOQUEADO: Tentativa de salvar dados vazios');
           return;
@@ -538,48 +558,60 @@ export function useFocusModes() {
         if (debounceRef.current) {
           clearTimeout(debounceRef.current);
         }
-        // Save immediately using sendBeacon for reliability
+        // Save immediately using stateRef (always fresh)
         const payload = {
           user_id: user.id,
-          date: state.date,
-          week_start: state.weekStart,
-          active_mode: state.activeMode,
-          modes: JSON.parse(JSON.stringify(state.modes)),
-          last_completed_mode: state.lastCompletedMode,
+          date: currentState.date,
+          week_start: currentState.weekStart,
+          active_mode: currentState.activeMode,
+          modes: JSON.parse(JSON.stringify(currentState.modes)),
+          last_completed_mode: currentState.lastCompletedMode,
           updated_at: new Date().toISOString(),
         };
         
-        // Use sendBeacon for guaranteed delivery on page close
         const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/focus_mode_states?on_conflict=user_id`;
-        
-        // Usar JWT real do usuário (armazenado no jwtRef) para não violar RLS
         const token = jwtRef.current || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        const payloadStr = JSON.stringify(payload);
         
-        // sendBeacon não suporta headers customizados, usar fetch com keepalive como fallback
-        try {
-          fetch(url, {
-            method: 'POST',
-            headers: {
-              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-              'Prefer': 'resolution=merge-duplicates',
-            },
-            body: JSON.stringify(payload),
-            keepalive: true,
-          });
-        } catch {
-          // Fallback to sendBeacon (sem auth headers, pode falhar RLS)
-          navigator.sendBeacon(url, blob);
+        // Fallback XHR síncrono para payloads grandes (>60KB)
+        // fetch keepalive tem limite de 64KB
+        if (payloadStr.length > 60000) {
+          try {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', url, false); // síncrono
+            xhr.setRequestHeader('apikey', import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.setRequestHeader('Prefer', 'resolution=merge-duplicates');
+            xhr.send(payloadStr);
+          } catch {
+            console.error('❌ XHR síncrono falhou no unload');
+          }
+        } else {
+          try {
+            fetch(url, {
+              method: 'POST',
+              headers: {
+                'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates',
+              },
+              body: payloadStr,
+              keepalive: true,
+            });
+          } catch {
+            const blob = new Blob([payloadStr], { type: 'application/json' });
+            navigator.sendBeacon(url, blob);
+          }
         }
-        console.log('📤 Dados salvos via beacon no unload');
+        console.log('📤 Dados salvos via beacon no unload (stateRef)');
       }
     };
     
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [user, state]);
+  }, [user]); // No state dependency - uses stateRef
 
   // ============= Financeiro Exports (para outros modos) =============
   const getFinanceiroExports = useCallback((): FinanceiroExports => {
@@ -1402,6 +1434,9 @@ export function useFocusModes() {
     modes: state.modes,
     lastCompletedMode: state.lastCompletedMode,
     isLoading,
+    // Persistência blindada
+    flushSave,
+    saveStatus,
     // Ritmo & Expectativa
     ritmoExpectativa,
     updateTimestamp,
