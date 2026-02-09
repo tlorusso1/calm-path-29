@@ -273,9 +273,19 @@ function processLoadedState(state: FocusModeState | null): ProcessResult {
     
     (Object.keys(MODE_CONFIGS) as FocusModeId[]).forEach(id => {
       if (MODE_CONFIGS[id].frequency === 'weekly') {
-        // PROTEÇÃO ADICIONAL: Log detalhado de reset semanal
         console.log(`📅 Reset semanal do modo ${id} - semana ${state.weekStart} -> ${currentWeekStart}`);
-        updatedModes[id] = createDefaultMode(id);
+        const existing = state.modes[id];
+        const fresh = createDefaultMode(id);
+        // Reset NÃO-DESTRUTIVO: preserva todos os dados estruturais, reseta apenas checklists
+        updatedModes[id] = {
+          ...fresh,
+          financeiroData: existing?.financeiroData ?? fresh.financeiroData,
+          marketingData: existing?.marketingData ?? fresh.marketingData,
+          supplyChainData: existing?.supplyChainData ?? fresh.supplyChainData,
+          backlogData: existing?.backlogData ?? fresh.backlogData,
+          preReuniaoGeralData: existing?.preReuniaoGeralData ?? fresh.preReuniaoGeralData,
+          reuniaoAdsData: existing?.reuniaoAdsData ?? fresh.reuniaoAdsData,
+        };
         needsUpdate = true;
       }
     });
@@ -369,7 +379,19 @@ export function useFocusModes() {
   const [isLoading, setIsLoading] = useState(true);
   const debounceRef = React.useRef<NodeJS.Timeout | null>(null);
   const initialLoadDone = React.useRef(false);
-  const wasLoadedWithData = React.useRef(false); // Track if we loaded with real data
+  const wasLoadedWithData = React.useRef(false);
+  const jwtRef = React.useRef<string | null>(null);
+
+  // Manter JWT atualizado para uso no beforeunload
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      jwtRef.current = data.session?.access_token ?? null;
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      jwtRef.current = session?.access_token ?? null;
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Load from Supabase when user is available
   useEffect(() => {
@@ -529,15 +551,28 @@ export function useFocusModes() {
         
         // Use sendBeacon for guaranteed delivery on page close
         const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/focus_mode_states?on_conflict=user_id`;
-        const headers = {
-          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates',
-        };
         
+        // Usar JWT real do usuário (armazenado no jwtRef) para não violar RLS
+        const token = jwtRef.current || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
         const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-        navigator.sendBeacon(url, blob);
+        
+        // sendBeacon não suporta headers customizados, usar fetch com keepalive como fallback
+        try {
+          fetch(url, {
+            method: 'POST',
+            headers: {
+              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates',
+            },
+            body: JSON.stringify(payload),
+            keepalive: true,
+          });
+        } catch {
+          // Fallback to sendBeacon (sem auth headers, pode falhar RLS)
+          navigator.sendBeacon(url, blob);
+        }
         console.log('📤 Dados salvos via beacon no unload');
       }
     };
