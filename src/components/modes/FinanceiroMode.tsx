@@ -5,12 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { ChevronDown, ChevronUp, AlertTriangle, Building2, Info, FileSpreadsheet } from 'lucide-react';
+import { ChevronDown, ChevronUp, AlertTriangle, Building2, Info } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/modeStatusCalculator';
 import { FluxoCaixaChart } from '@/components/financeiro/FluxoCaixaChart';
 import { FluxoCaixaDiarioChart } from '@/components/financeiro/FluxoCaixaDiarioChart';
@@ -54,19 +52,22 @@ export function FinanceiroMode({
   flushSave,
 }: FinanceiroModeProps) {
   const [openSections, setOpenSections] = useState({
+    // Posição Atual (Real)
     contas: false,
     fluxoContas: false,
     historico: false,
+    // Projeção (Estimado)
     fluxoGrafico: true,
     fluxoDiario: false,
+    // Análise
     dre: false,
     margem: false,
+    // Configurações
     custosFixos: false,
-    gerarContas: false,
+    gerarContas: false, // NOVO: Seção de geração automática
+    conciliacao: false,
     fornecedores: false,
   });
-  
-  const [conciliacaoOpen, setConciliacaoOpen] = useState(false);
   
   // Carregar fornecedores do CSV uma vez
   const fornecedoresCarregados = useMemo(() => loadFornecedores(), []);
@@ -271,262 +272,37 @@ export function FinanceiroMode({
   const getCaixaStatus = () => ritmoExpectativa?.tarefasHoje.find(t => t.id === 'caixa')?.status ?? 'ok';
   const getContasHojeStatus = () => ritmoExpectativa?.tarefasHoje.find(t => t.id === 'contas-hoje')?.status ?? 'ok';
 
-  // Verificar se conciliação está pendente
-  const conciliacaoPendente = useMemo(() => {
-    const conciliacaoTask = ritmoExpectativa?.tarefasHoje?.find(t => t.id === 'conciliacao');
-    if (conciliacaoTask && conciliacaoTask.status !== 'ok') return true;
-    // Fallback: sempre mostrar badge se não há dados de ritmo
-    return !ritmoExpectativa;
-  }, [ritmoExpectativa]);
-
-  // Handler da conciliação (mesmo que antes)
-  const handleConciliar = (result: { conciliados: any[]; novos: any[] }) => {
-    const contasAtualizadas = (data.contasFluxo || []).map(c => {
-       const conciliado = result.conciliados.find(cc => cc.id === c.id);
-       if (conciliado) {
-         return { 
-           ...c, 
-           pago: true, 
-           conciliado: true,
-           ...(conciliado.dataPagamento ? { dataPagamento: conciliado.dataPagamento } : {}),
-           ...(conciliado.lancamentoConciliadoId ? { lancamentoConciliadoId: conciliado.lancamentoConciliadoId } : {}),
-         };
-       }
-       return c;
-    });
-    
-    const novasContas: ContaFluxo[] = result.novos.map(n => ({
-      ...n,
-      id: crypto.randomUUID(),
-    }));
-    
-    const todasContas = [...contasAtualizadas, ...novasContas];
-    
-    // Gerar snapshot mensal automático
-    const hoje = new Date();
-    const mesAtual = format(hoje, 'yyyy-MM');
-    const TIPOS_ENTRADA_SNAP = ['receber', 'resgate'];
-    const TIPOS_SAIDA_SNAP = ['pagar', 'aplicacao', 'cartao'];
-    
-    let totalEntradas = 0;
-    let totalSaidas = 0;
-    for (const c of todasContas) {
-      if (!c.pago) continue;
-      if (!c.dataVencimento?.startsWith(mesAtual)) continue;
-      if (['intercompany'].includes(c.tipo)) continue;
-      const valor = parseCurrency(c.valor?.toString() || '');
-      if (TIPOS_ENTRADA_SNAP.includes(c.tipo)) totalEntradas += valor;
-      else if (TIPOS_SAIDA_SNAP.includes(c.tipo)) totalSaidas += valor;
-    }
-    
-    const snapExistentes = (data.snapshotsMensais || []).filter(s => s.mesAno !== mesAtual);
-    const novoSnapshot = {
-      mesAno: mesAtual,
-      entradas: totalEntradas,
-      saidas: totalSaidas,
-      saldo: totalEntradas - totalSaidas,
-      geradoEm: new Date().toISOString(),
-    };
-    
-    onUpdateFinanceiroData({
-      contasFluxo: todasContas,
-      snapshotsMensais: [...snapExistentes, novoSnapshot],
-    });
-    
-    if (result.conciliados.length > 0 || result.novos.length > 0) {
-      onUpdateTimestamp?.('lastConciliacaoCheck');
-      flushSave?.();
-    }
-  };
-
-  // Dados incompletos?
-  const dadosIncompletos = !data.caixaAtual && !data.faturamentoEsperado30d;
-
   return (
     <div className="space-y-6">
-      
-      {/* ================================================================ */}
-      {/* BLOCO 1 — TOPO: VISÃO RÁPIDA (READ-ONLY)                        */}
-      {/* ================================================================ */}
-      
-      <div className="space-y-3">
+      {/* ========== HEADER FIXO — Alertas Contextuais ========== */}
+      <div className="space-y-2">
+        <div className="text-center">
+          <h2 className="text-lg font-bold text-foreground">🟢 FINANCEIRO — Modo Diário</h2>
+          <p className="text-sm text-muted-foreground italic">"Financeiro se decide. Não se reage."</p>
+        </div>
         <RitmoContextualAlert taskId="caixa" status={getCaixaStatus()} />
         <RitmoContextualAlert taskId="contas-hoje" status={getContasHojeStatus()} />
-        
-        <AlertaCaixaInsuficiente 
-          contasFluxo={data.contasFluxo || []}
-          contasBancarias={data.contas}
-        />
-        
-        {dadosIncompletos && (
-          <p className="text-xs text-muted-foreground text-center italic py-1">
-            ⚠️ Estimativa por dados incompletos
-          </p>
-        )}
-        
-        <ExecutiveResume exports={exports} caixaContratado={totaisContas.aReceber} />
       </div>
       
-      {/* ================================================================ */}
-      {/* BLOCO 2 — MEIO: EXPLICAÇÃO DO CAIXA (LEITURA)                   */}
-      {/* ================================================================ */}
+      {/* ========== ALERTA DE CAIXA INSUFICIENTE ========== */}
+      <AlertaCaixaInsuficiente 
+        contasFluxo={data.contasFluxo || []}
+        contasBancarias={data.contas}
+      />
       
-      <Card className="border-l-4 border-l-cyan-500">
+      {/* ========== 1. EXECUTIVE RESUME ========== */}
+      <ExecutiveResume exports={exports} caixaContratado={totaisContas.aReceber} />
+      
+      {/* ========== 2. POSIÇÃO ATUAL — REAL ========== */}
+      <Card className="border-l-4 border-l-emerald-500">
         <CardContent className="p-4 space-y-4">
           <SectionHeader 
-            icon="📊" 
-            title="LEITURA DO CAIXA"
-            subtitle="(por que o caixa está assim)"
+            icon="💰" 
+            title="POSIÇÃO ATUAL — REAL"
+            subtitle="(bate com banco. não é projeção.)"
           />
           
-          {/* Fluxo de Caixa 30d — visível por padrão */}
-          <FluxoCaixaChart
-            dados={fluxoCaixa.dados}
-            caixaMinimo={caixaMinimo}
-            modoProjecao={fluxoCaixa.modoProjecao}
-            numContas={fluxoCaixa.numContas}
-            fonteHistorico={fluxoCaixa.fonteHistorico}
-            semanasHistorico={fluxoCaixa.semanasHistorico}
-            onAddConta={() => toggleSection('fluxoContas')}
-          />
-          
-          {/* Margem Real — visível inline */}
-          <MargemRealCard
-            contasFluxo={data.contasFluxo || []}
-            faturamentoMes={data.faturamentoMes}
-          />
-          
-          {/* Caixa Contratado — leitura */}
-          <CaixaContratadoCard 
-            aReceberPorConta={totaisContas.aReceberPorConta}
-            total={totaisContas.aReceber}
-          />
-          
-          {/* Entrada Média Real — leitura */}
-          <EntradaMediaRealChart
-            contasFluxo={data.contasFluxo || []}
-            custoFixoMensal={totalCustosFixos}
-            marketingEstrutural={parseCurrency(data.marketingEstrutural || data.marketingBase || '')}
-            adsBase={parseCurrency(data.adsBase || '')}
-          />
-          
-          {/* Meta Vendas — leitura */}
-          <MetaVendasCard contas={data.contasFluxo || []} />
-          
-          {/* Meta Mensal — leitura */}
-          <MetaMensalCard
-            contasFluxo={data.contasFluxo || []}
-            custoFixoMensal={formatCurrency(totalCustosFixos).replace('R$', '').trim()}
-            marketingEstrutural={data.marketingEstrutural || data.marketingBase || ''}
-            adsBase={data.adsBase}
-            faturamentoCanais={data.faturamentoCanais}
-            faturamentoMes={data.faturamentoMes}
-            fornecedores={data.fornecedores || []}
-          />
-          
-          {/* Projeção Diária — collapse */}
-          <Collapsible open={openSections.fluxoDiario} onOpenChange={() => toggleSection('fluxoDiario')}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="w-full justify-between h-9 px-3 hover:bg-muted/50 text-sm">
-                <span>📈 Projeção Diária (30d)</span>
-                {openSections.fluxoDiario ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2">
-              <FluxoCaixaDiarioChart
-                contasFluxo={data.contasFluxo || []}
-                caixaAtual={parseCurrency(data.caixaAtual || '')}
-                caixaMinimo={caixaMinimo}
-              />
-            </CollapsibleContent>
-          </Collapsible>
-          
-          {/* DRE — collapse */}
-          <DRESection
-            lancamentos={data.contasFluxo || []}
-            fornecedores={data.fornecedores || []}
-            isOpen={openSections.dre || false}
-            onToggle={() => toggleSection('dre')}
-          />
-          
-          {/* Snapshots Mensais — collapse */}
-          <SnapshotsMensais snapshots={data.snapshotsMensais || []} />
-        </CardContent>
-      </Card>
-      
-      {/* ================================================================ */}
-      {/* BADGE CONCILIAÇÃO PENDENTE (entre bloco 2 e 3)                   */}
-      {/* ================================================================ */}
-      
-      {conciliacaoPendente && (
-        <div className="flex justify-center">
-          <Badge 
-            variant="outline"
-            className="cursor-pointer hover:bg-muted/50 transition-colors px-4 py-2 text-sm gap-2"
-            onClick={() => setConciliacaoOpen(true)}
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5" />
-            Conciliação pendente
-          </Badge>
-        </div>
-      )}
-      
-      {/* Drawer da Conciliação */}
-      <Drawer open={conciliacaoOpen} onOpenChange={setConciliacaoOpen}>
-        <DrawerContent className="max-h-[90vh]">
-          <DrawerHeader>
-            <DrawerTitle>Conciliação Bancária</DrawerTitle>
-          </DrawerHeader>
-          <div className="px-4 pb-6 overflow-y-auto">
-            <ConciliacaoSection
-              contasExistentes={data.contasFluxo || []}
-              fornecedores={data.fornecedores || []}
-              mapeamentos={data.mapeamentosDescricao || []}
-              onAddMapeamento={(novoMapeamento: MapeamentoDescricaoFornecedor) => {
-                onUpdateFinanceiroData({
-                  mapeamentosDescricao: [...(data.mapeamentosDescricao || []), novoMapeamento],
-                });
-              }}
-              onConciliar={handleConciliar}
-              onCreateFornecedor={(novoFornecedor) => {
-                const novoId = crypto.randomUUID();
-                const fornecedorComId: Fornecedor = {
-                  ...novoFornecedor,
-                  id: novoId,
-                };
-                onUpdateFinanceiroData({
-                  fornecedores: [...(data.fornecedores || []), fornecedorComId],
-                });
-                toast.success(`Fornecedor "${novoFornecedor.nome}" criado!`);
-                return novoId;
-              }}
-              onUpdateFornecedor={(id, updates) => {
-                onUpdateFinanceiroData({
-                  fornecedores: (data.fornecedores || []).map(f => 
-                    f.id === id ? { ...f, ...updates } : f
-                  ),
-                });
-              }}
-              isOpen={true}
-              onToggle={() => setConciliacaoOpen(false)}
-            />
-          </div>
-        </DrawerContent>
-      </Drawer>
-      
-      {/* ================================================================ */}
-      {/* BLOCO 3 — BASE: AÇÕES (INPUTS)                                   */}
-      {/* ================================================================ */}
-      
-      <Card className="border-l-4 border-l-slate-500">
-        <CardContent className="p-4 space-y-4">
-          <SectionHeader 
-            icon="✏️" 
-            title="AÇÕES"
-            subtitle="(atualizar somente quando necessário)"
-          />
-          
-          {/* 1. Caixa Atual (INPUT principal diário) */}
+          {/* 2.1 Caixa Atual (INPUT principal) */}
           <div id="ritmo-caixa" className="scroll-mt-20 space-y-1.5">
             <label className="text-sm font-medium flex items-center gap-1.5">
               ✏️ Caixa Atual
@@ -543,7 +319,7 @@ export function FinanceiroMode({
             <p className="text-xs text-muted-foreground">Atualizar HOJE</p>
           </div>
           
-          {/* 2. Contas Bancárias [collapse] */}
+          {/* 2.2 Contas Bancárias [collapse] */}
           <Collapsible open={openSections.contas} onOpenChange={() => toggleSection('contas')}>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between h-10 px-3 hover:bg-muted/50">
@@ -755,7 +531,7 @@ export function FinanceiroMode({
             </CollapsibleContent>
           </Collapsible>
           
-          {/* 3. Contas a Pagar/Receber [collapse] */}
+          {/* 2.3 Contas a Pagar/Receber [collapse] */}
           <div id="ritmo-contas-hoje" className="scroll-mt-20">
             <ContasFluxoSection
               contas={data.contasFluxo || []}
@@ -770,62 +546,155 @@ export function FinanceiroMode({
               onToggle={() => toggleSection('fluxoContas')}
             />
           </div>
+        </CardContent>
+      </Card>
+      
+      {/* ========== 3. CAIXA CONTRATADO ========== */}
+      <CaixaContratadoCard 
+        aReceberPorConta={totaisContas.aReceberPorConta}
+        total={totaisContas.aReceber}
+      />
+      
+      {/* ========== 4. PROJEÇÃO — ESTIMADO ========== */}
+      <Card className="border-l-4 border-l-purple-500">
+        <CardContent className="p-4 space-y-4">
+          <SectionHeader 
+            icon="🔮" 
+            title="PROJEÇÃO — ESTIMADO"
+            subtitle="(depende de premissas)"
+          />
           
-          {/* 4. Premissas */}
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="w-full justify-between h-9 px-3 hover:bg-muted/50 text-sm">
-                <span>⚙️ Premissas (Faturamento 30d, Margem, Ads)</span>
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2 space-y-3">
-              <div id="ritmo-premissas" className="space-y-1.5 scroll-mt-20">
-                <label className="text-sm font-medium flex items-center gap-1.5">
-                  ⚙️ Faturamento esperado (30d)
-                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                </label>
+          {/* 4.1 Premissas */}
+          <div className="space-y-3">
+            <div id="ritmo-premissas" className="space-y-1.5 scroll-mt-20">
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                ⚙️ Faturamento esperado (30d)
+                <Info className="h-3.5 w-3.5 text-muted-foreground" />
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+                <Input
+                  placeholder="0,00"
+                  value={data.faturamentoEsperado30d}
+                  onChange={(e) => onUpdateFinanceiroData({ faturamentoEsperado30d: e.target.value })}
+                  className="h-10 text-base pl-10 text-right"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">⚙️ Margem operacional</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+                  <Input
+                    placeholder="40"
+                    value="40"
+                    readOnly
+                    className="h-8 text-sm text-right bg-muted/50"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">⚙️ Ads base</label>
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
                   <Input
                     placeholder="0,00"
-                    value={data.faturamentoEsperado30d}
-                    onChange={(e) => onUpdateFinanceiroData({ faturamentoEsperado30d: e.target.value })}
-                    className="h-10 text-base pl-10 text-right"
+                    value={data.adsBase}
+                    onChange={(e) => onUpdateFinanceiroData({ adsBase: e.target.value })}
+                    className="h-8 text-sm pl-7 text-right"
                   />
                 </div>
               </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground">⚙️ Margem operacional</label>
-                  <div className="relative">
-                    <Input
-                      placeholder="40"
-                      value="40"
-                      readOnly
-                      className="h-8 text-sm text-right bg-muted/50"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground">⚙️ Ads base</label>
-                  <div className="relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                    <Input
-                      placeholder="0,00"
-                      value={data.adsBase}
-                      onChange={(e) => onUpdateFinanceiroData({ adsBase: e.target.value })}
-                      className="h-8 text-sm pl-7 text-right"
-                    />
-                  </div>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+            </div>
+          </div>
           
-          {/* 5. Custos Fixos */}
+          {/* 4.2 Fluxo de Caixa 30d */}
+          <FluxoCaixaChart
+            dados={fluxoCaixa.dados}
+            caixaMinimo={caixaMinimo}
+            modoProjecao={fluxoCaixa.modoProjecao}
+            numContas={fluxoCaixa.numContas}
+            fonteHistorico={fluxoCaixa.fonteHistorico}
+            semanasHistorico={fluxoCaixa.semanasHistorico}
+            onAddConta={() => toggleSection('fluxoContas')}
+          />
+          
+          {/* 4.3 Projeção Diária */}
+          <FluxoCaixaDiarioChart
+            contasFluxo={data.contasFluxo || []}
+            caixaAtual={parseCurrency(data.caixaAtual || '')}
+            caixaMinimo={caixaMinimo}
+          />
+        </CardContent>
+      </Card>
+      
+      {/* ========== 5. METAS — CONSEQUÊNCIA ========== */}
+      <Card className="border-l-4 border-l-amber-500">
+        <CardContent className="p-4 space-y-4">
+          <SectionHeader 
+            icon="🎯" 
+            title="METAS — CONSEQUÊNCIA"
+            subtitle="(calculadas, não opinião)"
+          />
+          
+          <MetaVendasCard contas={data.contasFluxo || []} />
+          
+          <EntradaMediaRealChart
+            contasFluxo={data.contasFluxo || []}
+            custoFixoMensal={totalCustosFixos}
+            marketingEstrutural={parseCurrency(data.marketingEstrutural || data.marketingBase || '')}
+            adsBase={parseCurrency(data.adsBase || '')}
+          />
+          
+          <MetaMensalCard
+            contasFluxo={data.contasFluxo || []}
+            custoFixoMensal={formatCurrency(totalCustosFixos).replace('R$', '').trim()}
+            marketingEstrutural={data.marketingEstrutural || data.marketingBase || ''}
+            adsBase={data.adsBase}
+            faturamentoCanais={data.faturamentoCanais}
+            faturamentoMes={data.faturamentoMes}
+            fornecedores={data.fornecedores || []}
+          />
+        </CardContent>
+      </Card>
+      
+      {/* ========== 6. ANÁLISE ========== */}
+      <Card className="border-l-4 border-l-cyan-500">
+        <CardContent className="p-4 space-y-4">
+          <SectionHeader 
+            icon="📈" 
+            title="ANÁLISE"
+            subtitle="(entender, não agir)"
+          />
+          
+          <DRESection
+            lancamentos={data.contasFluxo || []}
+            fornecedores={data.fornecedores || []}
+            isOpen={openSections.dre || false}
+            onToggle={() => toggleSection('dre')}
+          />
+          
+          <MargemRealCard
+            contasFluxo={data.contasFluxo || []}
+            faturamentoMes={data.faturamentoMes}
+          />
+          
+          <SnapshotsMensais snapshots={data.snapshotsMensais || []} />
+        </CardContent>
+      </Card>
+      
+      {/* ========== 7. PARÂMETROS DO SISTEMA ========== */}
+      <Card className="border-l-4 border-l-slate-500">
+        <CardContent className="p-4 space-y-4">
+          <SectionHeader 
+            icon="⚙️" 
+            title="PARÂMETROS DO SISTEMA"
+            subtitle="(alterar aqui muda tudo acima)"
+          />
+          
+          {/* 7.1 Custos Fixos */}
           <Collapsible open={openSections.custosFixos} onOpenChange={() => toggleSection('custosFixos')}>
             <CustosFixosCard
               data={data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS}
@@ -833,7 +702,7 @@ export function FinanceiroMode({
             />
           </Collapsible>
           
-          {/* 6. Gerar Contas Fixas do Mês */}
+          {/* 7.2 Gerar Contas Fixas do Mês */}
           <GerarContasFixasButton
             custosFixos={data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS}
             contasExistentes={data.contasFluxo || []}
@@ -853,7 +722,100 @@ export function FinanceiroMode({
             onToggle={() => toggleSection('gerarContas')}
           />
           
-          {/* 7. Fornecedores Cadastrados */}
+          {/* 7.3 Conciliação Bancária */}
+          <div id="ritmo-conciliacao" className="scroll-mt-20">
+            <ConciliacaoSection
+              contasExistentes={data.contasFluxo || []}
+              fornecedores={data.fornecedores || []}
+              mapeamentos={data.mapeamentosDescricao || []}
+              onAddMapeamento={(novoMapeamento: MapeamentoDescricaoFornecedor) => {
+                onUpdateFinanceiroData({
+                  mapeamentosDescricao: [...(data.mapeamentosDescricao || []), novoMapeamento],
+                });
+              }}
+              onConciliar={(result) => {
+                const contasAtualizadas = (data.contasFluxo || []).map(c => {
+                   const conciliado = result.conciliados.find(cc => cc.id === c.id);
+                   if (conciliado) {
+                     return { 
+                       ...c, 
+                       pago: true, 
+                       conciliado: true,
+                       ...(conciliado.dataPagamento ? { dataPagamento: conciliado.dataPagamento } : {}),
+                       ...(conciliado.lancamentoConciliadoId ? { lancamentoConciliadoId: conciliado.lancamentoConciliadoId } : {}),
+                     };
+                   }
+                   return c;
+                });
+                
+                const novasContas: ContaFluxo[] = result.novos.map(n => ({
+                  ...n,
+                  id: crypto.randomUUID(),
+                }));
+                
+                const todasContas = [...contasAtualizadas, ...novasContas];
+                
+                // Gerar snapshot mensal automático
+                const hoje = new Date();
+                const mesAtual = format(hoje, 'yyyy-MM');
+                const TIPOS_ENTRADA_SNAP = ['receber', 'resgate'];
+                const TIPOS_SAIDA_SNAP = ['pagar', 'aplicacao', 'cartao'];
+                
+                let totalEntradas = 0;
+                let totalSaidas = 0;
+                for (const c of todasContas) {
+                  if (!c.pago) continue;
+                  if (!c.dataVencimento?.startsWith(mesAtual)) continue;
+                  if (['intercompany'].includes(c.tipo)) continue;
+                  const valor = parseCurrency(c.valor?.toString() || '');
+                  if (TIPOS_ENTRADA_SNAP.includes(c.tipo)) totalEntradas += valor;
+                  else if (TIPOS_SAIDA_SNAP.includes(c.tipo)) totalSaidas += valor;
+                }
+                
+                const snapExistentes = (data.snapshotsMensais || []).filter(s => s.mesAno !== mesAtual);
+                const novoSnapshot = {
+                  mesAno: mesAtual,
+                  entradas: totalEntradas,
+                  saidas: totalSaidas,
+                  saldo: totalEntradas - totalSaidas,
+                  geradoEm: new Date().toISOString(),
+                };
+                
+                onUpdateFinanceiroData({
+                  contasFluxo: todasContas,
+                  snapshotsMensais: [...snapExistentes, novoSnapshot],
+                });
+                
+                if (result.conciliados.length > 0 || result.novos.length > 0) {
+                  onUpdateTimestamp?.('lastConciliacaoCheck');
+                  flushSave?.();
+                }
+              }}
+              onCreateFornecedor={(novoFornecedor) => {
+                const novoId = crypto.randomUUID();
+                const fornecedorComId: Fornecedor = {
+                  ...novoFornecedor,
+                  id: novoId,
+                };
+                onUpdateFinanceiroData({
+                  fornecedores: [...(data.fornecedores || []), fornecedorComId],
+                });
+                toast.success(`Fornecedor "${novoFornecedor.nome}" criado!`);
+                return novoId; // Retorna ID para seleção automática
+              }}
+              onUpdateFornecedor={(id, updates) => {
+                onUpdateFinanceiroData({
+                  fornecedores: (data.fornecedores || []).map(f => 
+                    f.id === id ? { ...f, ...updates } : f
+                  ),
+                });
+              }}
+              isOpen={openSections.conciliacao || false}
+              onToggle={() => toggleSection('conciliacao')}
+            />
+          </div>
+          
+          {/* 7.4 Fornecedores Cadastrados */}
           <FornecedoresManager
             fornecedores={data.fornecedores || []}
             contasFluxo={data.contasFluxo || []}
@@ -881,7 +843,7 @@ export function FinanceiroMode({
         </CardContent>
       </Card>
       
-      {/* ========== CHECKLIST FINAL — RITMO ========== */}
+      {/* ========== 8. CHECKLIST FINAL — RITMO ========== */}
       <RitmoChecklist
         checklistDiario={data.checklistDiario}
         checklistSemanal={data.checklistSemanal}
