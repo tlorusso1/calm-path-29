@@ -15,18 +15,35 @@ import { parseISO, differenceInDays, format, startOfWeek, endOfWeek } from 'date
 import { matchFornecedor } from '@/utils/fornecedoresParser';
 
 // Auto-atribuir fornecedor para receitas baseado na origem bancária
+// Retorna dados hardcoded de categoria/modalidade para não depender do CSV estar correto
 function autoAtribuirFornecedorReceita(
   descricao: string,
   fornecedores: Fornecedor[]
-): Fornecedor | null {
+): { fornecedorId?: string; categoria: string; modalidade: string; grupo: string } | null {
   const desc = descricao.toUpperCase();
 
   if (desc.includes('ITAUBBA') || desc.includes('ITAU BBA')) {
-    return fornecedores.find(f => f.nome === 'NICE FOODS ECOMMERCE LTDA') || null;
+    const f = fornecedores.find(f => 
+      f.nome === 'NICE FOODS ECOMMERCE LTDA' && f.modalidade === 'RECEITAS'
+    );
+    return {
+      fornecedorId: f?.id,
+      categoria: 'Clientes Nacionais (B2C)',
+      modalidade: 'RECEITAS',
+      grupo: 'Receitas Diretas',
+    };
   }
 
   if (desc.includes('ITAU') || desc.includes('CONTA CORRENTE')) {
-    return fornecedores.find(f => f.nome === 'NICE FOODS LTDA') || null;
+    const f = fornecedores.find(f => 
+      f.nome === 'NICE FOODS LTDA' && f.modalidade === 'RECEITAS'
+    );
+    return {
+      fornecedorId: f?.id,
+      categoria: 'Clientes Nacionais (B2B)',
+      modalidade: 'RECEITAS',
+      grupo: 'Receitas Diretas',
+    };
   }
 
   return null;
@@ -475,12 +492,12 @@ export function ConciliacaoSection({
           });
         } else {
           // Para receitas sem match, tentar auto-atribuir por origem bancária
-          const fornecedorAutoReceita = lanc.tipo === 'receber' 
+          const autoReceita = lanc.tipo === 'receber' 
             ? autoAtribuirFornecedorReceita(lanc.descricao, fornecedores) 
             : null;
-          const fornecedorMatch = fornecedorAutoReceita || matchFornecedor(lanc.descricao, fornecedores);
           
-          if (fornecedorMatch) {
+          if (autoReceita) {
+            // Auto-classificação de receita por origem bancária (hardcoded, não depende do CSV)
             novos.push({
               tipo: lanc.tipo,
               subtipo: lanc.subtipo,
@@ -488,25 +505,41 @@ export function ConciliacaoSection({
               valor: lanc.valor,
               dataVencimento: lanc.dataVencimento,
               pago: true,
-              fornecedorId: fornecedorMatch.id,
-              categoria: fornecedorMatch.categoria,
+              fornecedorId: autoReceita.fornecedorId,
+              categoria: autoReceita.categoria,
               conciliado: true,
-            });
-          } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
-            paraRevisar.push({
-              ...lanc,
-              needsReview: true,
             });
           } else {
-            novos.push({
-              tipo: lanc.tipo,
-              subtipo: lanc.subtipo,
-              descricao: lanc.descricao,
-              valor: lanc.valor,
-              dataVencimento: lanc.dataVencimento,
-              pago: true,
-              conciliado: true,
-            });
+            const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
+            
+            if (fornecedorMatch) {
+              novos.push({
+                tipo: lanc.tipo,
+                subtipo: lanc.subtipo,
+                descricao: lanc.descricao,
+                valor: lanc.valor,
+                dataVencimento: lanc.dataVencimento,
+                pago: true,
+                fornecedorId: fornecedorMatch.id,
+                categoria: fornecedorMatch.categoria,
+                conciliado: true,
+              });
+            } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
+              paraRevisar.push({
+                ...lanc,
+                needsReview: true,
+              });
+            } else {
+              novos.push({
+                tipo: lanc.tipo,
+                subtipo: lanc.subtipo,
+                descricao: lanc.descricao,
+                valor: lanc.valor,
+                dataVencimento: lanc.dataVencimento,
+                pago: true,
+                conciliado: true,
+              });
+            }
           }
         }
       }

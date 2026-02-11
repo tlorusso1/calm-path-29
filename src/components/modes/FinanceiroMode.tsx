@@ -29,6 +29,7 @@ import { RitmoContextualAlert } from '@/components/RitmoContextualAlert';
 import { FornecedoresManager } from '@/components/financeiro/FornecedoresManager';
 import { GerarContasFixasButton } from '@/components/financeiro/GerarContasFixasButton';
 import { AlertaCaixaInsuficiente } from '@/components/financeiro/AlertaCaixaInsuficiente';
+import { OrcadoRealizadoSection } from '@/components/financeiro/OrcadoRealizadoSection';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 import { DEFAULT_CUSTOS_FIXOS, calcularTotalCustosFixos, DEFAULT_EMPRESTIMOS } from '@/data/custos-fixos-default';
@@ -62,9 +63,10 @@ export function FinanceiroMode({
     // Análise
     dre: false,
     margem: false,
+    orcadoRealizado: false,
     // Configurações
     custosFixos: false,
-    gerarContas: false, // NOVO: Seção de geração automática
+    gerarContas: false,
     conciliacao: false,
     fornecedores: false,
   });
@@ -674,6 +676,13 @@ export function FinanceiroMode({
             fornecedores={data.fornecedores || []}
             isOpen={openSections.dre || false}
             onToggle={() => toggleSection('dre')}
+          />
+          
+          <OrcadoRealizadoSection
+            contasFluxo={data.contasFluxo || []}
+            fornecedores={data.fornecedores || []}
+            isOpen={openSections.orcadoRealizado || false}
+            onToggle={() => toggleSection('orcadoRealizado')}
           />
           
           <MargemRealCard
