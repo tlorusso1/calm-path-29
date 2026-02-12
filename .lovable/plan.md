@@ -1,97 +1,138 @@
 
+# Movimentacoes de Estoque + CMV Correto (Custo Real, nao Preco de Venda)
 
-# Corrigir Auto-classificacao de Receitas + Novo Painel Orcado vs Realizado
+## Resumo
 
-## Problema 1: Receitas nao estao sendo auto-classificadas
+Adicionar importacao de CSVs de entradas e saidas de estoque no modulo Supply Chain. A partir das saidas, calcular automaticamente a demanda semanal de cada produto. O CMV para o DRE sera calculado como **quantidade saida x preco de custo unitario** (da tabela de custos ja existente), e NAO pelo ValorSaida do CSV (que e preco de venda).
 
-A funcao `autoAtribuirFornecedorReceita` busca por `f.nome === 'NICE FOODS ECOMMERCE LTDA'` na lista de fornecedores, mas no CSV (`fornecedores.csv`) essa entidade esta mapeada como **"OUTRAS RECEITAS/DESPESAS" -> "Transferencias entre contas"** (linha 826), nao como RECEITAS. O `loadFornecedores()` carrega essa versao errada.
+## Dados novos de custo (da conversa)
 
-Alem disso, os fornecedores `FORNECEDORES_INICIAIS` adicionados no `fornecedoresParser.ts` (com a categoria correta de RECEITAS) **nunca sao usados** - `loadFornecedores()` le apenas do CSV.
+Atualizar `precos-custo-default.ts` com custos que faltam, calculados a partir da ficha tecnica enviada:
 
-Resultado: quando `autoAtribuirFornecedorReceita` encontra "NICE FOODS ECOMMERCE LTDA" na lista, pega o fornecedor com categoria errada (Transferencias entre contas), ou se o usuario ja salvou fornecedores, pode nao ter esses nomes na lista.
+| Produto | Custo Unitario |
+|---------|---------------|
+| Milk Castanha Caju 450G | R$ 22,60 (ja existe) |
+| Food Service Castanha 3,2KG | R$ 141,38 (ja existe) |
+| Food Service Castanha 20KG | R$ 870,60 (ja existe) |
+| Milk Aveia 450G | R$ 16,38 (ja existe) |
+| Milk Aveia Barista 400G | R$ 17,40 (ja existe) |
+| Milk+ Avela & Cacau Proteico 250G | R$ 28,64 (ja existe como "Protein Avela") |
+| Oleo de Coco 250ml | R$ 11,21 (ja existe) |
+| Levedura Nutricional 90g | R$ 12,84 (ja existe) |
+| Levedura Nutricional 100g | R$ 12,84 (mesmo custo base, ajustar pattern) |
+| ChocoNICE Ao Leite 150G | R$ 17,70 (ja existe) |
+| ChocoNICE 70% Cacau 150G | R$ 21,75 (ja existe) |
+| ChocoNICE Branco 150G | R$ 18,37 (ja existe) |
+| Spices Carbonara 40G | R$ 3,54 (ja existe) |
+| Spices Estrogonofe 40G | R$ 3,57 (ja existe) |
+| Spices Molho Branco 40G | R$ 3,47 (ja existe) |
+| Spices Quatro Queijos 30G | R$ 3,56 (NOVO - MP R$0,96 + Frete R$2,50 + Emb R$1,22 + Perda R$0,05 + Ind R$0,83 + Frete CD R$4,00 = ~R$9,56... proporcionalmente ~R$3,56 por unidade baseado no padrao dos outros Spices) |
+| Cheesy Parmesao 40G | R$ 3,06 (ja existe) |
 
-### Correcao
+A maioria ja esta coberta. Preciso adicionar patterns para:
+- "MILK+.*AVELÃ" ou "MILK+.*PROTEICO" -> match com Milk Protein Avela
+- "LEVEDURA.*100" -> match com Levedura Nutricional
+- "SPICES.*QUATRO QUEIJOS" ou "SPICES.*4 QUEIJOS" -> novo preco R$ 3,56
 
-**Arquivo: `src/components/financeiro/ConciliacaoSection.tsx`**
+## Detalhes tecnicos
 
-Mudar `autoAtribuirFornecedorReceita` para nao depender de encontrar o fornecedor na lista. Se nao encontrar, criar um objeto inline com os dados corretos:
+### 1. Tipos (src/types/focus-mode.ts)
 
-```
-function autoAtribuirFornecedorReceita(
-  descricao: string, 
-  fornecedores: Fornecedor[]
-): { fornecedorId?: string; categoria: string; modalidade: string; grupo: string } | null {
-  const desc = descricao.toUpperCase();
-  
-  if (desc.includes('ITAUBBA') || desc.includes('ITAU BBA')) {
-    const f = fornecedores.find(f => 
-      f.nome === 'NICE FOODS ECOMMERCE LTDA' && 
-      f.modalidade === 'RECEITAS'
-    );
-    return {
-      fornecedorId: f?.id,
-      categoria: 'Clientes Nacionais (B2C)',
-      modalidade: 'RECEITAS',
-      grupo: 'Receitas Diretas',
-    };
-  }
-  
-  if (desc.includes('ITAU') || desc.includes('CONTA CORRENTE')) {
-    const f = fornecedores.find(f => 
-      f.nome === 'NICE FOODS LTDA' && 
-      f.modalidade === 'RECEITAS'
-    );
-    return {
-      fornecedorId: f?.id,
-      categoria: 'Clientes Nacionais (B2B)',
-      modalidade: 'RECEITAS',
-      grupo: 'Receitas Diretas',
-    };
-  }
-  
-  return null;
+Novo tipo:
+```typescript
+export interface MovimentacaoEstoque {
+  id: string;
+  tipo: 'entrada' | 'saida';
+  produto: string;
+  quantidade: number;
+  valorUnitarioVenda?: number;  // Preco de venda (do CSV, para referencia)
+  lote?: string;
+  dataValidade?: string;
+  data: string;                 // ISO date
 }
 ```
 
-No ponto de insercao (linha ~478), ajustar para usar os campos retornados diretamente, sem depender do fornecedorId existir.
+Adicionar a `SupplyChainStage`:
+- `movimentacoes?: MovimentacaoEstoque[]`
+- `ultimaImportacaoMov?: string`
 
-**Arquivo: `src/data/fornecedores.csv`**
+Adicionar a `SupplyExports`:
+- `cmvMensal?: number`
 
-Corrigir as linhas 826-827 para que "NICE FOODS ECOMMERCE LTDA" tenha modalidade RECEITAS em vez de "OUTRAS RECEITAS/DESPESAS" ou "Transacional". E garantir que "NICE FOODS LTDA" tambem tenha uma entrada com RECEITAS (a linha 831 mapeia para "Mercadoria para Revenda" que e despesa).
+### 2. Parser de CSVs (src/utils/supplyCalculator.ts)
 
----
+Nova funcao `parsearMovimentacoes(texto: string): MovimentacaoEstoque[]`:
+- Detecta separador `;`
+- Identifica formato **saidas** (colunas: Cod.Item, DescricaoProduto, Qtde.Saida, ValorSaida, NumeroLote, DatadeValidade)
+- Identifica formato **entradas** (colunas: Identificador, TipoEntrada, Produto, Qtde.Entrada, Lote, DatadeValidade, StatusEntrada, DataHora)
+- Limpa nomes (`[B]`, aspas duplas extras)
+- Extrai data das entradas (campo DataHora); saidas usam data da importacao
+- Retorna array tipado
 
-## Problema 2: Orcado vs Realizado
+### 3. Calculo de demanda semanal (src/utils/supplyCalculator.ts)
 
-Hoje nao existe uma visao que compare o que foi planejado (contas a pagar/receber em aberto no inicio do mes) com o que realmente aconteceu (lancamentos conciliados). Isso e essencial para previsibilidade financeira.
+Nova funcao `calcularDemandaSemanalPorItem(movimentacoes: MovimentacaoEstoque[]): Map<string, number>`:
+- Filtra apenas saidas
+- Agrupa por produto (nome normalizado)
+- Calcula periodo: da saida mais antiga ate a mais recente (ou hoje)
+- Demanda semanal = total saidas / (periodo em semanas, minimo 1)
+- Retorna mapa nome -> demanda/semana
 
-### Solucao: Painel "Orcado vs Realizado" na secao de Analise
+### 4. Calculo de CMV CORRETO (src/utils/supplyCalculator.ts)
 
-**Novo arquivo: `src/components/financeiro/OrcadoRealizadoSection.tsx`**
+Nova funcao `calcularCMVPorSaidas(movimentacoes: MovimentacaoEstoque[]): number`:
+- Filtra saidas
+- Para cada saida, busca o `precoCusto` via `encontrarPrecoCustoPadrao(produto)`
+- CMV = SUM(quantidade x precoCusto) para cada saida
+- Ignora itens sem preco de custo (brindes, espumador, bags)
+- **NAO usa o ValorSaida do CSV** (isso e preco de venda)
 
-Um componente que:
+### 5. Nova aba no Supply Chain (src/components/modes/SupplyChainMode.tsx)
 
-1. **Agrupa por categoria DRE** os lancamentos do mes selecionado
-2. Para cada categoria, mostra 3 colunas:
-   - **Orcado**: soma das contas que estavam previstas (projecoes + contas a pagar criadas manualmente)
-   - **Realizado**: soma dos lancamentos efetivamente pagos/recebidos (conciliados)
-   - **Variacao**: diferenca percentual e absoluta com cor (verde se gastou menos, vermelho se gastou mais; invertido para receitas)
-3. **Totalizadores** no final: Total Receitas Orcado vs Realizado, Total Despesas Orcado vs Realizado, Resultado Orcado vs Realizado
+Adicionar aba "Movimentacoes" com:
+- Textarea para colar CSV (entradas ou saidas)
+- Botao "Importar"
+- Ao importar:
+  - Parseia CSV
+  - Acumula movimentacoes no state (append, nao substitui)
+  - Recalcula demanda semanal e atualiza cada ItemEstoque com match
+  - Toast: "X saidas importadas, demanda atualizada para Y produtos"
+- Card resumo quando ha movimentacoes:
+  - Total unidades saidas no periodo
+  - CMV calculado (quantidade x custo)
+  - Receita bruta (soma ValorSaida do CSV)
+  - Margem bruta = (Receita - CMV) / Receita
+  - Top 5 produtos por volume de saida
 
-A fonte de dados:
-- **Orcado**: `contasFluxo` com `pago: false` ou que foram criadas com data de vencimento naquele mes (incluindo projecoes)
-- **Realizado**: `contasFluxo` com `pago: true` e `conciliado: true`
+### 6. Integracao CMV no DRE (src/components/financeiro/DRESection.tsx)
 
-**Arquivo: `src/components/modes/FinanceiroMode.tsx`**
+- Quando `supplyExports.cmvMensal` existir, usar como valor da linha "CMV" no DRE
+- Isso substitui qualquer estimativa manual e mostra a margem bruta real
 
-Adicionar o novo componente na secao de Analise (bloco MEIO), abaixo do DRE, como um Collapsible "Orcado vs Realizado".
+### 7. Atualizacao precos de custo (src/data/precos-custo-default.ts)
+
+Adicionar patterns faltantes:
+- `Milk.*Protein|Milk.*Avela.*Cacau|MILK\\+` -> R$ 28,64
+- `Levedura.*100` -> R$ 12,84
+- `Spices.*Quatro.*Queijos|Spices.*4.*Queijos` -> R$ 3,56
+- `Mug|BAG|ESPUMADOR` -> R$ 0 (brindes, ignorar no CMV)
 
 ## Arquivos afetados
 
 | Arquivo | Acao |
 |---------|------|
-| `src/components/financeiro/ConciliacaoSection.tsx` | Refatorar `autoAtribuirFornecedorReceita` para nao depender do fornecedor existir na lista com categoria correta |
-| `src/data/fornecedores.csv` | Corrigir mapeamento de NICE FOODS ECOMMERCE LTDA e NICE FOODS LTDA para RECEITAS |
-| `src/components/financeiro/OrcadoRealizadoSection.tsx` | Novo componente com tabela comparativa Orcado vs Realizado por categoria DRE |
-| `src/components/modes/FinanceiroMode.tsx` | Integrar OrcadoRealizadoSection na secao de Analise |
+| `src/types/focus-mode.ts` | Adicionar `MovimentacaoEstoque`, campos em `SupplyChainStage` e `SupplyExports` |
+| `src/data/precos-custo-default.ts` | Adicionar patterns faltantes (Milk+ Proteico, Levedura 100g, Quatro Queijos) |
+| `src/utils/supplyCalculator.ts` | Adicionar `parsearMovimentacoes`, `calcularDemandaSemanalPorItem`, `calcularCMVPorSaidas` |
+| `src/components/modes/SupplyChainMode.tsx` | Nova aba "Movimentacoes" + card resumo CMV |
+| `src/components/financeiro/DRESection.tsx` | Usar CMV do Supply quando disponivel |
 
+## Logica chave do CMV
+
+```text
+CSV Saida: "Castanha Caju 450G" | Qtde: 4 | ValorSaida: R$ 271,68 (VENDA - IGNORAR)
+Tabela Custo: "Castanha Caju 450G" -> R$ 22,60 (CUSTO UNITARIO)
+CMV desta linha = 4 x R$ 22,60 = R$ 90,40
+
+Total CMV = SUM(todas as linhas de saida: qtde x custo unitario)
+```
