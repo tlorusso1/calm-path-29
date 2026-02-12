@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, ScoreNegocio, ItemEstoque, UserRitmoExpectativa, RitmoTimestamps, WeeklySnapshot } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, MarketingStage, SupplyChainStage, BacklogStage, BacklogTarefa, PreReuniaoGeralStage, ReuniaoAdsStage, ReuniaoAdsAcao, FinanceiroExports, MarketingExports, SupplyExports, ScoreNegocio, ItemEstoque, UserRitmoExpectativa, RitmoTimestamps, WeeklySnapshot } from '@/types/focus-mode';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FinanceiroMode } from '@/components/modes/FinanceiroMode';
@@ -40,6 +40,7 @@ export interface ModeContentProps {
   onRemoveSupplyItem?: (id: string) => void;
   // Pre-Reunião Geral
   financeiroExports?: FinanceiroExports;
+  supplyExports?: SupplyExports | null;
   scoreNegocio?: ScoreNegocio;
   onUpdatePreReuniaoGeralData?: (data: Partial<PreReuniaoGeralStage>) => void;
   // Reunião Ads
@@ -83,6 +84,7 @@ export function ModeContent({
   onUpdateSupplyItem,
   onRemoveSupplyItem,
   financeiroExports,
+  supplyExports,
   scoreNegocio,
   onUpdatePreReuniaoGeralData,
   prioridadeSemana,
@@ -112,6 +114,7 @@ export function ModeContent({
             ritmoExpectativa={ritmoExpectativa}
             onUpdateTimestamp={onUpdateTimestamp}
             flushSave={flushSave}
+            cmvSupply={supplyExports?.cmvMensal}
           />
         );
       case 'marketing':

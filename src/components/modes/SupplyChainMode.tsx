@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { FocusMode, SupplyChainStage, ItemEstoque, TipoEstoque, DEFAULT_SUPPLYCHAIN_DATA } from '@/types/focus-mode';
+import { FocusMode, SupplyChainStage, ItemEstoque, TipoEstoque, MovimentacaoEstoque, DEFAULT_SUPPLYCHAIN_DATA } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { DatePasteInput } from '@/components/ui/date-paste-input';
@@ -21,7 +21,9 @@ import {
   Clock,
   FileText,
   Truck,
-  Check
+  Check,
+  ArrowDownUp,
+  TrendingUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -31,6 +33,13 @@ import {
   calcularDiasAteVencimento,
   parsearListaEstoque 
 } from '@/utils/supplyCalculator';
+import {
+  parsearMovimentacoes,
+  calcularDemandaSemanalPorItem,
+  calcularCMVPorSaidas,
+  calcularReceitaBruta,
+  topProdutosPorSaida,
+} from '@/utils/movimentacoesParser';
 
 interface SupplyChainModeProps {
   mode: FocusMode;
@@ -59,6 +68,7 @@ export function SupplyChainMode({
     precoCusto: '',
   });
   const [textoColado, setTextoColado] = useState('');
+  const [textoMovimentacoes, setTextoMovimentacoes] = useState('');
   const [tabAtiva, setTabAtiva] = useState('itens');
   const [mostrarRevisaoValidade, setMostrarRevisaoValidade] = useState(false);
   const [itensParaRevisar, setItensParaRevisar] = useState<ItemEstoque[]>([]);
@@ -314,6 +324,57 @@ export function SupplyChainMode({
             </div>
           )}
 
+          {/* 📈 Resumo Movimentações / CMV */}
+          {data.movimentacoes && data.movimentacoes.length > 0 && (() => {
+            const saidas = data.movimentacoes!.filter(m => m.tipo === 'saida');
+            if (saidas.length === 0) return null;
+            const cmv = calcularCMVPorSaidas(data.movimentacoes!);
+            const receita = calcularReceitaBruta(data.movimentacoes!);
+            const margem = receita > 0 ? ((receita - cmv) / receita * 100) : 0;
+            const top5 = topProdutosPorSaida(data.movimentacoes!, 5);
+            const totalUnidades = saidas.reduce((acc, s) => acc + s.quantidade, 0);
+
+            return (
+              <div className="p-3 rounded-lg border bg-muted/30 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">📊 Movimentações ({saidas.length} saídas)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">CMV (Custo Real)</p>
+                    <p className="text-sm font-medium text-amber-600">{formatCurrency(cmv)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Receita Bruta</p>
+                    <p className="text-sm font-medium text-green-600">{formatCurrency(receita)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Margem Bruta</p>
+                    <p className={cn("text-sm font-medium", margem >= 50 ? "text-green-600" : margem >= 30 ? "text-yellow-600" : "text-destructive")}>
+                      {margem.toFixed(1)}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Total Unidades</p>
+                    <p className="text-sm font-medium">{totalUnidades}</p>
+                  </div>
+                </div>
+                {top5.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-1">Top Produtos (Saída)</p>
+                    {top5.map((p, i) => (
+                      <div key={i} className="flex justify-between text-xs">
+                        <span className="truncate mr-2">{p.produto}</span>
+                        <span className="text-muted-foreground whitespace-nowrap">{p.quantidade} un</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Alertas */}
           {/* Alertas como Lista Estruturada */}
           {(itensProcessados.some(i => i.status === 'vermelho') || 
@@ -509,9 +570,13 @@ export function SupplyChainMode({
         </CardHeader>
         <CardContent>
           <Tabs value={tabAtiva} onValueChange={setTabAtiva}>
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="itens">Adicionar Item</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 mb-4">
+              <TabsTrigger value="itens">Adicionar</TabsTrigger>
               <TabsTrigger value="colar">Colar Lista</TabsTrigger>
+              <TabsTrigger value="movimentacoes" className="flex items-center gap-1">
+                <ArrowDownUp className="h-3 w-3" />
+                Mov.
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="itens" className="space-y-4">
@@ -590,6 +655,70 @@ export function SupplyChainMode({
               <Button onClick={handleColarLista} className="w-full" size="sm" disabled={!textoColado.trim()}>
                 <FileText className="h-4 w-4 mr-2" /> Importar Lista
               </Button>
+            </TabsContent>
+
+            <TabsContent value="movimentacoes" className="space-y-3">
+              <Textarea
+                placeholder={"Cole o CSV de entradas ou saídas aqui...\nFormato esperado: separado por ; com cabeçalho"}
+                value={textoMovimentacoes}
+                onChange={(e) => setTextoMovimentacoes(e.target.value)}
+                rows={5}
+              />
+              <Button 
+                onClick={() => {
+                  const novas = parsearMovimentacoes(textoMovimentacoes);
+                  if (novas.length === 0) {
+                    toast({ title: "Nenhuma movimentação encontrada", description: "Verifique o formato do CSV.", variant: "destructive" });
+                    return;
+                  }
+                  
+                  const movExistentes = data.movimentacoes || [];
+                  const todasMovimentacoes = [...movExistentes, ...novas];
+                  
+                  // Recalcular demanda semanal dos itens
+                  const demandaMap = calcularDemandaSemanalPorItem(todasMovimentacoes);
+                  
+                  // Atualizar itens que têm match
+                  let itensAtualizados = 0;
+                  for (const item of data.itens) {
+                    const key = item.nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[®™]/g, '').replace(/\s+/g, ' ').trim();
+                    const demanda = demandaMap.get(key);
+                    if (demanda !== undefined) {
+                      onUpdateItem(item.id, { demandaSemanal: demanda });
+                      itensAtualizados++;
+                    }
+                  }
+                  
+                  const saidas = novas.filter(m => m.tipo === 'saida').length;
+                  const entradas = novas.filter(m => m.tipo === 'entrada').length;
+                  
+                  onUpdateSupplyChainData({ 
+                    movimentacoes: todasMovimentacoes,
+                    ultimaImportacaoMov: new Date().toISOString(),
+                  });
+                  
+                  toast({
+                    title: "Movimentações Importadas",
+                    description: `${saidas} saídas, ${entradas} entradas${itensAtualizados > 0 ? `. Demanda atualizada para ${itensAtualizados} produtos` : ''}`,
+                  });
+                  flushSave?.();
+                  setTextoMovimentacoes('');
+                }}
+                className="w-full" 
+                size="sm" 
+                disabled={!textoMovimentacoes.trim()}
+              >
+                <ArrowDownUp className="h-4 w-4 mr-2" /> Importar Movimentações
+              </Button>
+              
+              {data.movimentacoes && data.movimentacoes.length > 0 && (
+                <div className="text-xs text-muted-foreground text-center">
+                  {data.movimentacoes.length} movimentações acumuladas
+                  {data.ultimaImportacaoMov && (
+                    <span> • Última: {new Date(data.ultimaImportacaoMov).toLocaleDateString('pt-BR')}</span>
+                  )}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>

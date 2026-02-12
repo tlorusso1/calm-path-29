@@ -43,6 +43,7 @@ interface FinanceiroModeProps {
   ritmoExpectativa?: UserRitmoExpectativa;
   onUpdateTimestamp?: (key: keyof RitmoTimestamps) => void;
   flushSave?: () => Promise<void>;
+  cmvSupply?: number;
 }
 
 export function FinanceiroMode({
@@ -51,6 +52,7 @@ export function FinanceiroMode({
   ritmoExpectativa,
   onUpdateTimestamp,
   flushSave,
+  cmvSupply,
 }: FinanceiroModeProps) {
   const [openSections, setOpenSections] = useState({
     // Posição Atual (Real)
@@ -674,6 +676,7 @@ export function FinanceiroMode({
           <DRESection
             lancamentos={data.contasFluxo || []}
             fornecedores={data.fornecedores || []}
+            cmvSupply={cmvSupply}
             isOpen={openSections.dre || false}
             onToggle={() => toggleSection('dre')}
           />

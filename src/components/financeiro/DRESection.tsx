@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 interface DRESectionProps {
   lancamentos: ContaFluxo[];
   fornecedores: Fornecedor[];
+  cmvSupply?: number;
   isOpen: boolean;
   onToggle: () => void;
 }
@@ -46,6 +47,7 @@ function formatCurrency(valor: number): string {
 export function DRESection({
   lancamentos,
   fornecedores,
+  cmvSupply,
   isOpen,
   onToggle,
 }: DRESectionProps) {
@@ -205,7 +207,6 @@ export function DRESection({
       } else if (mod.modalidade === 'CUSTOS DE PRODUTO VENDIDO') {
         cpv += mod.total;
       } else if (mod.modalidade === 'OUTRAS RECEITAS/DESPESAS') {
-        // Separar entradas e saídas dentro de OUTRAS
         for (const g of mod.grupos) {
           for (const cat of g.categorias) {
             if (cat.categoria.toLowerCase().includes('entrada') || g.grupo.toLowerCase().includes('entrada')) {
@@ -220,6 +221,11 @@ export function DRESection({
       }
     }
     
+    // Usar CMV do Supply Chain se disponível (quantidade × custo unitário real)
+    if (cmvSupply && cmvSupply > 0) {
+      cpv = cmvSupply;
+    }
+    
     const receitaLiquida = receitas - deducoes;
     const lucroBruto = receitaLiquida - cpv;
     const resultadoOperacional = lucroBruto - despesas;
@@ -232,8 +238,9 @@ export function DRESection({
       lucroBruto,
       despesas,
       resultadoOperacional,
+      usandoCmvSupply: !!(cmvSupply && cmvSupply > 0),
     };
-  }, [dre]);
+  }, [dre, cmvSupply]);
   
   // Contar lançamentos excluídos para feedback
   const lancamentosExcluidos = useMemo(() => {
@@ -345,14 +352,24 @@ export function DRESection({
               {/* CPV */}
               <div className="space-y-1">
                 <div className="flex justify-between font-medium text-amber-600 border-b pb-1">
-                  <span>(-) CUSTOS DE PRODUTO VENDIDO</span>
+                  <span className="flex items-center gap-1">
+                    (-) CUSTOS DE PRODUTO VENDIDO
+                    {totais.usandoCmvSupply && (
+                      <span className="text-[9px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 px-1 py-0.5 rounded">SUPPLY</span>
+                    )}
+                  </span>
                   <span>{formatCurrency(-totais.cpv)}</span>
                 </div>
-                {dre
+                {!totais.usandoCmvSupply && dre
                   .filter(m => m.modalidade === 'CUSTOS DE PRODUTO VENDIDO')
                   .map(mod => (
                     <DREModalidadeRow key={mod.modalidade} modalidade={mod} />
                   ))}
+                {totais.usandoCmvSupply && (
+                  <p className="text-[10px] text-muted-foreground pl-2">
+                    CMV calculado: qtde saída × custo unitário real
+                  </p>
+                )}
               </div>
               
               {/* Lucro Bruto */}

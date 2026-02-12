@@ -33,6 +33,7 @@ const Index = () => {
     financeiroExports,
     prioridadeSemana,
     marketingExports,
+    supplyExports,
     scoreNegocio,
     ritmoExpectativa,
     updateTimestamp,
@@ -187,6 +188,7 @@ const Index = () => {
             onRemoveSupplyItem={removeSupplyItem}
             // Pre-Reunião Geral
             financeiroExports={financeiroExports}
+            supplyExports={supplyExports}
             scoreNegocio={scoreNegocio}
             onUpdatePreReuniaoGeralData={updatePreReuniaoGeralData}
             // Reunião Ads

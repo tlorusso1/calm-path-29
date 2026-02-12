@@ -15,7 +15,10 @@ export const PRECOS_CUSTO_PADRAO: PrecoCustoPadrao[] = [
   { nomePattern: 'Food Service.*Castanha.*3.*KG', precoCusto: 141.38 },
   
   // NICE Milk
+  { nomePattern: 'MILK\\+', precoCusto: 28.64 },
   { nomePattern: 'Milk.*Protein.*Avelã', precoCusto: 28.64 },
+  { nomePattern: 'Milk.*Avela.*Cacau', precoCusto: 28.64 },
+  { nomePattern: 'Milk.*Proteico', precoCusto: 28.64 },
   { nomePattern: 'Milk.*Castanha.*Caju.*450', precoCusto: 22.60 },
   { nomePattern: 'Milk.*Aveia.*Barista.*400', precoCusto: 17.40 },
   { nomePattern: 'Milk.*Aveia.*450', precoCusto: 16.38 },
@@ -26,11 +29,14 @@ export const PRECOS_CUSTO_PADRAO: PrecoCustoPadrao[] = [
   { nomePattern: 'ChocoNICE.*Ao.*leite', precoCusto: 17.70 },
   
   // Outros produtos
+  { nomePattern: 'Levedura.*Nutricional.*100', precoCusto: 12.84 },
   { nomePattern: 'Levedura.*Nutricional', precoCusto: 12.84 },
   { nomePattern: 'Óleo.*Coco', precoCusto: 11.21 },
   { nomePattern: 'Oleo.*Coco', precoCusto: 11.21 },
   
   // Spices
+  { nomePattern: 'Spices.*Quatro.*Queijos', precoCusto: 3.56 },
+  { nomePattern: 'Spices.*4.*Queijos', precoCusto: 3.56 },
   { nomePattern: 'Spices.*Estrogonofe', precoCusto: 3.57 },
   { nomePattern: 'Spices.*Estrofonofe', precoCusto: 3.57 },
   { nomePattern: 'Spices.*Carbonara', precoCusto: 3.54 },
