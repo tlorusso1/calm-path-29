@@ -488,6 +488,18 @@ export interface SupplyResumo {
   itensCriticos: string[];
 }
 
+// Movimentações de Estoque (Entradas e Saídas)
+export interface MovimentacaoEstoque {
+  id: string;
+  tipo: 'entrada' | 'saida';
+  produto: string;
+  quantidade: number;
+  valorUnitarioVenda?: number;  // Preço de venda (do CSV, para referência)
+  lote?: string;
+  dataValidade?: string;
+  data: string;                 // ISO date
+}
+
 // Exports para outros módulos (Pre-Reunião Geral, Score)
 export interface SupplyExports {
   statusEstoque: 'verde' | 'amarelo' | 'vermelho';
@@ -496,6 +508,7 @@ export interface SupplyExports {
   riscoRuptura: boolean;
   riscoVencimento: boolean;
   scorePilar: number;  // 0-30 para Score Negócio
+  cmvMensal?: number;  // CMV calculado por saídas x custo unitário
 }
 
 // Estado do módulo Supply Chain
@@ -508,6 +521,10 @@ export interface SupplyChainStage {
   
   // V2: Resumo (calculado)
   resumo?: SupplyResumo;
+  
+  // V3: Movimentações de estoque
+  movimentacoes?: MovimentacaoEstoque[];
+  ultimaImportacaoMov?: string;
   
   // Checklists legados (manter compatibilidade)
   ritmoAtual: SupplyChainRitmo;

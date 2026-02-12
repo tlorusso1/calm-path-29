@@ -5,6 +5,7 @@ import {
   SupplyResumo,
   SupplyExports 
 } from '@/types/focus-mode';
+import { calcularCMVPorSaidas } from '@/utils/movimentacoesParser';
 
 // ============= Réguas de Segurança por Tipo =============
 
@@ -193,11 +194,9 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
   let scorePilar = 15; // Default neutro
   
   if (resumo.riscoRuptura) {
-    // Produto crítico = 0 pontos
     scorePilar = 0;
   } else if (resumo.coberturaProdutos !== null) {
     if (resumo.coberturaProdutos >= 30) {
-      // Cobertura boa
       const embalagensOk = resumo.coberturaEmbalagens === null || resumo.coberturaEmbalagens >= 60;
       scorePilar = embalagensOk ? 30 : 22;
     } else if (resumo.coberturaProdutos >= 15) {
@@ -207,9 +206,14 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
     }
   }
   
-  // Penalidade por vencimento
   if (resumo.riscoVencimento) {
     scorePilar = Math.max(0, scorePilar - 5);
+  }
+  
+  // Calcular CMV se houver movimentações
+  let cmvMensal: number | undefined;
+  if (data.movimentacoes && data.movimentacoes.length > 0) {
+    cmvMensal = calcularCMVPorSaidas(data.movimentacoes);
   }
   
   return {
@@ -219,6 +223,7 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
     riscoRuptura: resumo.riscoRuptura,
     riscoVencimento: resumo.riscoVencimento,
     scorePilar,
+    cmvMensal,
   };
 }
 
