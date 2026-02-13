@@ -1,4 +1,4 @@
-import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, DEFAULT_FINANCEIRO_CONTAS, ContaFluxo, Fornecedor, UserRitmoExpectativa, RitmoTimestamps, MapeamentoDescricaoFornecedor } from '@/types/focus-mode';
+import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, DEFAULT_FINANCEIRO_CONTAS, ContaFluxo, Fornecedor, UserRitmoExpectativa, RitmoTimestamps, MapeamentoDescricaoFornecedor, SupplyExports, ReuniaoAdsStage } from '@/types/focus-mode';
 import { gerarContasReceberProjecao } from '@/utils/gerarContasReceberProjecao';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ import { GerarContasFixasButton } from '@/components/financeiro/GerarContasFixas
 import { AlertaCaixaInsuficiente } from '@/components/financeiro/AlertaCaixaInsuficiente';
 import { OrcadoRealizadoSection } from '@/components/financeiro/OrcadoRealizadoSection';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
+import { CMVGerencialCard } from '@/components/financeiro/CMVGerencialCard';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 import { DEFAULT_CUSTOS_FIXOS, calcularTotalCustosFixos, DEFAULT_EMPRESTIMOS } from '@/data/custos-fixos-default';
 import { format } from 'date-fns';
@@ -44,6 +45,8 @@ interface FinanceiroModeProps {
   onUpdateTimestamp?: (key: keyof RitmoTimestamps) => void;
   flushSave?: () => Promise<void>;
   cmvSupply?: number;
+  supplyExports?: SupplyExports;
+  reuniaoAdsData?: ReuniaoAdsStage;
 }
 
 export function FinanceiroMode({
@@ -53,6 +56,8 @@ export function FinanceiroMode({
   onUpdateTimestamp,
   flushSave,
   cmvSupply,
+  supplyExports,
+  reuniaoAdsData,
 }: FinanceiroModeProps) {
   const [openSections, setOpenSections] = useState({
     // Posição Atual (Real)
@@ -161,6 +166,30 @@ export function FinanceiroMode({
     [data, historicoSemanas]
   );
   const caixaMinimo = parseCurrency(data.caixaMinimo || '');
+  
+  // CMV Gerencial data
+  const cmvGerencialCalc = useMemo(() => {
+    const receitaBruta = supplyExports?.receitaBrutaSupply || 0;
+    const cmvProduto = cmvSupply || 0;
+    const ticketMedio = parseCurrency(reuniaoAdsData?.ticketMedio || '');
+    const impostoPercentual = data.impostoPercentual ?? 0.16;
+    
+    if (receitaBruta <= 0 || cmvProduto <= 0) return null;
+    
+    const taxaCartao = 0.06;
+    const fulfillment = 5.0;
+    const materiais = 5.0;
+    
+    const impostos = receitaBruta * impostoPercentual;
+    const taxaCartaoValor = receitaBruta * taxaCartao;
+    const numPedidos = ticketMedio > 0 ? receitaBruta / ticketMedio : 0;
+    const fulfillmentTotal = numPedidos * fulfillment;
+    const materiaisTotal = numPedidos * materiais;
+    const cmvGerencialTotal = cmvProduto + impostos + taxaCartaoValor + fulfillmentTotal + materiaisTotal;
+    const margemGerencial = (receitaBruta - cmvGerencialTotal) / receitaBruta;
+    
+    return { margemGerencial, cmvGerencialTotal, receitaBruta };
+  }, [supplyExports, cmvSupply, reuniaoAdsData?.ticketMedio, data.impostoPercentual]);
 
   const toggleSection = (section: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -677,8 +706,16 @@ export function FinanceiroMode({
             lancamentos={data.contasFluxo || []}
             fornecedores={data.fornecedores || []}
             cmvSupply={cmvSupply}
+            cmvGerencialData={cmvGerencialCalc || undefined}
             isOpen={openSections.dre || false}
             onToggle={() => toggleSection('dre')}
+          />
+          
+          <CMVGerencialCard
+            receitaBruta={supplyExports?.receitaBrutaSupply || 0}
+            cmvProduto={cmvSupply || 0}
+            ticketMedio={parseCurrency(reuniaoAdsData?.ticketMedio || '')}
+            impostoPercentual={data.impostoPercentual ?? 0.16}
           />
           
           <OrcadoRealizadoSection

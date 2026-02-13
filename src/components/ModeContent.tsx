@@ -115,6 +115,8 @@ export function ModeContent({
             onUpdateTimestamp={onUpdateTimestamp}
             flushSave={flushSave}
             cmvSupply={supplyExports?.cmvMensal}
+            supplyExports={supplyExports}
+            reuniaoAdsData={mode.reuniaoAdsData}
           />
         );
       case 'marketing':

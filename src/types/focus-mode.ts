@@ -509,6 +509,7 @@ export interface SupplyExports {
   riscoVencimento: boolean;
   scorePilar: number;  // 0-30 para Score Negócio
   cmvMensal?: number;  // CMV calculado por saídas x custo unitário
+  receitaBrutaSupply?: number;  // Receita bruta (soma ValorSaída)
 }
 
 // Estado do módulo Supply Chain
