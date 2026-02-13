@@ -11,10 +11,17 @@ import { parseISO, format, startOfMonth, endOfMonth, subMonths, isWithinInterval
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
+interface CMVGerencialData {
+  margemGerencial: number;
+  cmvGerencialTotal: number;
+  receitaBruta: number;
+}
+
 interface DRESectionProps {
   lancamentos: ContaFluxo[];
   fornecedores: Fornecedor[];
   cmvSupply?: number;
+  cmvGerencialData?: CMVGerencialData;
   isOpen: boolean;
   onToggle: () => void;
 }
@@ -48,6 +55,7 @@ export function DRESection({
   lancamentos,
   fornecedores,
   cmvSupply,
+  cmvGerencialData,
   isOpen,
   onToggle,
 }: DRESectionProps) {
@@ -352,11 +360,14 @@ export function DRESection({
               {/* CPV */}
               <div className="space-y-1">
                 <div className="flex justify-between font-medium text-amber-600 border-b pb-1">
-                  <span className="flex items-center gap-1">
-                    (-) CUSTOS DE PRODUTO VENDIDO
-                    {totais.usandoCmvSupply && (
-                      <span className="text-[9px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 px-1 py-0.5 rounded">SUPPLY</span>
-                    )}
+                  <span className="flex flex-col">
+                    <span className="flex items-center gap-1">
+                      (-) CUSTOS DE PRODUTO VENDIDO
+                      {totais.usandoCmvSupply && (
+                        <span className="text-[9px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 px-1 py-0.5 rounded">SUPPLY</span>
+                      )}
+                    </span>
+                    <span className="text-[9px] font-normal text-muted-foreground">CMV Produto (custo MP + embalagem + industrialização)</span>
                   </span>
                   <span>{formatCurrency(-totais.cpv)}</span>
                 </div>
@@ -406,6 +417,26 @@ export function DRESection({
                 <span>RESULTADO OPERACIONAL</span>
                 <span>{formatCurrency(totais.resultadoOperacional)}</span>
               </div>
+              
+              {/* Resumo Margem Gerencial */}
+              {cmvGerencialData && cmvGerencialData.receitaBruta > 0 && (
+                <div className={cn(
+                  "flex justify-between text-xs p-2 rounded border mt-1",
+                  cmvGerencialData.margemGerencial >= 0.15 
+                    ? "bg-purple-50 dark:bg-purple-900/20 border-purple-200 text-purple-700"
+                    : cmvGerencialData.margemGerencial >= 0
+                    ? "bg-amber-50 dark:bg-amber-900/20 border-amber-200 text-amber-700"
+                    : "bg-red-50 dark:bg-red-900/20 border-red-200 text-red-700"
+                )}>
+                  <span className="flex items-center gap-1">
+                    🧠 Margem Gerencial (unit economics)
+                    <span className="text-[9px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 px-1 py-0.5 rounded">GERENCIAL</span>
+                  </span>
+                  <span className="font-medium">
+                    {(cmvGerencialData.margemGerencial * 100).toFixed(1)}%
+                  </span>
+                </div>
+              )}
             </div>
           </CardContent>
         </CollapsibleContent>

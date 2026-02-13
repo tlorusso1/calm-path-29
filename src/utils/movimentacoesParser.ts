@@ -162,29 +162,53 @@ export function calcularDemandaSemanalPorItem(
   const saidas = movimentacoes.filter(m => m.tipo === 'saida');
   if (saidas.length === 0) return new Map();
 
-  // Agrupar por produto normalizado
-  const porProduto = new Map<string, { total: number; nomeOriginal: string }>();
-  
-  for (const s of saidas) {
-    const key = normalizarNomeProduto(s.produto);
-    const existing = porProduto.get(key) || { total: 0, nomeOriginal: s.produto };
-    existing.total += s.quantidade;
-    porProduto.set(key, existing);
+  // Janela fixa: últimas 4 semanas (28 dias)
+  const agora = Date.now();
+  const janela28d = agora - 28 * 24 * 60 * 60 * 1000;
+  const janela7d = agora - 7 * 24 * 60 * 60 * 1000;
+
+  // Filtrar saídas dentro da janela de 28 dias
+  let saidasJanela = saidas.filter(s => {
+    const ts = new Date(s.data).getTime();
+    return !isNaN(ts) && ts >= janela28d;
+  });
+
+  // Se não há dados nos últimos 28 dias, tentar últimos 7 dias mínimo
+  if (saidasJanela.length === 0) {
+    saidasJanela = saidas.filter(s => {
+      const ts = new Date(s.data).getTime();
+      return !isNaN(ts) && ts >= janela7d;
+    });
   }
 
-  // Calcular período
-  const datas = saidas
+  // Se ainda não há dados, usar tudo (fallback)
+  if (saidasJanela.length === 0) {
+    saidasJanela = saidas;
+  }
+
+  // Agrupar por produto normalizado
+  const porProduto = new Map<string, number>();
+  
+  for (const s of saidasJanela) {
+    const key = normalizarNomeProduto(s.produto);
+    porProduto.set(key, (porProduto.get(key) || 0) + s.quantidade);
+  }
+
+  // Calcular período real da janela usada
+  const datas = saidasJanela
     .map(s => new Date(s.data).getTime())
     .filter(d => !isNaN(d));
   
   if (datas.length === 0) return new Map();
 
   const minData = Math.min(...datas);
-  const maxData = Math.max(...datas, Date.now());
-  const periodoSemanas = Math.max(1, (maxData - minData) / (7 * 24 * 60 * 60 * 1000));
+  const maxData = Math.max(...datas, agora);
+  // Mínimo 7 dias para evitar distorção com dados muito recentes
+  const periodoDias = Math.max(7, (maxData - minData) / (24 * 60 * 60 * 1000));
+  const periodoSemanas = periodoDias / 7;
 
   const resultado = new Map<string, number>();
-  for (const [key, { total, nomeOriginal }] of porProduto) {
+  for (const [key, total] of porProduto) {
     resultado.set(key, Math.round((total / periodoSemanas) * 10) / 10);
   }
 

@@ -5,7 +5,7 @@ import {
   SupplyResumo,
   SupplyExports 
 } from '@/types/focus-mode';
-import { calcularCMVPorSaidas } from '@/utils/movimentacoesParser';
+import { calcularCMVPorSaidas, calcularReceitaBruta } from '@/utils/movimentacoesParser';
 
 // ============= Réguas de Segurança por Tipo =============
 
@@ -210,10 +210,12 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
     scorePilar = Math.max(0, scorePilar - 5);
   }
   
-  // Calcular CMV se houver movimentações
+  // Calcular CMV e receita bruta se houver movimentações
   let cmvMensal: number | undefined;
+  let receitaBrutaSupply: number | undefined;
   if (data.movimentacoes && data.movimentacoes.length > 0) {
     cmvMensal = calcularCMVPorSaidas(data.movimentacoes);
+    receitaBrutaSupply = calcularReceitaBruta(data.movimentacoes);
   }
   
   return {
@@ -224,6 +226,7 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
     riscoVencimento: resumo.riscoVencimento,
     scorePilar,
     cmvMensal,
+    receitaBrutaSupply,
   };
 }
 
