@@ -902,7 +902,7 @@ export function SupplyChainMode({
           <CardContent>
             <ScrollArea className={cn(itensProcessados.length > 5 ? "h-[500px]" : "h-auto")}>
               <div className="space-y-2">
-                {[...itensProcessados].sort((a, b) => a.quantidade - b.quantidade).map((item) => {
+                {[...itensProcessados].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map((item) => {
                   const diasVenc = calcularDiasAteVencimento(item.dataValidade);
                   const usandoGlobal = item.demandaSemanal === undefined;
                   

@@ -29,6 +29,7 @@ import { RitmoContextualAlert } from '@/components/RitmoContextualAlert';
 import { FornecedoresManager } from '@/components/financeiro/FornecedoresManager';
 import { GerarContasFixasButton } from '@/components/financeiro/GerarContasFixasButton';
 import { AlertaCaixaInsuficiente } from '@/components/financeiro/AlertaCaixaInsuficiente';
+import { CaixaVsAPagar5d } from '@/components/financeiro/CaixaVsAPagar5d';
 import { OrcadoRealizadoSection } from '@/components/financeiro/OrcadoRealizadoSection';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { CMVGerencialCard } from '@/components/financeiro/CMVGerencialCard';
@@ -325,6 +326,9 @@ export function FinanceiroMode({
       
       {/* ========== 1. EXECUTIVE RESUME ========== */}
       <ExecutiveResume exports={exports} caixaContratado={totaisContas.aReceber} />
+      
+      {/* ========== CAIXA vs A PAGAR 5 DIAS ========== */}
+      <CaixaVsAPagar5d contasFluxo={data.contasFluxo || []} contasBancarias={data.contas} />
       
       {/* ========== 2. POSIÇÃO ATUAL — REAL ========== */}
       <Card className="border-l-4 border-l-emerald-500">
