@@ -276,8 +276,10 @@ export function ConciliacaoSection({
   const [texto, setTexto] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastResult, setLastResult] = useState<{ conciliados: number; novos: number; ignorados: number; duplicatasIgnoradas: number } | null>(null);
+  const [duplicatasLog, setDuplicatasLog] = useState<{ descricao: string; valor: string; data: string; matchDescricao: string }[]>([]);
   const [lancamentosParaRevisar, setLancamentosParaRevisar] = useState<ExtractedLancamento[]>([]);
   const [showReviewPanel, setShowReviewPanel] = useState(false);
+  const [showDuplicatasLog, setShowDuplicatasLog] = useState(false);
   
   // Progress para lotes
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
@@ -365,6 +367,8 @@ export function ConciliacaoSection({
 
     setIsProcessing(true);
     setLastResult(null);
+    setDuplicatasLog([]);
+    setShowDuplicatasLog(false);
     setLancamentosParaRevisar([]);
     setShowReviewPanel(false);
     setBatchProgress(null);
@@ -588,6 +592,8 @@ export function ConciliacaoSection({
           console.log(`  • "${d.descricao}" R$${d.valor} (${d.data}) → match: "${d.matchDescricao}"`);
         });
         console.groupEnd();
+        setDuplicatasLog(duplicatasLog);
+        setShowDuplicatasLog(true);
       }
 
       setLastResult({ 
@@ -822,6 +828,42 @@ export function ConciliacaoSection({
                 onCreateFornecedor={onCreateFornecedor}
                 onConciliar={onConciliar}
               />
+            )}
+
+            {/* Painel de Duplicatas Ignoradas */}
+            {showDuplicatasLog && duplicatasLog.length > 0 && (
+              <div className="space-y-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-red-700 dark:text-red-400 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {duplicatasLog.length} lançamento{duplicatasLog.length > 1 ? 's' : ''} ignorado{duplicatasLog.length > 1 ? 's' : ''} como duplicata
+                  </p>
+                  <button
+                    className="text-[10px] text-red-500 hover:text-red-700 underline"
+                    onClick={() => setShowDuplicatasLog(false)}
+                  >
+                    fechar
+                  </button>
+                </div>
+                <p className="text-[10px] text-red-600/70 dark:text-red-400/70">
+                  Estes lançamentos do extrato coincidem com contas que já foram baixadas no histórico (mesmo valor e data próxima).
+                </p>
+                <div className="space-y-1.5">
+                  {duplicatasLog.map((d, i) => (
+                    <div key={i} className="text-[11px] rounded bg-red-100/60 dark:bg-red-900/20 px-2 py-1.5 space-y-0.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-red-800 dark:text-red-300 truncate">{d.descricao}</span>
+                        <span className="shrink-0 text-red-700 dark:text-red-400 font-mono">R$ {d.valor}</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-red-600/80 dark:text-red-400/70">
+                        <span>{d.data}</span>
+                        <span>→ match com:</span>
+                        <span className="italic truncate">{d.matchDescricao}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </CardContent>
         </CollapsibleContent>

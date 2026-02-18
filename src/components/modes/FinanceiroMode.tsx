@@ -75,7 +75,7 @@ export function FinanceiroMode({
     // Configurações
     custosFixos: false,
     gerarContas: false,
-    conciliacao: false,
+    conciliacao: true,
     fornecedores: false,
   });
   
