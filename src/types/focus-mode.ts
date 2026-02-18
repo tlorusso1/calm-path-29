@@ -131,6 +131,10 @@ export interface ContaFluxo {
   // Projeção automática de receita por canal
   projecao?: boolean;        // true = conta fictícia gerada automaticamente
   canalOrigem?: string;      // 'b2b' | 'ecomNuvem' | 'ecomShopee' | 'ecomAssinaturas'
+  // Dados do documento fiscal / pagamento
+  codigoBarrasPix?: string;  // Código de barras ou PIX copia-e-cola
+  numeroNF?: string;         // Número da Nota Fiscal
+  chaveDanfe?: string;       // Chave de acesso DANFE (44 dígitos)
 }
 
 // ============= Financeiro V2 =============
