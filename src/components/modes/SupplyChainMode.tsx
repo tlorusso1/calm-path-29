@@ -585,7 +585,7 @@ export function SupplyChainMode({
           <Tabs value={tabAtiva} onValueChange={setTabAtiva}>
             <TabsList className="grid w-full grid-cols-4 mb-4">
               <TabsTrigger value="itens">Adicionar</TabsTrigger>
-              <TabsTrigger value="colar">Colar Lista</TabsTrigger>
+              <TabsTrigger value="colar">Estoques</TabsTrigger>
               <TabsTrigger value="movimentacoes" className="flex items-center gap-1">
                 <ArrowDownUp className="h-3 w-3" />
                 Mov.
