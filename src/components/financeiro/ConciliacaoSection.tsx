@@ -101,9 +101,11 @@ function extrairNomesProprios(descA: string, descB: string): boolean {
 }
 
 // Match inteligente: valor ± R$0.01 E data ± 5 dias (pagar) / ± 1 dia (receber)
+// ignorarPagas: se true, ignora contas já baixadas (padrão); se false, busca só nas pagas
 function encontrarMatch(
   lancamento: { valor: string; dataVencimento: string; tipo: string },
-  contas: ContaFluxo[]
+  contas: ContaFluxo[],
+  apenasNaoPagas: boolean = true
 ): ContaFluxo | null {
   const valorLanc = parseValorFlexivel(lancamento.valor);
   let dataLanc: Date;
@@ -117,7 +119,8 @@ function encontrarMatch(
   const lancEhSaida = tiposSaida.includes(lancamento.tipo);
   
   return contas.find(conta => {
-    if (conta.pago) return false;
+    if (apenasNaoPagas && conta.pago) return false;
+    if (!apenasNaoPagas && !conta.pago) return false;
     // Para saídas: pagar e cartao são equivalentes
     const contaEhSaida = tiposSaida.includes(conta.tipo);
     if (lancEhSaida && contaEhSaida) {
@@ -421,8 +424,10 @@ export function ConciliacaoSection({
       const paraRevisar: ExtractedLancamento[] = [];
       let ignorados = 0;
 
+      const contasPagas = contasExistentes.filter(c => c.pago);
+
       for (const lanc of todosLancamentos) {
-        // 1. Match exato: valor ± R$0.01 E data ± 2 dias
+        // 1. Match exato: valor ± R$0.01 E data ± 5 dias (contas ainda em aberto)
         const match = encontrarMatch(lanc, contasNaoPagas);
         
         if (match) {
@@ -434,6 +439,14 @@ export function ConciliacaoSection({
           });
           const idx = contasNaoPagas.findIndex(c => c.id === match.id);
           if (idx >= 0) contasNaoPagas.splice(idx, 1);
+          continue;
+        }
+        
+        // 1b. Match exato com contas JÁ BAIXADAS: detecta duplicidade
+        const matchJaBaixado = encontrarMatch(lanc, contasPagas, false);
+        if (matchJaBaixado) {
+          // Lançamento já foi baixado anteriormente — ignorar silenciosamente
+          ignorados++;
           continue;
         }
         
@@ -1037,13 +1050,15 @@ function VincularContaAberta({
   
   const valorLanc = parseValorFlexivel(lancamento.valor);
   
-  // Filtrar contas abertas com valor similar (± 30%) E mesmo tipo
-  const contasSimilares = useMemo(() => {
+  const [showJaBaixadas, setShowJaBaixadas] = useState(false);
+
+  const filtrarContas = (apenasNaoPagas: boolean) => {
     const tiposSaida = ['pagar', 'cartao'];
     const lancEhSaida = tiposSaida.includes(lancamento.tipo);
     
     return contasExistentes.filter(c => {
-      if (c.pago) return false;
+      if (apenasNaoPagas && c.pago) return false;
+      if (!apenasNaoPagas && !c.pago) return false;
       
       // Filtrar por tipo: receber só vê receber, pagar/cartao só vê pagar/cartao
       if (lancEhSaida) {
@@ -1061,9 +1076,13 @@ function VincularContaAberta({
       const matchCanal = /SHPP|SHOPEE/i.test(lancamento.descricao) && /SHOPEE/i.test(c.descricao);
       return valorSimilar || matchCanal;
     }).slice(0, 10);
-  }, [contasExistentes, valorLanc, lancamento.tipo]);
+  };
+
+  // Filtrar contas abertas com valor similar (± 30%) E mesmo tipo
+  const contasSimilares = useMemo(() => filtrarContas(true), [contasExistentes, valorLanc, lancamento.tipo]);
+  const contasJaBaixadas = useMemo(() => filtrarContas(false), [contasExistentes, valorLanc, lancamento.tipo]);
   
-  if (contasSimilares.length === 0) return null;
+  if (contasSimilares.length === 0 && contasJaBaixadas.length === 0) return null;
   
   const handleVincular = (conta: ContaFluxo) => {
     onConciliar({
@@ -1080,38 +1099,77 @@ function VincularContaAberta({
     onIgnore(lancamento);
     toast.success(`Vinculado a "${conta.descricao}"`);
   };
+
+  const handleMarcarDuplicata = (conta: ContaFluxo) => {
+    // Lançamento já foi baixado → apenas ignorar sem criar novo
+    onIgnore(lancamento);
+    toast.info(`Ignorado — já estava conciliado em "${conta.descricao}"`);
+  };
   
+  const renderLista = (contas: ContaFluxo[], jaBaixada: boolean) => (
+    <div className="mt-1 space-y-1 pl-2 border-l-2 border-blue-200">
+      {jaBaixada && (
+        <p className="text-[10px] text-muted-foreground italic px-1">
+          Contas já baixadas — marcar como duplicata para ignorar
+        </p>
+      )}
+      {contas.map(conta => {
+        const valorFmt = parseValorFlexivel(conta.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        let dataFmt = conta.dataVencimento;
+        try { dataFmt = format(parseISO(conta.dataVencimento), 'dd/MM'); } catch {}
+        return (
+          <button
+            key={conta.id}
+            className={`w-full text-left p-1.5 rounded text-xs flex items-center justify-between gap-2 transition-colors ${
+              jaBaixada
+                ? 'hover:bg-orange-50 dark:hover:bg-orange-900/20 opacity-70'
+                : 'hover:bg-blue-50 dark:hover:bg-blue-900/20'
+            }`}
+            onClick={() => jaBaixada ? handleMarcarDuplicata(conta) : handleVincular(conta)}
+          >
+            <span className="truncate flex-1">
+              {jaBaixada && '⚠️ '}{dataFmt} - {conta.descricao}
+              {jaBaixada && <span className="ml-1 text-orange-500 font-medium">(já baixada)</span>}
+            </span>
+            <span className="font-medium shrink-0">{valorFmt}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-6 px-2 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-        onClick={() => setShowList(!showList)}
-      >
-        <Link2 className="h-3 w-3" />
-        Vincular a conta aberta ({contasSimilares.length})
-      </Button>
-      
-      {showList && (
-        <div className="mt-1 space-y-1 pl-2 border-l-2 border-blue-200">
-          {contasSimilares.map(conta => {
-            const valorFmt = parseValorFlexivel(conta.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-            let dataFmt = conta.dataVencimento;
-            try { dataFmt = format(parseISO(conta.dataVencimento), 'dd/MM'); } catch {}
-            return (
-              <button
-                key={conta.id}
-                className="w-full text-left p-1.5 rounded text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center justify-between gap-2 transition-colors"
-                onClick={() => handleVincular(conta)}
-              >
-                <span className="truncate flex-1">{dataFmt} - {conta.descricao}</span>
-                <span className="font-medium shrink-0">{valorFmt}</span>
-              </button>
-            );
-          })}
+    <div className="space-y-1">
+      {contasSimilares.length > 0 && (
+        <div>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            onClick={() => setShowList(!showList)}
+          >
+            <Link2 className="h-3 w-3" />
+            Vincular a conta aberta ({contasSimilares.length})
+          </Button>
+          {showList && renderLista(contasSimilares, false)}
+        </div>
+      )}
+
+      {contasJaBaixadas.length > 0 && (
+        <div>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-xs gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+            onClick={() => setShowJaBaixadas(!showJaBaixadas)}
+          >
+            <Link2 className="h-3 w-3" />
+            Já foi baixado? ({contasJaBaixadas.length})
+          </Button>
+          {showJaBaixadas && renderLista(contasJaBaixadas, true)}
         </div>
       )}
     </div>
   );
 }
+
