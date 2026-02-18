@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw, Building2, List, Search, Copy } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ContaFluxo, Fornecedor, ContaFluxoTipo } from '@/types/focus-mode';
 import { format, parseISO, isAfter, isBefore, isToday, addDays, subDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,6 +45,11 @@ export function ContasFluxoSection({
   const [valor, setValor] = useState('');
   const [dataVencimento, setDataVencimento] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
+  // Duplicata detection on add
+  const [duplicataDialog, setDuplicataDialog] = useState<{
+    candidata: ContaFluxo;
+    novaConta: Omit<ContaFluxo, 'id'>;
+  } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isHistoricoOpen, setIsHistoricoOpen] = useState(false);
   const [historicoLimit, setHistoricoLimit] = useState(30);
@@ -401,17 +407,82 @@ export function ContasFluxoSection({
     }
   };
 
+  // Normaliza string para similaridade
+  const normalizarDesc = (s: string) =>
+    s.toUpperCase().replace(/[^A-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+
+  const calcSimilaridadeAdd = (a: string, b: string): number => {
+    const tokensA = new Set(normalizarDesc(a).split(' ').filter(t => t.length >= 3));
+    const tokensB = new Set(normalizarDesc(b).split(' ').filter(t => t.length >= 3));
+    if (tokensA.size === 0 || tokensB.size === 0) return 0;
+    let comuns = 0;
+    for (const t of tokensA) if (tokensB.has(t)) comuns++;
+    return comuns / Math.max(tokensA.size, tokensB.size);
+  };
+
   const handleAdd = () => {
     if (!descricao.trim() || !valor || !dataVencimento) return;
 
-    onAddConta({
+    const novaConta: Omit<ContaFluxo, 'id'> = {
       tipo,
       descricao: descricao.trim(),
       valor,
       dataVencimento,
       pago: false,
+    };
+
+    // Verificar duplicata nas contas NÃO pagas do mesmo tipo
+    const valorNovo = parseValorFlexivel(valor);
+    const dataNova = new Date(dataVencimento);
+
+    const candidata = contas.find(c => {
+      if (c.pago) return false;
+      if (c.tipo !== tipo) return false;
+
+      const valorExistente = parseValorFlexivel(c.valor);
+      // Valor dentro de ±1%
+      if (Math.abs(valorExistente - valorNovo) / Math.max(valorNovo, 0.01) > 0.01) return false;
+
+      // Data dentro de ±7 dias
+      const dataExistente = new Date(c.dataVencimento);
+      const diffDias = Math.abs((dataNova.getTime() - dataExistente.getTime()) / 86400000);
+      if (diffDias > 7) return false;
+
+      // Sem necessidade de similaridade de descrição — valor + data + tipo já é forte o suficiente
+      return true;
     });
 
+    if (candidata) {
+      setDuplicataDialog({ candidata, novaConta });
+      return;
+    }
+
+    // Sem duplicata: adicionar normalmente
+    onAddConta(novaConta);
+    setDescricao('');
+    setValor('');
+    setDataVencimento('');
+  };
+
+  const handleConfirmarSubstituir = () => {
+    if (!duplicataDialog || !onUpdateConta) return;
+    const { candidata, novaConta } = duplicataDialog;
+    onUpdateConta(candidata.id, {
+      descricao: novaConta.descricao,
+      valor: novaConta.valor,
+      dataVencimento: novaConta.dataVencimento,
+    });
+    setDuplicataDialog(null);
+    setDescricao('');
+    setValor('');
+    setDataVencimento('');
+    toast.success('Conta atualizada com as novas informações.');
+  };
+
+  const handleConfirmarAdicionar = () => {
+    if (!duplicataDialog) return;
+    onAddConta(duplicataDialog.novaConta);
+    setDuplicataDialog(null);
     setDescricao('');
     setValor('');
     setDataVencimento('');
@@ -921,6 +992,42 @@ export function ContasFluxoSection({
           </CardContent>
         </CollapsibleContent>
       </Card>
+
+      {/* Dialog de confirmação de duplicata */}
+      <AlertDialog open={!!duplicataDialog} onOpenChange={(open) => { if (!open) setDuplicataDialog(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>⚠️ Possível duplicidade detectada</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>Já existe uma conta pendente com valor e data próximos:</p>
+              <div className="rounded-md bg-muted p-3 text-sm space-y-1">
+                <div><span className="font-medium">Existente:</span> {duplicataDialog?.candidata.descricao}</div>
+                <div><span className="font-medium">Valor:</span> {duplicataDialog ? formatCurrency(duplicataDialog.candidata.valor) : ''}</div>
+                <div><span className="font-medium">Vencimento:</span> {duplicataDialog?.candidata.dataVencimento}</div>
+              </div>
+              <div className="rounded-md bg-primary/5 border border-primary/20 p-3 text-sm space-y-1">
+                <div><span className="font-medium">Nova:</span> {duplicataDialog?.novaConta.descricao}</div>
+                <div><span className="font-medium">Valor:</span> {duplicataDialog ? formatCurrency(duplicataDialog.novaConta.valor) : ''}</div>
+                <div><span className="font-medium">Vencimento:</span> {duplicataDialog?.novaConta.dataVencimento}</div>
+              </div>
+              <p className="text-xs text-muted-foreground">Se os dados novos são os corretos (ex: data atualizada), substitua a conta existente.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel onClick={() => setDuplicataDialog(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmarAdicionar}
+              className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+            >
+              Adicionar mesmo assim
+            </AlertDialogAction>
+            <AlertDialogAction onClick={handleConfirmarSubstituir}>
+              Substituir pela nova
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Collapsible>
   );
 }
+
