@@ -700,16 +700,17 @@ export function SupplyChainMode({
                   // Recalcular demanda semanal dos itens (usando normalizarNomeProduto consistente)
                   const demandaMap = calcularDemandaSemanalPorItem(todasMovimentacoes);
                   
-                  // Atualizar itens que têm match
+                  // Atualizar itens com demanda calculada numa única operação atômica
                   let itensAtualizados = 0;
-                  for (const item of data.itens) {
+                  const itensComDemandaAtualizada = data.itens.map(item => {
                     const key = normalizarNomeProduto(item.nome);
                     const demanda = demandaMap.get(key);
                     if (demanda !== undefined) {
-                      onUpdateItem(item.id, { demandaSemanal: demanda });
                       itensAtualizados++;
+                      return { ...item, demandaSemanal: demanda };
                     }
-                  }
+                    return item;
+                  });
                   
                   const saidas = novasDeduplicadas.filter(m => m.tipo === 'saida').length;
                   const entradas = novasDeduplicadas.filter(m => m.tipo === 'entrada').length;
@@ -717,6 +718,7 @@ export function SupplyChainMode({
                   onUpdateSupplyChainData({ 
                     movimentacoes: todasMovimentacoes,
                     ultimaImportacaoMov: new Date().toISOString(),
+                    itens: itensComDemandaAtualizada,
                   });
                   
                   const descDuplicatas = duplicatasIgnoradas > 0 ? ` (${duplicatasIgnoradas} duplicatas ignoradas)` : '';
