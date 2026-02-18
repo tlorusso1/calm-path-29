@@ -210,24 +210,67 @@ export function ContasFluxoSection({
 
   // ========== DETECÇÃO DE DUPLICATAS ==========
   const duplicatasSuspeitas = useMemo(() => {
-    // Agrupar contas não pagas por data+valor
     const contasNaoPagas = contas.filter(c => !c.pago && c.tipo === 'pagar');
-    const grupos: Record<string, ContaFluxo[]> = {};
     
-    for (const conta of contasNaoPagas) {
-      const valorNum = parseValorFlexivel(conta.valor);
-      const key = `${conta.dataVencimento}|${valorNum.toFixed(2)}`;
-      if (!grupos[key]) grupos[key] = [];
-      grupos[key].push(conta);
-    }
+    // Normaliza string para comparação de similaridade
+    const normalizar = (s: string) =>
+      s.toUpperCase().replace(/[^A-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
     
-    // Filtrar apenas grupos com mais de 1 item (possíveis duplicatas)
+    // Calcula similaridade por tokens em comum
+    const calcSimilaridade = (a: string, b: string): number => {
+      const tokensA = new Set(normalizar(a).split(' ').filter(t => t.length >= 3));
+      const tokensB = new Set(normalizar(b).split(' ').filter(t => t.length >= 3));
+      if (tokensA.size === 0 || tokensB.size === 0) return 0;
+      let comuns = 0;
+      for (const t of tokensA) if (tokensB.has(t)) comuns++;
+      return comuns / Math.max(tokensA.size, tokensB.size);
+    };
+
+    // Grupos já visitados para não duplicar alertas
+    const jaAgrupados = new Set<string>();
     const suspeitas: ContaFluxo[][] = [];
-    for (const key in grupos) {
-      if (grupos[key].length > 1) {
-        suspeitas.push(grupos[key]);
+
+    for (let i = 0; i < contasNaoPagas.length; i++) {
+      const a = contasNaoPagas[i];
+      if (jaAgrupados.has(a.id)) continue;
+
+      const valorA = parseValorFlexivel(a.valor);
+      let dataA: Date;
+      try { dataA = parseISO(a.dataVencimento); } catch { continue; }
+
+      const grupo: ContaFluxo[] = [a];
+
+      for (let j = i + 1; j < contasNaoPagas.length; j++) {
+        const b = contasNaoPagas[j];
+        if (jaAgrupados.has(b.id)) continue;
+
+        const valorB = parseValorFlexivel(b.valor);
+        // Valores devem ser iguais (± R$0,01)
+        if (Math.abs(valorA - valorB) > 0.01) continue;
+
+        let dataB: Date;
+        try { dataB = parseISO(b.dataVencimento); } catch { continue; }
+
+        const diffDias = Math.abs((dataA.getTime() - dataB.getTime()) / 86400000);
+
+        // Datas iguais → duplicata certa
+        // Datas próximas (± 7 dias) + descrição similar (≥ 40%) → suspeita de duplicata
+        const dataMesmaDia = diffDias === 0;
+        const dataPróxima = diffDias <= 7;
+        const nomeSimilar = calcSimilaridade(a.descricao, b.descricao) >= 0.4;
+
+        if (dataMesmaDia || (dataPróxima && nomeSimilar)) {
+          grupo.push(b);
+          jaAgrupados.add(b.id);
+        }
+      }
+
+      if (grupo.length > 1) {
+        jaAgrupados.add(a.id);
+        suspeitas.push(grupo);
       }
     }
+
     return suspeitas;
   }, [contas]);
 
