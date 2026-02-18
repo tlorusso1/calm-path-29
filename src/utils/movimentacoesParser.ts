@@ -13,10 +13,17 @@ function cleanProductName(text: string): string {
 }
 
 /**
- * Gera ID único simples
+ * Gera ID determinístico baseado no conteúdo (djb2 hash)
+ * Garante que a mesma linha CSV sempre gera o mesmo ID → deduplicação segura
  */
-function genId(): string {
-  return Math.random().toString(36).substring(2, 9);
+function gerarIdMovimentacao(tipo: string, produto: string, quantidade: number, data: string, lote?: string): string {
+  const str = `${tipo}|${produto.toLowerCase()}|${quantidade}|${data}|${lote || ''}`;
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) + str.charCodeAt(i);
+    hash = hash & hash; // Converte para 32-bit integer
+  }
+  return Math.abs(hash).toString(36);
 }
 
 /**
@@ -65,13 +72,14 @@ export function parsearMovimentacoes(texto: string): MovimentacaoEstoque[] {
 
         if (!nome || quantidade <= 0) continue;
 
+        const lote = loteIdx >= 0 ? cells[loteIdx] : undefined;
         resultado.push({
-          id: genId(),
+          id: gerarIdMovimentacao('saida', nome, quantidade, hoje, lote),
           tipo: 'saida',
           produto: nome,
           quantidade,
           valorUnitarioVenda: quantidade > 0 ? valorTotal / quantidade : undefined,
-          lote: loteIdx >= 0 ? cells[loteIdx] : undefined,
+          lote,
           dataValidade: validadeIdx >= 0 ? parseValidadeCSV(cells[validadeIdx]) : undefined,
           data: hoje,
         });
@@ -100,12 +108,13 @@ export function parsearMovimentacoes(texto: string): MovimentacaoEstoque[] {
           if (parsed) dataMovimentacao = parsed;
         }
 
+        const loteEntrada = loteIdx >= 0 ? cells[loteIdx] : undefined;
         resultado.push({
-          id: genId(),
+          id: gerarIdMovimentacao('entrada', nome, quantidade, dataMovimentacao, loteEntrada),
           tipo: 'entrada',
           produto: nome,
           quantidade,
-          lote: loteIdx >= 0 ? cells[loteIdx] : undefined,
+          lote: loteEntrada,
           dataValidade: validadeIdx >= 0 ? parseValidadeCSV(cells[validadeIdx]) : undefined,
           data: dataMovimentacao,
         });
@@ -141,9 +150,9 @@ function parseValidadeCSV(text: string): string | undefined {
 }
 
 /**
- * Normaliza nome de produto para matching
+ * Normaliza nome de produto para matching (exportado para uso no SupplyChainMode)
  */
-function normalizarNomeProduto(nome: string): string {
+export function normalizarNomeProduto(nome: string): string {
   return nome
     .toLowerCase()
     .normalize("NFD")
@@ -254,9 +263,15 @@ export function calcularReceitaBruta(movimentacoes: MovimentacaoEstoque[]): numb
  */
 export function topProdutosPorSaida(
   movimentacoes: MovimentacaoEstoque[],
-  n: number = 5
+  n: number = 5,
+  diasJanela: number = 30
 ): { produto: string; quantidade: number }[] {
-  const saidas = movimentacoes.filter(m => m.tipo === 'saida');
+  const corte = Date.now() - diasJanela * 24 * 60 * 60 * 1000;
+  const saidas = movimentacoes.filter(m => {
+    if (m.tipo !== 'saida') return false;
+    const ts = new Date(m.data).getTime();
+    return !isNaN(ts) && ts >= corte;
+  });
   const porProduto = new Map<string, number>();
 
   for (const s of saidas) {
