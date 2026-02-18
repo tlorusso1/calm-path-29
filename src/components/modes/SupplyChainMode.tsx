@@ -583,12 +583,16 @@ export function SupplyChainMode({
         </CardHeader>
         <CardContent>
           <Tabs value={tabAtiva} onValueChange={setTabAtiva}>
-            <TabsList className="grid w-full grid-cols-3 mb-4">
+            <TabsList className="grid w-full grid-cols-4 mb-4">
               <TabsTrigger value="itens">Adicionar</TabsTrigger>
               <TabsTrigger value="colar">Colar Lista</TabsTrigger>
               <TabsTrigger value="movimentacoes" className="flex items-center gap-1">
                 <ArrowDownUp className="h-3 w-3" />
                 Mov.
+              </TabsTrigger>
+              <TabsTrigger value="analise" className="flex items-center gap-1">
+                <TrendingUp className="h-3 w-3" />
+                Análise
               </TabsTrigger>
             </TabsList>
 
@@ -777,6 +781,109 @@ export function SupplyChainMode({
                   </AlertDialog>
                 </div>
               )}
+            </TabsContent>
+
+            {/* ========== ABA ANÁLISE: Saídas por Produto ========== */}
+            <TabsContent value="analise" className="space-y-3">
+              {(() => {
+                const movs = data.movimentacoes || [];
+                const saidas = movs.filter(m => m.tipo === 'saida');
+
+                if (saidas.length === 0) {
+                  return (
+                    <p className="text-xs text-muted-foreground text-center py-6">
+                      Nenhuma saída importada ainda. Importe um CSV na aba Mov.
+                    </p>
+                  );
+                }
+
+                const corte30d = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+                // Agrupar saídas por produto — últimos 30 dias
+                const porProduto = new Map<string, {
+                  nome: string;
+                  totalQtd: number;
+                  totalReceita: number;
+                  transacoes: number;
+                  datasUnicas: Set<string>;
+                }>();
+
+                for (const s of saidas) {
+                  const dataStr = s.data.includes('T') ? s.data : s.data + 'T00:00:00';
+                  const ts = new Date(dataStr).getTime();
+                  if (isNaN(ts) || ts < corte30d) continue;
+
+                  const key = s.produto;
+                  if (!porProduto.has(key)) {
+                    porProduto.set(key, { nome: s.produto, totalQtd: 0, totalReceita: 0, transacoes: 0, datasUnicas: new Set() });
+                  }
+                  const entry = porProduto.get(key)!;
+                  entry.totalQtd += s.quantidade;
+                  entry.transacoes += 1;
+                  entry.datasUnicas.add(s.data.split('T')[0]);
+                  if (s.valorUnitarioVenda && s.valorUnitarioVenda > 0) {
+                    entry.totalReceita += s.quantidade * s.valorUnitarioVenda;
+                  }
+                }
+
+                if (porProduto.size === 0) {
+                  return (
+                    <p className="text-xs text-muted-foreground text-center py-6">
+                      Nenhuma saída nos últimos 30 dias.
+                    </p>
+                  );
+                }
+
+                // Calcular período real das saídas (mínimo 7 dias)
+                const datasAll = saidas.map(s => new Date(s.data.includes('T') ? s.data : s.data + 'T00:00:00').getTime()).filter(d => !isNaN(d));
+                const minData = Math.min(...datasAll);
+                const maxData = Math.max(...datasAll, Date.now());
+                const periodoDias = Math.max(7, (maxData - minData) / (24 * 60 * 60 * 1000));
+                const periodoSemanas = periodoDias / 7;
+
+                const linhas = Array.from(porProduto.values())
+                  .sort((a, b) => b.totalQtd - a.totalQtd);
+
+                return (
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-muted-foreground">
+                      Saídas dos últimos 30 dias · período real: {Math.round(periodoDias)}d ({periodoSemanas.toFixed(1)} sem)
+                    </p>
+                    <ScrollArea className="h-[340px]">
+                      <div className="space-y-1 pr-2">
+                        {/* Header */}
+                        <div className="grid grid-cols-4 gap-1 text-[9px] font-medium text-muted-foreground uppercase pb-1 border-b border-border">
+                          <span className="col-span-2">Produto</span>
+                          <span className="text-right">Total 30d</span>
+                          <span className="text-right">Média/sem</span>
+                        </div>
+                        {linhas.map((p, idx) => {
+                          const mediaSemanal = Math.round((p.totalQtd / periodoSemanas) * 10) / 10;
+                          return (
+                            <div key={idx} className="grid grid-cols-4 gap-1 py-1.5 border-b border-border/40 items-center">
+                              <span className="col-span-2 text-xs truncate" title={p.nome}>{p.nome}</span>
+                              <div className="text-right">
+                                <span className="text-xs font-medium">{p.totalQtd}</span>
+                                <span className="text-[9px] text-muted-foreground ml-0.5">un</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs font-semibold text-primary">{mediaSemanal}</span>
+                                <span className="text-[9px] text-muted-foreground ml-0.5">/sem</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                    <p className="text-[10px] text-muted-foreground text-right">
+                      {linhas.length} produtos · {saidas.filter(s => {
+                        const ts = new Date(s.data.includes('T') ? s.data : s.data + 'T00:00:00').getTime();
+                        return !isNaN(ts) && ts >= corte30d;
+                      }).reduce((a, s) => a + s.quantidade, 0).toLocaleString('pt-BR')} unidades no total
+                    </p>
+                  </div>
+                );
+              })()}
             </TabsContent>
           </Tabs>
         </CardContent>
