@@ -275,7 +275,7 @@ export function ConciliacaoSection({
 }: ConciliacaoSectionProps) {
   const [texto, setTexto] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [lastResult, setLastResult] = useState<{ conciliados: number; novos: number; ignorados: number } | null>(null);
+  const [lastResult, setLastResult] = useState<{ conciliados: number; novos: number; ignorados: number; duplicatasIgnoradas: number } | null>(null);
   const [lancamentosParaRevisar, setLancamentosParaRevisar] = useState<ExtractedLancamento[]>([]);
   const [showReviewPanel, setShowReviewPanel] = useState(false);
   
@@ -423,6 +423,8 @@ export function ConciliacaoSection({
       const novos: Omit<ContaFluxo, 'id'>[] = [];
       const paraRevisar: ExtractedLancamento[] = [];
       let ignorados = 0;
+      let duplicatasIgnoradas = 0;
+      const duplicatasLog: { descricao: string; valor: string; data: string; matchDescricao: string }[] = [];
 
       const contasPagas = contasExistentes.filter(c => c.pago);
 
@@ -445,8 +447,16 @@ export function ConciliacaoSection({
         // 1b. Match exato com contas JÁ BAIXADAS: detecta duplicidade
         const matchJaBaixado = encontrarMatch(lanc, contasPagas, false);
         if (matchJaBaixado) {
-          // Lançamento já foi baixado anteriormente — ignorar silenciosamente
+          // Lançamento já foi baixado anteriormente — ignorar e logar
           ignorados++;
+          duplicatasIgnoradas++;
+          duplicatasLog.push({
+            descricao: lanc.descricao,
+            valor: lanc.valor,
+            data: lanc.dataVencimento,
+            matchDescricao: matchJaBaixado.descricao,
+          });
+          console.log(`🔴 DUPLICATA ignorada: "${lanc.descricao}" (R$${lanc.valor} em ${lanc.dataVencimento}) → match com conta paga: "${matchJaBaixado.descricao}"`);
           continue;
         }
         
@@ -571,9 +581,19 @@ export function ConciliacaoSection({
         paraRevisar,
       });
 
+      // Log resumo de duplicatas no console para diagnóstico
+      if (duplicatasLog.length > 0) {
+        console.group(`🔴 ${duplicatasLog.length} lançamentos ignorados como duplicatas:`);
+        duplicatasLog.forEach(d => {
+          console.log(`  • "${d.descricao}" R$${d.valor} (${d.data}) → match: "${d.matchDescricao}"`);
+        });
+        console.groupEnd();
+      }
+
       setLastResult({ 
         conciliados: conciliados.length, 
-        novos: novos.length, 
+        novos: novos.length,
+        duplicatasIgnoradas,
         ignorados 
       });
       
@@ -585,10 +605,11 @@ export function ConciliacaoSection({
         conciliados.length > 0 ? `✅ ${conciliados.length} contas baixadas automaticamente` : null,
         novos.length > 0 ? `📥 ${novos.length} lançamentos novos no histórico` : null,
         paraRevisar.length > 0 ? `⚠️ ${paraRevisar.length} para revisar` : null,
+        duplicatasIgnoradas > 0 ? `🔴 ${duplicatasIgnoradas} ignorados como duplicata (ver console)` : null,
       ].filter(Boolean);
       toast.success(`Conciliação: ${todosLancamentos.length} lançamentos processados`, {
         description: partes.join('\n'),
-        duration: 8000,
+        duration: 10000,
       });
 
     } catch (err) {
