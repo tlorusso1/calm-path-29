@@ -14,10 +14,11 @@ function cleanProductName(text: string): string {
 
 /**
  * Gera ID determinístico baseado no conteúdo (djb2 hash)
- * Garante que a mesma linha CSV sempre gera o mesmo ID → deduplicação segura
+ * Inclui índice de linha para garantir unicidade quando timestamp + produto + qtd são idênticos
+ * (ex: 2 vendas do mesmo item no mesmo segundo)
  */
-function gerarIdMovimentacao(tipo: string, produto: string, quantidade: number, data: string, lote?: string): string {
-  const str = `${tipo}|${produto.toLowerCase()}|${quantidade}|${data}|${lote || ''}`;
+function gerarIdMovimentacao(tipo: string, produto: string, quantidade: number, data: string, lote?: string, linhaIdx?: number): string {
+  const str = `${tipo}|${produto.toLowerCase()}|${quantidade}|${data}|${lote || ''}|${linhaIdx ?? ''}`;
   let hash = 5381;
   for (let i = 0; i < str.length; i++) {
     hash = ((hash << 5) + hash) + str.charCodeAt(i);
@@ -98,7 +99,7 @@ export function parsearMovimentacoes(texto: string): MovimentacaoEstoque[] {
 
         const lote = loteIdx >= 0 ? cells[loteIdx] : undefined;
         resultado.push({
-          id: gerarIdMovimentacao('saida', nome, quantidade, timestampCompleto, lote),
+          id: gerarIdMovimentacao('saida', nome, quantidade, timestampCompleto, lote, i),
           tipo: 'saida',
           produto: nome,
           quantidade,
@@ -134,7 +135,7 @@ export function parsearMovimentacoes(texto: string): MovimentacaoEstoque[] {
 
         const loteEntrada = loteIdx >= 0 ? cells[loteIdx] : undefined;
         resultado.push({
-          id: gerarIdMovimentacao('entrada', nome, quantidade, dataMovimentacao, loteEntrada),
+          id: gerarIdMovimentacao('entrada', nome, quantidade, dataMovimentacao, loteEntrada, i),
           tipo: 'entrada',
           produto: nome,
           quantidade,
@@ -321,7 +322,9 @@ export function topProdutosPorSaida(
   const corte = Date.now() - diasJanela * 24 * 60 * 60 * 1000;
   const saidas = movimentacoes.filter(m => {
     if (m.tipo !== 'saida') return false;
-    const ts = new Date(m.data).getTime();
+    // Adiciona T00:00:00 para evitar problema de timezone (UTC vs local)
+    const dataStr = m.data.includes('T') ? m.data : m.data + 'T00:00:00';
+    const ts = new Date(dataStr).getTime();
     return !isNaN(ts) && ts >= corte;
   });
   const porProduto = new Map<string, number>();
