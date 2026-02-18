@@ -3,18 +3,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Check, X, Pencil, Calendar, CalendarCheck, CheckCircle, Package } from 'lucide-react';
+import { Trash2, Check, X, Pencil, Calendar, CalendarCheck, CheckCircle, Package, Copy, FileText } from 'lucide-react';
 import { ContaFluxo, ContaFluxoTipo, ContaFluxoNatureza, Fornecedor } from '@/types/focus-mode';
 import { format, parseISO, isBefore, isToday, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { isCapitalGiro } from '@/utils/fluxoCaixaCalculator';
+import { toast } from 'sonner';
 
 interface ContaItemProps {
   conta: ContaFluxo;
   variant: ContaFluxoTipo;
-  fornecedores?: Fornecedor[]; // Para verificar se é Capital de Giro
+  fornecedores?: Fornecedor[];
   onUpdate: (id: string, updates: Partial<ContaFluxo>) => void;
   onRemove: (id: string) => void;
   onTogglePago?: (id: string) => void;
@@ -37,7 +39,6 @@ function getStatusConta(conta: ContaFluxo): StatusConta {
   return 'normal';
 }
 
-// Mapeia tipo para estilo visual
 function getEffectiveVariant(tipo: ContaFluxoTipo): 'pagar' | 'receber' | 'neutro' {
   switch (tipo) {
     case 'receber':
@@ -95,6 +96,10 @@ export function ContaItem({
   const [editData, setEditData] = useState(conta.dataVencimento);
   const [editTipo, setEditTipo] = useState(conta.tipo);
   const [editNatureza, setEditNatureza] = useState<ContaFluxoNatureza | undefined>(conta.natureza);
+  const [editCodigoBarrasPix, setEditCodigoBarrasPix] = useState(conta.codigoBarrasPix || '');
+  const [editNumeroNF, setEditNumeroNF] = useState(conta.numeroNF || '');
+  const [editChaveDanfe, setEditChaveDanfe] = useState(conta.chaveDanfe || '');
+  const [showDocFields, setShowDocFields] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const status = getStatusConta(conta);
@@ -115,6 +120,9 @@ export function ContaItem({
       dataVencimento: editData || conta.dataVencimento,
       tipo: editTipo,
       natureza: editNatureza,
+      codigoBarrasPix: editCodigoBarrasPix.trim() || undefined,
+      numeroNF: editNumeroNF.trim() || undefined,
+      chaveDanfe: editChaveDanfe.trim() || undefined,
     });
     setIsEditing(false);
   };
@@ -125,6 +133,10 @@ export function ContaItem({
     setEditData(conta.dataVencimento);
     setEditTipo(conta.tipo);
     setEditNatureza(conta.natureza);
+    setEditCodigoBarrasPix(conta.codigoBarrasPix || '');
+    setEditNumeroNF(conta.numeroNF || '');
+    setEditChaveDanfe(conta.chaveDanfe || '');
+    setShowDocFields(false);
     setIsEditing(false);
   };
 
@@ -136,12 +148,22 @@ export function ContaItem({
     }
   };
 
+  const handleCopiarCodigo = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (conta.codigoBarrasPix) {
+      navigator.clipboard.writeText(conta.codigoBarrasPix);
+      toast.success('Copiado!');
+    }
+  };
+
   const getDiasAtraso = () => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const dataVenc = parseISO(conta.dataVencimento);
     return differenceInDays(hoje, dataVenc);
   };
+
+  const temDadosDoc = conta.codigoBarrasPix || conta.numeroNF || conta.chaveDanfe;
 
   if (isEditing) {
     return (
@@ -161,7 +183,6 @@ export function ContaItem({
             </SelectContent>
           </Select>
           
-          {/* Seletor de Natureza (somente para tipo "pagar") */}
           {['pagar', 'cartao'].includes(editTipo) && (
             <Select 
               value={editNatureza || 'operacional'} 
@@ -226,6 +247,49 @@ export function ContaItem({
             <X className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Linha 4: Dados do Documento (expansível) */}
+        <div className="w-full">
+          <button
+            type="button"
+            className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+            onClick={() => setShowDocFields(!showDocFields)}
+          >
+            <FileText className="h-3 w-3" />
+            {showDocFields ? 'Ocultar dados do documento' : 'Dados do documento (NF, PIX, DANFE)'}
+          </button>
+          {showDocFields && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <div className="flex-1 min-w-[200px]">
+                <label className="text-[10px] text-muted-foreground block mb-1">Código de barras / PIX copia-e-cola</label>
+                <Input
+                  value={editCodigoBarrasPix}
+                  onChange={(e) => setEditCodigoBarrasPix(e.target.value)}
+                  placeholder="Cole aqui o código de barras ou chave PIX..."
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="w-32">
+                <label className="text-[10px] text-muted-foreground block mb-1">N° NF</label>
+                <Input
+                  value={editNumeroNF}
+                  onChange={(e) => setEditNumeroNF(e.target.value)}
+                  placeholder="Ex: 001234"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="flex-1 min-w-[200px]">
+                <label className="text-[10px] text-muted-foreground block mb-1">Chave DANFE (44 dígitos)</label>
+                <Input
+                  value={editChaveDanfe}
+                  onChange={(e) => setEditChaveDanfe(e.target.value)}
+                  placeholder="00000000000000000000000000000000000000000000"
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -248,7 +312,7 @@ export function ContaItem({
         )}
         onClick={() => !conta.projecao && setIsEditing(true)}
       >
-        {/* Linha 1: Data + Descrição - Desktop expandido, Mobile empilha */}
+        {/* Linha 1: Data + Descrição */}
         <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto sm:flex-1">
           <span className="text-xs text-muted-foreground w-12 shrink-0">
             {format(parseISO(conta.dataVencimento), 'dd/MM', { locale: ptBR })}
@@ -348,7 +412,7 @@ export function ContaItem({
               vence hoje
             </Badge>
           )}
-          {/* Toggle de Natureza - apenas para contas a pagar pendentes */}
+          {/* Toggle de Natureza */}
           {['pagar', 'cartao'].includes(conta.tipo) && !conta.pago && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -375,14 +439,14 @@ export function ContaItem({
               </TooltipContent>
             </Tooltip>
           )}
-          {/* Badge "Conciliado auto" para contas baixadas por conciliação */}
+          {/* Badge "Conciliado auto" */}
           {conta.pago && conta.conciliado && conta.lancamentoConciliadoId && (
             <Badge variant="outline" className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-700 shrink-0 gap-1">
               <CheckCircle className="h-2.5 w-2.5" />
               Conciliado auto
             </Badge>
           )}
-          {/* Badge estático para contas pagas (histórico) */}
+          {/* Badge estático para contas pagas com natureza estoque */}
           {['pagar', 'cartao'].includes(conta.tipo) && conta.pago && conta.natureza === 'capitalGiro' && (
             <Badge variant="outline" className="text-[10px] bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-700 shrink-0 gap-1">
               <Package className="h-2.5 w-2.5" />
@@ -390,12 +454,90 @@ export function ContaItem({
             </Badge>
           )}
           
-          {/* Valor + Ações - empurrados para direita */}
+          {/* Valor + Ações */}
           <div className="flex items-center gap-1.5 ml-auto shrink-0">
-        
             <span className={`font-medium ${styles.text}`}>
               {formatCurrency(conta.valor)}
             </span>
+
+            {/* Botão copiar PIX/Código de barras — sempre visível quando preenchido */}
+            {conta.codigoBarrasPix && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                    onClick={handleCopiarCodigo}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Copiar PIX / código de barras</TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* Botão ver detalhes do documento — popover discreto */}
+            {temDadosDoc && (
+              <Popover>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Ver dados do documento</TooltipContent>
+                </Tooltip>
+                <PopoverContent
+                  className="w-80 p-3 text-xs"
+                  side="left"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p className="font-medium text-sm mb-2 text-foreground">Dados do documento</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground shrink-0">N° NF</span>
+                      <span className={cn("font-mono", !conta.numeroNF && "text-muted-foreground")}>
+                        {conta.numeroNF || '—'}
+                      </span>
+                    </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-muted-foreground shrink-0">Chave DANFE</span>
+                      <span className={cn("font-mono text-right break-all", !conta.chaveDanfe && "text-muted-foreground")}>
+                        {conta.chaveDanfe || '—'}
+                      </span>
+                    </div>
+                    {conta.codigoBarrasPix && (
+                      <div className="pt-1 border-t">
+                        <p className="text-muted-foreground mb-1">Código / PIX</p>
+                        <div className="flex items-center gap-1.5 bg-muted rounded p-1.5">
+                          <span className="font-mono text-[10px] truncate flex-1">{conta.codigoBarrasPix}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-5 w-5 p-0 shrink-0 text-blue-500 hover:text-blue-700"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(conta.codigoBarrasPix!);
+                              toast.success('Copiado!');
+                            }}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
             
             {/* Botões de ação */}
             {!conta.pago && onTogglePago && (
