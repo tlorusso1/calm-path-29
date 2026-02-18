@@ -1,106 +1,125 @@
 
+# Correções: Anti-duplicação, Top Saídas 30d e Atualização de Demanda
 
-# Ajustes Supply (Demanda 4 semanas) + CMV Produto vs CMV Gerencial + Alerta Caixa
+## Problemas identificados
 
-## Resumo
+### 1. Duplicação de saídas (principal)
+Em `SupplyChainMode.tsx` linha 675-676:
+```ts
+const movExistentes = data.movimentacoes || [];
+const todasMovimentacoes = [...movExistentes, ...novas];
+```
+Cada clique em "Importar Movimentações" simplesmente **concatena** as novas por cima das antigas. Se o usuário colar o mesmo CSV duas vezes, as 518 saídas viram 1036. Não existe nenhuma verificação de duplicata.
 
-Tres blocos de mudancas:
-1. Supply: media de saida semanal baseada nos ultimos 28 dias (nao periodo total)
-2. Financeiro: separar CMV Produto (contabil) de CMV Gerencial (unit economics com impostos, taxa cartao, fulfillment)
-3. Verificar logica do alerta de caixa insuficiente
+**Solução**: criar uma chave de deduplicação por `produto + data + quantidade`. Antes de concatenar, filtrar as "novas" que já existem nas existentes. Como as saídas do CSV não têm data (usam `hoje`), a chave será `produto + quantidade`. Para entradas, usar `produto + data + quantidade + lote`.
 
-## Sobre o alerta de caixa insuficiente
+Alternativa mais simples e robusta: ao importar, **substituir** as movimentações do mesmo tipo e período (não acumular cegamente), ou usar hash de conteúdo como ID. Optaremos pelo hash: gerar um `id` determinístico baseado em `tipo + produto + quantidade + data` para que linhas idênticas do CSV sempre gerem o mesmo ID, e então usar `Set` para deduplicar.
 
-O alerta esta correto. Ele soma o saldo Itau (CC + CDB de ambas as contas) e compara com as contas a pagar nao pagas nos proximos 5 dias. Se o total a pagar excede o saldo, mostra "FALTA". Na imagem: saldo R$ 226,46 vs R$ 10.547,16 a pagar = falta R$ 10.320,70. Se voce tem caixa em outros lugares (Asaas, Pagar.me, Mercado Pago), o alerta ja sugere puxar deles, mas nao soma automaticamente porque sao recebiveis, nao saldo livre. **Se quiser que o alerta considere tambem saldo de gateways, posso ajustar em outro momento.**
+### 2. Top saídas mostra todo o histórico, não os últimos 30 dias
+`topProdutosPorSaida()` em `movimentacoesParser.ts` não tem filtro de data — usa todas as movimentações acumuladas.
+
+**Solução**: adicionar parâmetro opcional `diasJanela` (default 30) na função e filtrar as saídas pela data.
+
+### 3. Demanda não está atualizando corretamente no campo "Saída/sem"
+A normalização na linha 684 do `SupplyChainMode.tsx` é inline:
+```ts
+const key = item.nome.toLowerCase().normalize("NFD").replace(...)
+```
+E a função `normalizarNomeProduto` em `movimentacoesParser.ts` faz:
+```ts
+.replace(/[®™]/g, '').replace(/\s+/g, ' ')
+```
+O CSV tem nomes como `"NICE® MILK - CASTANHA DE CAJU - 450G"` (depois do `cleanProductName` que remove `[B]` mas mantém `NICE®`), enquanto os itens no estoque podem estar cadastrados como `NICE Milk Castanha Caju 450G`. A normalização inline no `SupplyChainMode` não remove `®™` — causa mismatch e o `onUpdateItem` nunca é chamado.
+
+**Solução**: extrair a função `normalizarNomeProduto` para um local compartilhado (ou exportá-la do `movimentacoesParser`) e usá-la em ambos os lugares de forma idêntica.
 
 ---
 
-## 1. Supply - Media de Saida Semanal (ultimas 4 semanas)
+## Mudanças técnicas
 
-**Arquivo: `src/utils/movimentacoesParser.ts`**
+### Arquivo 1: `src/utils/movimentacoesParser.ts`
 
-Alterar `calcularDemandaSemanalPorItem` para:
-- Usar janela fixa de 28 dias (ultimas 4 semanas) em vez do periodo total desde a primeira saida
-- Se nao houver 28 dias de dados, usar o periodo disponivel (minimo 7 dias)
-- Isso evita distorcao quando se importa um historico longo
+**a) IDs determinísticos para deduplicação**
 
-Campo de demanda semanal no item continua editavel (override manual), mas o valor calculado automaticamente agora reflete apenas as ultimas 4 semanas.
-
-## 2. Financeiro - Dois niveis de CMV
-
-### CMV Produto (ja existe, ajustar label)
-
-O CMV Produto atual (quantidade saida x custo unitario) ja esta correto. Apenas renomear/clarificar no DRE:
-- Linha "CUSTOS DE PRODUTO VENDIDO" passa a mostrar sublabel "CMV Produto (custo MP + embalagem + industrializacao)"
-- Badge SUPPLY continua
-
-### CMV Gerencial (novo bloco)
-
-**Novo arquivo: `src/components/financeiro/CMVGerencialCard.tsx`**
-
-Card separado abaixo do DRE na secao de Analise, com:
-
-Inputs configuráveis (com defaults):
-- Aliquota impostos: puxar do campo `impostoPercentual` do Financeiro (default 16%)
-- Taxa cartao: default 6% (editavel)
-- Fulfillment por pedido: default R$ 5,00 (editavel)
-- Caixa + materiais por pedido: default R$ 5,00 (editavel)
-
-Calculos automaticos (baseados nos dados do mes):
-- **Receita Bruta**: vem do Supply (soma ValorSaida das movimentacoes) ou do DRE (receitas conciliadas)
-- **CMV Produto**: quantidade x custo unitario (do Supply)
-- **Impostos**: Receita x aliquota
-- **Taxa Cartao**: Receita x 6%
-- **Fulfillment**: (Receita / ticket medio) x R$ 5,00
-- **Caixa/Materiais**: (Receita / ticket medio) x R$ 5,00
-- **CMV Gerencial Total**: soma de todos acima
-- **Margem Gerencial**: (Receita - CMV Gerencial) / Receita
-
-Ticket medio: puxar de `reuniaoAds.ticketMedio` se disponivel, ou calcular como Receita / numero de saidas unicas (agrupadas por pedido/lote)
-
-Exibicao em tabela simples:
+Trocar `genId()` (aleatório) por `gerarIdMovimentacao()` que cria um hash simples baseado no conteúdo:
+```ts
+function gerarIdMovimentacao(tipo: string, produto: string, quantidade: number, data: string, lote?: string): string {
+  const str = `${tipo}|${produto.toLowerCase()}|${quantidade}|${data}|${lote || ''}`;
+  // hash simples: djb2
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) + str.charCodeAt(i);
+  }
+  return Math.abs(hash).toString(36);
+}
 ```
-Receita Bruta           R$ XX.XXX
-(-) CMV Produto         R$ X.XXX    (XX%)
-(-) Impostos            R$ X.XXX    (16%)
-(-) Taxa Cartao         R$ X.XXX    (6%)
-(-) Fulfillment         R$ X.XXX
-(-) Caixa/Materiais     R$ X.XXX
-= Margem Gerencial      R$ X.XXX    (XX%)
+Isso garante que a mesma linha CSV sempre gera o mesmo ID — a deduplicação então usa um `Set<string>` de IDs existentes.
+
+**b) Exportar `normalizarNomeProduto`**
+
+Tornar a função pública (`export function normalizarNomeProduto`) para ser reutilizada no componente.
+
+**c) `topProdutosPorSaida` com filtro de janela**
+
+```ts
+export function topProdutosPorSaida(
+  movimentacoes: MovimentacaoEstoque[],
+  n: number = 5,
+  diasJanela: number = 30  // NOVO parâmetro
+): { produto: string; quantidade: number }[]
+```
+Filtrar as saídas: só incluir as com `data >= (hoje - diasJanela dias)`.
+
+### Arquivo 2: `src/components/modes/SupplyChainMode.tsx`
+
+**a) Deduplicação na importação**
+
+Na lógica do botão "Importar Movimentações":
+```ts
+const movExistentes = data.movimentacoes || [];
+const idsExistentes = new Set(movExistentes.map(m => m.id));
+
+// Filtrar apenas as novas que NÃO existem ainda
+const novasDeduplicadas = novas.filter(m => !idsExistentes.has(m.id));
+const todasMovimentacoes = [...movExistentes, ...novasDeduplicadas];
+
+const duplicatasIgnoradas = novas.length - novasDeduplicadas.length;
 ```
 
-### Integracao no DRE
+Toast atualizado para informar:
+```
+"X saídas importadas, Y entradas. Demanda atualizada para Z produtos."
++ se duplicatasIgnoradas > 0: "(N duplicatas ignoradas)"
+```
 
-No DRE existente, apos a linha de RESULTADO OPERACIONAL, adicionar uma linha resumo:
-- "Margem Gerencial (unit economics): XX%" com link para expandir o card completo
+**b) Normalização correta para match de demanda**
 
-**Arquivo: `src/components/financeiro/DRESection.tsx`**
+Substituir a normalização inline (linha 684) por chamada à função exportada:
+```ts
+import { ..., normalizarNomeProduto } from '@/utils/movimentacoesParser';
 
-Adicionar prop `cmvGerencialData` e exibir resumo apos resultado operacional.
+// Dentro do loop:
+const key = normalizarNomeProduto(item.nome);
+const demanda = demandaMap.get(key);
+```
 
-**Arquivo: `src/components/modes/FinanceiroMode.tsx`**
+**c) `topProdutosPorSaida` chamado com `diasJanela: 30`**
 
-- Adicionar o CMVGerencialCard na secao de Analise (bloco MEIO)
-- Passar dados necessarios (receita, CMV produto, ticket medio, aliquota impostos)
+```ts
+const top5 = topProdutosPorSaida(data.movimentacoes!, 5, 30);
+```
 
-## 3. Consistencia de dados
+E atualizar o label para deixar claro: `"Top Produtos (últimos 30d)"`.
 
-- A demanda semanal no Supply vem exclusivamente das saidas reais (ultimas 4 semanas)
-- O campo manual permanece como override (se preenchido, prevalece sobre o calculado)
-- O CMV Produto usa a mesma base de saidas + tabela de custos
-- O CMV Gerencial adiciona camadas de custo por cima do CMV Produto
+---
 
 ## Arquivos afetados
 
-| Arquivo | Acao |
-|---------|------|
-| `src/utils/movimentacoesParser.ts` | Alterar calculo de demanda para janela de 28 dias |
-| `src/components/financeiro/CMVGerencialCard.tsx` | **NOVO** - Card com unit economics e margem gerencial |
-| `src/components/financeiro/DRESection.tsx` | Adicionar sublabel no CMV Produto + resumo margem gerencial |
-| `src/components/modes/FinanceiroMode.tsx` | Integrar CMVGerencialCard na secao de Analise |
-| `src/types/focus-mode.ts` | Adicionar campos de config do CMV Gerencial ao FinanceiroStage |
+| Arquivo | Mudança |
+|---------|---------|
+| `src/utils/movimentacoesParser.ts` | IDs determinísticos, exportar `normalizarNomeProduto`, filtro de 30d no `topProdutosPorSaida` |
+| `src/components/modes/SupplyChainMode.tsx` | Deduplicação por ID no Set, normalização correta, label "últimos 30d" |
 
 ## Dados preservados
 
-Nenhum dado existente sera apagado. Todas as movimentacoes, itens de estoque, contas, fornecedores e configuracoes permanecem intactos. As mudancas sao aditivas.
-
+Nenhum dado existente será removido. As movimentações já salvas mantêm seus IDs aleatórios — após a fix, novas importações do mesmo CSV serão ignoradas pois os IDs determinísticos não colidirão com os aleatórios antigos. Para "limpar" o histórico duplicado, o usuário pode clicar no botão "Limpar Movimentações" (que já existe) e reimportar uma vez.
