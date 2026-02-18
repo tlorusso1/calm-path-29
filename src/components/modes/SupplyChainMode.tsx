@@ -461,7 +461,10 @@ export function SupplyChainMode({
                   .filter(item => 
                     item.diasVenc !== null && 
                     item.coberturaDias !== undefined && 
-                    item.diasVenc < item.coberturaDias
+                    // Aciona se o produto vencer até 30 dias ANTES de acabar o estoque
+                    // ex: estoque dura 60d mas vence em 50d → margem de 10d → aciona
+                    // ou se vencer em ≤ 30d independente da cobertura
+                    (item.diasVenc <= 30 || item.diasVenc < (item.coberturaDias! + 30))
                   )
                   .sort((a, b) => (a.diasVenc ?? 999) - (b.diasVenc ?? 999));
 
