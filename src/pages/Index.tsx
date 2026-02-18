@@ -109,7 +109,7 @@ const Index = () => {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <div className="border-b border-border bg-card">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={niceFoodsLogo} alt="NICE FOODS" className="h-8 object-contain dark:invert" />
             <div className="hidden sm:block">
@@ -159,7 +159,7 @@ const Index = () => {
 
       <ModeSelector activeMode={activeMode} modes={modes} onSelectMode={setActiveMode} canAccess={canAccess} />
 
-      <main className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4">
+      <main className="flex-1 flex flex-col max-w-5xl mx-auto w-full px-4">
         {activeMode ? (
           <ModeContent
             mode={modes[activeMode]}
