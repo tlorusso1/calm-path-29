@@ -39,6 +39,7 @@ import {
   calcularCMVPorSaidas,
   calcularReceitaBruta,
   topProdutosPorSaida,
+  normalizarNomeProduto,
 } from '@/utils/movimentacoesParser';
 
 interface SupplyChainModeProps {
@@ -331,7 +332,7 @@ export function SupplyChainMode({
             const cmv = calcularCMVPorSaidas(data.movimentacoes!);
             const receita = calcularReceitaBruta(data.movimentacoes!);
             const margem = receita > 0 ? ((receita - cmv) / receita * 100) : 0;
-            const top5 = topProdutosPorSaida(data.movimentacoes!, 5);
+            const top5 = topProdutosPorSaida(data.movimentacoes!, 5, 30);
             const totalUnidades = saidas.reduce((acc, s) => acc + s.quantidade, 0);
 
             return (
@@ -362,7 +363,7 @@ export function SupplyChainMode({
                 </div>
                 {top5.length > 0 && (
                   <div>
-                    <p className="text-[10px] text-muted-foreground mb-1">Top Produtos (Saída)</p>
+                    <p className="text-[10px] text-muted-foreground mb-1">Top Produtos (últimos 30d)</p>
                     {top5.map((p, i) => (
                       <div key={i} className="flex justify-between text-xs">
                         <span className="truncate mr-2">{p.produto}</span>
@@ -673,15 +674,20 @@ export function SupplyChainMode({
                   }
                   
                   const movExistentes = data.movimentacoes || [];
-                  const todasMovimentacoes = [...movExistentes, ...novas];
+                  const idsExistentes = new Set(movExistentes.map(m => m.id));
                   
-                  // Recalcular demanda semanal dos itens
+                  // Deduplicar: só adicionar movimentações com IDs novos
+                  const novasDeduplicadas = novas.filter(m => !idsExistentes.has(m.id));
+                  const duplicatasIgnoradas = novas.length - novasDeduplicadas.length;
+                  const todasMovimentacoes = [...movExistentes, ...novasDeduplicadas];
+                  
+                  // Recalcular demanda semanal dos itens (usando normalizarNomeProduto consistente)
                   const demandaMap = calcularDemandaSemanalPorItem(todasMovimentacoes);
                   
                   // Atualizar itens que têm match
                   let itensAtualizados = 0;
                   for (const item of data.itens) {
-                    const key = item.nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[®™]/g, '').replace(/\s+/g, ' ').trim();
+                    const key = normalizarNomeProduto(item.nome);
                     const demanda = demandaMap.get(key);
                     if (demanda !== undefined) {
                       onUpdateItem(item.id, { demandaSemanal: demanda });
@@ -689,17 +695,18 @@ export function SupplyChainMode({
                     }
                   }
                   
-                  const saidas = novas.filter(m => m.tipo === 'saida').length;
-                  const entradas = novas.filter(m => m.tipo === 'entrada').length;
+                  const saidas = novasDeduplicadas.filter(m => m.tipo === 'saida').length;
+                  const entradas = novasDeduplicadas.filter(m => m.tipo === 'entrada').length;
                   
                   onUpdateSupplyChainData({ 
                     movimentacoes: todasMovimentacoes,
                     ultimaImportacaoMov: new Date().toISOString(),
                   });
                   
+                  const descDuplicatas = duplicatasIgnoradas > 0 ? ` (${duplicatasIgnoradas} duplicatas ignoradas)` : '';
                   toast({
                     title: "Movimentações Importadas",
-                    description: `${saidas} saídas, ${entradas} entradas${itensAtualizados > 0 ? `. Demanda atualizada para ${itensAtualizados} produtos` : ''}`,
+                    description: `${saidas} saídas, ${entradas} entradas${itensAtualizados > 0 ? `. Demanda atualizada para ${itensAtualizados} produtos` : ''}${descDuplicatas}`,
                   });
                   flushSave?.();
                   setTextoMovimentacoes('');
