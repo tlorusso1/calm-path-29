@@ -11,6 +11,17 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
 import { 
   Package, 
@@ -23,7 +34,8 @@ import {
   Truck,
   Check,
   ArrowDownUp,
-  TrendingUp
+  TrendingUp,
+  RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -719,11 +731,50 @@ export function SupplyChainMode({
               </Button>
               
               {data.movimentacoes && data.movimentacoes.length > 0 && (
-                <div className="text-xs text-muted-foreground text-center">
-                  {data.movimentacoes.length} movimentações acumuladas
-                  {data.ultimaImportacaoMov && (
-                    <span> • Última: {new Date(data.ultimaImportacaoMov).toLocaleDateString('pt-BR')}</span>
-                  )}
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground text-center">
+                    {data.movimentacoes.length} movimentações acumuladas
+                    {data.ultimaImportacaoMov && (
+                      <span> • Última: {new Date(data.ultimaImportacaoMov).toLocaleDateString('pt-BR')}</span>
+                    )}
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full text-destructive border-destructive/40 hover:bg-destructive/10">
+                        <RotateCcw className="h-3.5 w-3.5 mr-2" />
+                        Limpar Movimentações
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Limpar todas as movimentações?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Isso vai zerar as {data.movimentacoes.length} movimentações acumuladas (saídas e entradas). 
+                          Os itens de estoque e demais dados <strong>não serão afetados</strong>.
+                          Após limpar, reimporte o CSV uma vez para começar do zero sem duplicatas.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => {
+                            onUpdateSupplyChainData({
+                              movimentacoes: [],
+                              ultimaImportacaoMov: undefined,
+                            });
+                            flushSave?.();
+                            toast({
+                              title: "Movimentações zeradas",
+                              description: "Reimporte o CSV para começar do zero.",
+                            });
+                          }}
+                        >
+                          Limpar tudo
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               )}
             </TabsContent>
