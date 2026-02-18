@@ -10,11 +10,6 @@ interface CaixaVsAPagar5dProps {
   contasBancarias: FinanceiroContas | undefined;
 }
 
-const parseCurrencyStr = (val: string | undefined): number => {
-  if (!val) return 0;
-  return parseFloat(val.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
-};
-
 const fmt = (val: number) =>
   val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -30,10 +25,10 @@ export function CaixaVsAPagar5d({ contasFluxo, contasBancarias }: CaixaVsAPagar5
   const saldoItau = useMemo(() => {
     if (!contasBancarias) return 0;
     return (
-      parseCurrencyStr(contasBancarias.itauNiceFoods.saldo) +
-      parseCurrencyStr(contasBancarias.itauNiceFoods.cdb) +
-      parseCurrencyStr(contasBancarias.itauNiceEcom.saldo) +
-      parseCurrencyStr(contasBancarias.itauNiceEcom.cdb)
+      parseValorFlexivel(contasBancarias.itauNiceFoods.saldo || '') +
+      parseValorFlexivel(contasBancarias.itauNiceFoods.cdb || '') +
+      parseValorFlexivel(contasBancarias.itauNiceEcom.saldo || '') +
+      parseValorFlexivel(contasBancarias.itauNiceEcom.cdb || '')
     );
   }, [contasBancarias]);
 
