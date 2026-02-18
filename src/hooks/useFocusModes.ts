@@ -982,6 +982,10 @@ export function useFocusModes() {
         ...currentData,
         ...data,
         itens: data.itens ?? currentData.itens ?? [],
+        // Garantir que movimentacoes: [] sobrescreva corretamente (não merge)
+        movimentacoes: 'movimentacoes' in data ? (data.movimentacoes ?? []) : (currentData.movimentacoes ?? []),
+        // Garantir que ultimaImportacaoMov: undefined sobrescreva corretamente
+        ultimaImportacaoMov: 'ultimaImportacaoMov' in data ? data.ultimaImportacaoMov : currentData.ultimaImportacaoMov,
         semanal: {
           ...(currentData.semanal ?? DEFAULT_SUPPLYCHAIN_DATA.semanal),
           ...(data.semanal ?? {}),
