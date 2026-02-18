@@ -951,7 +951,7 @@ export function SupplyChainMode({
                       </div>
                       
                       {/* Campos editáveis: Saída semanal + Validade */}
-                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
                         {/* Saída semanal */}
                         <div className="flex items-center gap-2">
                           <Label className="text-xs text-muted-foreground whitespace-nowrap">
@@ -967,7 +967,7 @@ export function SupplyChainMode({
                                 demandaSemanal: val ? parseFloat(val) : undefined 
                               });
                             }}
-                            className="h-7 w-20 text-xs"
+                            className="h-7 w-24 sm:w-28 text-xs"
                           />
                           <span className="text-xs text-muted-foreground">un</span>
                           {usandoGlobal && data.demandaSemanalMedia > 0 && (
@@ -980,7 +980,7 @@ export function SupplyChainMode({
                         {/* Preço Custo */}
                         <div className="flex items-center gap-2">
                           <Label className="text-xs text-muted-foreground whitespace-nowrap">
-                            Custo:
+                            Custo un.:
                           </Label>
                           <div className="relative">
                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">R$</span>
@@ -994,11 +994,11 @@ export function SupplyChainMode({
                                   precoCusto: val ? parseFloat(val) : undefined 
                                 });
                               }}
-                              className="h-7 w-20 text-xs pl-7"
+                              className="h-7 w-28 sm:w-32 text-xs pl-7"
                             />
                           </div>
                           {item.precoCusto && item.precoCusto > 0 && (
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                               = {formatCurrency(item.quantidade * item.precoCusto)}
                             </span>
                           )}
@@ -1014,7 +1014,7 @@ export function SupplyChainMode({
                             onChange={(e) => onUpdateItem(item.id, { 
                               dataValidade: e.target.value || undefined 
                             })}
-                            className="h-7 w-32 text-xs"
+                            className="h-7 w-32 sm:w-36 text-xs"
                           />
                           {diasVenc !== null && (
                             <Badge 
