@@ -1,125 +1,71 @@
 
-# Correções: Anti-duplicação, Top Saídas 30d e Atualização de Demanda
+# Limpar Saídas Duplicadas + Corrigir Deduplicação por Timestamp
 
-## Problemas identificados
+## O problema real
 
-### 1. Duplicação de saídas (principal)
-Em `SupplyChainMode.tsx` linha 675-676:
-```ts
-const movExistentes = data.movimentacoes || [];
-const todasMovimentacoes = [...movExistentes, ...novas];
+O CSV de saídas que você usa tem uma coluna `DataHora` com **data + hora + segundos** (ex: `18/02/2026 09:40:56`). Porém o parser atual **ignora** essa coluna nas saídas e usa `hoje` (só a data, sem hora) para todos. Resultado: duas saídas do mesmo produto com a mesma quantidade no mesmo dia geram **hash idêntico** e são tratadas como duplicata — quando na verdade são vendas separadas.
+
+```text
+Linha CSV:  NICE® MILK | 2 | 131.8 | 18/02/2026 09:40:56
+Linha CSV:  NICE® MILK | 2 | 65.9  | 18/02/2026 09:40:58  ← horário diferente, mesma qtd
+
+Hash atual: saida|milk...|2|2026-02-18|  ← MESMO HASH → duplicata falsa!
+Hash certo: saida|milk...|2|2026-02-18T09:40:56|  ← hash diferente → correto!
 ```
-Cada clique em "Importar Movimentações" simplesmente **concatena** as novas por cima das antigas. Se o usuário colar o mesmo CSV duas vezes, as 518 saídas viram 1036. Não existe nenhuma verificação de duplicata.
 
-**Solução**: criar uma chave de deduplicação por `produto + data + quantidade`. Antes de concatenar, filtrar as "novas" que já existem nas existentes. Como as saídas do CSV não têm data (usam `hoje`), a chave será `produto + quantidade`. Para entradas, usar `produto + data + quantidade + lote`.
+## O que vai ser feito
 
-Alternativa mais simples e robusta: ao importar, **substituir** as movimentações do mesmo tipo e período (não acumular cegamente), ou usar hash de conteúdo como ID. Optaremos pelo hash: gerar um `id` determinístico baseado em `tipo + produto + quantidade + data` para que linhas idênticas do CSV sempre gerem o mesmo ID, e então usar `Set` para deduplicar.
+### 1. Adicionar botão "Limpar Movimentações" imediato
 
-### 2. Top saídas mostra todo o histórico, não os últimos 30 dias
-`topProdutosPorSaida()` em `movimentacoesParser.ts` não tem filtro de data — usa todas as movimentações acumuladas.
+Um botão vermelho no painel de movimentações que zera `movimentacoes: []` e `ultimaImportacaoMov: undefined` no state — começa do zero sem perder itens de estoque ou outros dados.
 
-**Solução**: adicionar parâmetro opcional `diasJanela` (default 30) na função e filtrar as saídas pela data.
+### 2. Corrigir o parser para capturar o timestamp completo nas saídas
 
-### 3. Demanda não está atualizando corretamente no campo "Saída/sem"
-A normalização na linha 684 do `SupplyChainMode.tsx` é inline:
-```ts
-const key = item.nome.toLowerCase().normalize("NFD").replace(...)
+**Arquivo: `src/utils/movimentacoesParser.ts`**
+
+O CSV de saídas tem uma coluna de data/hora (a 4ª coluna nos dados que você mostrou: `18/02/2026 09:40:56`). O parser precisa:
+
+- Procurar coluna de data/hora nas saídas também (header `datahora`, `data`, ou a 4ª/última coluna)
+- Extrair **data + hora completa** (incluindo segundos: `HH:MM:SS`)
+- Usar o timestamp completo como base do ID determinístico
+
+```text
+ANTES:  id = hash("saida|milk|2|2026-02-18|")  ← conflito entre vendas do mesmo dia
+DEPOIS: id = hash("saida|milk|2|2026-02-18T09:40:56|")  ← único por transação
 ```
-E a função `normalizarNomeProduto` em `movimentacoesParser.ts` faz:
-```ts
-.replace(/[®™]/g, '').replace(/\s+/g, ' ')
-```
-O CSV tem nomes como `"NICE® MILK - CASTANHA DE CAJU - 450G"` (depois do `cleanProductName` que remove `[B]` mas mantém `NICE®`), enquanto os itens no estoque podem estar cadastrados como `NICE Milk Castanha Caju 450G`. A normalização inline no `SupplyChainMode` não remove `®™` — causa mismatch e o `onUpdateItem` nunca é chamado.
 
-**Solução**: extrair a função `normalizarNomeProduto` para um local compartilhado (ou exportá-la do `movimentacoesParser`) e usá-la em ambos os lugares de forma idêntica.
-
----
-
-## Mudanças técnicas
-
-### Arquivo 1: `src/utils/movimentacoesParser.ts`
-
-**a) IDs determinísticos para deduplicação**
-
-Trocar `genId()` (aleatório) por `gerarIdMovimentacao()` que cria um hash simples baseado no conteúdo:
-```ts
-function gerarIdMovimentacao(tipo: string, produto: string, quantidade: number, data: string, lote?: string): string {
-  const str = `${tipo}|${produto.toLowerCase()}|${quantidade}|${data}|${lote || ''}`;
-  // hash simples: djb2
-  let hash = 5381;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash) + str.charCodeAt(i);
-  }
-  return Math.abs(hash).toString(36);
-}
-```
-Isso garante que a mesma linha CSV sempre gera o mesmo ID — a deduplicação então usa um `Set<string>` de IDs existentes.
-
-**b) Exportar `normalizarNomeProduto`**
-
-Tornar a função pública (`export function normalizarNomeProduto`) para ser reutilizada no componente.
-
-**c) `topProdutosPorSaida` com filtro de janela**
+A função `parseDateCSV` será atualizada para retornar também a hora:
 
 ```ts
-export function topProdutosPorSaida(
-  movimentacoes: MovimentacaoEstoque[],
-  n: number = 5,
-  diasJanela: number = 30  // NOVO parâmetro
-): { produto: string; quantidade: number }[]
-```
-Filtrar as saídas: só incluir as com `data >= (hoje - diasJanela dias)`.
-
-### Arquivo 2: `src/components/modes/SupplyChainMode.tsx`
-
-**a) Deduplicação na importação**
-
-Na lógica do botão "Importar Movimentações":
-```ts
-const movExistentes = data.movimentacoes || [];
-const idsExistentes = new Set(movExistentes.map(m => m.id));
-
-// Filtrar apenas as novas que NÃO existem ainda
-const novasDeduplicadas = novas.filter(m => !idsExistentes.has(m.id));
-const todasMovimentacoes = [...movExistentes, ...novasDeduplicadas];
-
-const duplicatasIgnoradas = novas.length - novasDeduplicadas.length;
+// DD/MM/YYYY HH:MM:SS → 2026-02-18T09:40:56
+const match1 = text.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2}:\d{2})/);
+if (match1) return `${match1[3]}-${match1[2]}-${match1[1]}T${match1[4]}`;
 ```
 
-Toast atualizado para informar:
+E o campo `data` salvo na movimentação ficará como `2026-02-18` (só data, para filtros de janela), enquanto o timestamp completo vai só para o hash do ID.
+
+### 3. Detectar colunas de data/hora nas saídas
+
+O formato do CSV de saídas que você usa aparentemente é:
 ```
-"X saídas importadas, Y entradas. Demanda atualizada para Z produtos."
-+ se duplicatasIgnoradas > 0: "(N duplicatas ignoradas)"
+DescriçãoProduto ; Qtde.Saída ; ValorSaída ; DataHora
 ```
-
-**b) Normalização correta para match de demanda**
-
-Substituir a normalização inline (linha 684) por chamada à função exportada:
-```ts
-import { ..., normalizarNomeProduto } from '@/utils/movimentacoesParser';
-
-// Dentro do loop:
-const key = normalizarNomeProduto(item.nome);
-const demanda = demandaMap.get(key);
+ou pode ser:
+```
+Cód.Item ; DescriçãoProduto ; Qtde.Saída ; ValorSaída ; NumeroLote ; DatadeValidade
 ```
 
-**c) `topProdutosPorSaida` chamado com `diasJanela: 30`**
-
-```ts
-const top5 = topProdutosPorSaida(data.movimentacoes!, 5, 30);
-```
-
-E atualizar o label para deixar claro: `"Top Produtos (últimos 30d)"`.
-
----
+O parser vai procurar coluna com `datahora` ou `data` no header das saídas, e se não encontrar, vai tentar a última coluna que contenha `/` e `:` (timestamp). Isso torna robusto para ambos os formatos.
 
 ## Arquivos afetados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/utils/movimentacoesParser.ts` | IDs determinísticos, exportar `normalizarNomeProduto`, filtro de 30d no `topProdutosPorSaida` |
-| `src/components/modes/SupplyChainMode.tsx` | Deduplicação por ID no Set, normalização correta, label "últimos 30d" |
+| `src/utils/movimentacoesParser.ts` | Capturar timestamp completo (data+hora) nas saídas para ID único; atualizar `parseDateCSV` para HH:MM:SS |
+| `src/components/modes/SupplyChainMode.tsx` | Adicionar botão "Limpar Movimentações" com confirmação |
 
 ## Dados preservados
 
-Nenhum dado existente será removido. As movimentações já salvas mantêm seus IDs aleatórios — após a fix, novas importações do mesmo CSV serão ignoradas pois os IDs determinísticos não colidirão com os aleatórios antigos. Para "limpar" o histórico duplicado, o usuário pode clicar no botão "Limpar Movimentações" (que já existe) e reimportar uma vez.
+- Itens de estoque, quantidades, dados financeiros: **intactos**
+- Somente `movimentacoes[]` e `ultimaImportacaoMov` serão zerados ao clicar em "Limpar"
+- Após limpar, reimporte o CSV uma vez — dessa vez sem duplicatas
