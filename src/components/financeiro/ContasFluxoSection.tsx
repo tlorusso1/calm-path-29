@@ -47,6 +47,16 @@ export function ContasFluxoSection({
   const [isDragOver, setIsDragOver] = useState(false);
   const [isHistoricoOpen, setIsHistoricoOpen] = useState(false);
   const [historicoLimit, setHistoricoLimit] = useState(30);
+  // Dropdowns das seções de contas
+  const [openAtrasadasPagar, setOpenAtrasadasPagar] = useState(true);
+  const [openAtrasadasReceber, setOpenAtrasadasReceber] = useState(true);
+  const [openAtrasadasOutras, setOpenAtrasadasOutras] = useState(true);
+  const [openHojePagar, setOpenHojePagar] = useState(true);
+  const [openHojeReceber, setOpenHojeReceber] = useState(true);
+  const [openHojeOutras, setOpenHojeOutras] = useState(true);
+  const [openFuturasPagar, setOpenFuturasPagar] = useState(true);
+  const [openFuturasReceber, setOpenFuturasReceber] = useState(true);
+  const [openFuturasOutras, setOpenFuturasOutras] = useState(true);
   const [historicoView, setHistoricoView] = useState<'lista' | 'por-conta'>('lista');
   // Filtros do histórico
   const [filtroTexto, setFiltroTexto] = useState('');
@@ -533,47 +543,66 @@ export function ContasFluxoSection({
                   <AlertTriangle className="h-3 w-3" />
                   Atrasadas ({contasAtrasadas.length})
                 </p>
-                <div className="space-y-1">
-                  {contasPagarAtrasadas.map((conta) => (
-                    <ContaItem
-                      key={conta.id}
-                      conta={conta}
-                      variant="pagar"
-                      fornecedores={fornecedores}
-                      onUpdate={onUpdateConta || (() => {})}
-                      onRemove={onRemoveConta}
-                      onTogglePago={onTogglePago}
-                      onToggleAgendado={onToggleAgendado}
-                      formatCurrency={formatCurrency}
-                    />
-                  ))}
-                  {contasReceberAtrasadas.map((conta) => (
-                    <ContaItem
-                      key={conta.id}
-                      conta={conta}
-                      variant="receber"
-                      fornecedores={fornecedores}
-                      onUpdate={onUpdateConta || (() => {})}
-                      onRemove={onRemoveConta}
-                      onTogglePago={onTogglePago}
-                      onToggleAgendado={onToggleAgendado}
-                      formatCurrency={formatCurrency}
-                    />
-                  ))}
-                  {contasOutrasAtrasadas.map((conta) => (
-                    <ContaItem
-                      key={conta.id}
-                      conta={conta}
-                      variant={conta.tipo}
-                      fornecedores={fornecedores}
-                      onUpdate={onUpdateConta || (() => {})}
-                      onRemove={onRemoveConta}
-                      onTogglePago={onTogglePago}
-                      onToggleAgendado={onToggleAgendado}
-                      formatCurrency={formatCurrency}
-                    />
-                  ))}
-                </div>
+                {/* A Pagar Atrasadas */}
+                {contasPagarAtrasadas.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setOpenAtrasadasPagar(v => !v)}
+                      className="flex items-center gap-1 text-[11px] font-medium text-destructive/80 hover:text-destructive mb-1"
+                    >
+                      {openAtrasadasPagar ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+                      <ArrowDownCircle className="h-3 w-3" />
+                      A Pagar ({contasPagarAtrasadas.length})
+                    </button>
+                    {openAtrasadasPagar && (
+                      <div className="space-y-1 pl-2">
+                        {contasPagarAtrasadas.map((conta) => (
+                          <ContaItem key={conta.id} conta={conta} variant="pagar" fornecedores={fornecedores} onUpdate={onUpdateConta || (() => {})} onRemove={onRemoveConta} onTogglePago={onTogglePago} onToggleAgendado={onToggleAgendado} formatCurrency={formatCurrency} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* A Receber Atrasadas */}
+                {contasReceberAtrasadas.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setOpenAtrasadasReceber(v => !v)}
+                      className="flex items-center gap-1 text-[11px] font-medium text-green-700 hover:text-green-800 mb-1"
+                    >
+                      {openAtrasadasReceber ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+                      <ArrowUpCircle className="h-3 w-3" />
+                      A Receber ({contasReceberAtrasadas.length})
+                    </button>
+                    {openAtrasadasReceber && (
+                      <div className="space-y-1 pl-2">
+                        {contasReceberAtrasadas.map((conta) => (
+                          <ContaItem key={conta.id} conta={conta} variant="receber" fornecedores={fornecedores} onUpdate={onUpdateConta || (() => {})} onRemove={onRemoveConta} onTogglePago={onTogglePago} onToggleAgendado={onToggleAgendado} formatCurrency={formatCurrency} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Outras Atrasadas */}
+                {contasOutrasAtrasadas.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setOpenAtrasadasOutras(v => !v)}
+                      className="flex items-center gap-1 text-[11px] font-medium text-blue-700 hover:text-blue-800 mb-1"
+                    >
+                      {openAtrasadasOutras ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+                      <RefreshCw className="h-3 w-3" />
+                      Outras ({contasOutrasAtrasadas.length})
+                    </button>
+                    {openAtrasadasOutras && (
+                      <div className="space-y-1 pl-2">
+                        {contasOutrasAtrasadas.map((conta) => (
+                          <ContaItem key={conta.id} conta={conta} variant={conta.tipo} fornecedores={fornecedores} onUpdate={onUpdateConta || (() => {})} onRemove={onRemoveConta} onTogglePago={onTogglePago} onToggleAgendado={onToggleAgendado} formatCurrency={formatCurrency} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -584,137 +613,81 @@ export function ContasFluxoSection({
                   <Clock className="h-3 w-3" />
                   Vence Hoje ({contasHoje.length})
                 </p>
-                <div className="space-y-1">
-                  {contasPagarHoje.map((conta) => (
-                    <ContaItem
-                      key={conta.id}
-                      conta={conta}
-                      variant="pagar"
-                      fornecedores={fornecedores}
-                      onUpdate={onUpdateConta || (() => {})}
-                      onRemove={onRemoveConta}
-                      onTogglePago={onTogglePago}
-                      onToggleAgendado={onToggleAgendado}
-                      formatCurrency={formatCurrency}
-                    />
-                  ))}
-                  {contasReceberHoje.map((conta) => (
-                    <ContaItem
-                      key={conta.id}
-                      conta={conta}
-                      variant="receber"
-                      fornecedores={fornecedores}
-                      onUpdate={onUpdateConta || (() => {})}
-                      onRemove={onRemoveConta}
-                      onTogglePago={onTogglePago}
-                      onToggleAgendado={onToggleAgendado}
-                      formatCurrency={formatCurrency}
-                    />
-                  ))}
-                  {contasOutrasHoje.map((conta) => (
-                    <ContaItem
-                      key={conta.id}
-                      conta={conta}
-                      variant={conta.tipo}
-                      fornecedores={fornecedores}
-                      onUpdate={onUpdateConta || (() => {})}
-                      onRemove={onRemoveConta}
-                      onTogglePago={onTogglePago}
-                      onToggleAgendado={onToggleAgendado}
-                      formatCurrency={formatCurrency}
-                    />
-                  ))}
-                </div>
+                {contasPagarHoje.length > 0 && (
+                  <div>
+                    <button onClick={() => setOpenHojePagar(v => !v)} className="flex items-center gap-1 text-[11px] font-medium text-destructive/80 hover:text-destructive mb-1">
+                      {openHojePagar ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+                      <ArrowDownCircle className="h-3 w-3" /> A Pagar ({contasPagarHoje.length})
+                    </button>
+                    {openHojePagar && <div className="space-y-1 pl-2">{contasPagarHoje.map(conta => <ContaItem key={conta.id} conta={conta} variant="pagar" fornecedores={fornecedores} onUpdate={onUpdateConta || (() => {})} onRemove={onRemoveConta} onTogglePago={onTogglePago} onToggleAgendado={onToggleAgendado} formatCurrency={formatCurrency} />)}</div>}
+                  </div>
+                )}
+                {contasReceberHoje.length > 0 && (
+                  <div>
+                    <button onClick={() => setOpenHojeReceber(v => !v)} className="flex items-center gap-1 text-[11px] font-medium text-green-700 hover:text-green-800 mb-1">
+                      {openHojeReceber ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+                      <ArrowUpCircle className="h-3 w-3" /> A Receber ({contasReceberHoje.length})
+                    </button>
+                    {openHojeReceber && <div className="space-y-1 pl-2">{contasReceberHoje.map(conta => <ContaItem key={conta.id} conta={conta} variant="receber" fornecedores={fornecedores} onUpdate={onUpdateConta || (() => {})} onRemove={onRemoveConta} onTogglePago={onTogglePago} onToggleAgendado={onToggleAgendado} formatCurrency={formatCurrency} />)}</div>}
+                  </div>
+                )}
+                {contasOutrasHoje.length > 0 && (
+                  <div>
+                    <button onClick={() => setOpenHojeOutras(v => !v)} className="flex items-center gap-1 text-[11px] font-medium text-blue-700 hover:text-blue-800 mb-1">
+                      {openHojeOutras ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+                      <RefreshCw className="h-3 w-3" /> Outras ({contasOutrasHoje.length})
+                    </button>
+                    {openHojeOutras && <div className="space-y-1 pl-2">{contasOutrasHoje.map(conta => <ContaItem key={conta.id} conta={conta} variant={conta.tipo} fornecedores={fornecedores} onUpdate={onUpdateConta || (() => {})} onRemove={onRemoveConta} onTogglePago={onTogglePago} onToggleAgendado={onToggleAgendado} formatCurrency={formatCurrency} />)}</div>}
+                  </div>
+                )}
               </div>
             )}
 
             {/* Próximos 30 dias */}
             {(contasPagar.length > 0 || contasReceber.length > 0 || contasOutrasFuturas.length > 0) && (
               <div className="space-y-3">
+                {/* A Pagar */}
                 {contasPagar.length > 0 && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground flex items-center justify-between mb-2">
-                      <span className="flex items-center gap-1">
+                    <button onClick={() => setOpenFuturasPagar(v => !v)} className="flex items-center justify-between w-full text-left mb-2">
+                      <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                        {openFuturasPagar ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
                         <ArrowDownCircle className="h-3 w-3 text-destructive" />
-                        A Pagar (próx. 30d)
+                        A Pagar (próx. 30d) <span className="text-muted-foreground/60">({contasPagar.length})</span>
                       </span>
-                      <span className="font-semibold text-destructive">
-                        {formatCurrencyValue(totalPagar30d)}
-                      </span>
-                    </p>
-                    <div className="space-y-1">
-                      {contasPagar.map((conta) => (
-                        <ContaItem
-                          key={conta.id}
-                          conta={conta}
-                          variant="pagar"
-                          fornecedores={fornecedores}
-                          onUpdate={onUpdateConta || (() => {})}
-                          onRemove={onRemoveConta}
-                          onTogglePago={onTogglePago}
-                          onToggleAgendado={onToggleAgendado}
-                          formatCurrency={formatCurrency}
-                        />
-                      ))}
-                    </div>
+                      <span className="font-semibold text-destructive text-xs">{formatCurrencyValue(totalPagar30d)}</span>
+                    </button>
+                    {openFuturasPagar && <div className="space-y-1 pl-2">{contasPagar.map(conta => <ContaItem key={conta.id} conta={conta} variant="pagar" fornecedores={fornecedores} onUpdate={onUpdateConta || (() => {})} onRemove={onRemoveConta} onTogglePago={onTogglePago} onToggleAgendado={onToggleAgendado} formatCurrency={formatCurrency} />)}</div>}
                   </div>
                 )}
 
+                {/* A Receber */}
                 {contasReceber.length > 0 && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground flex items-center justify-between mb-2">
-                      <span className="flex items-center gap-1">
+                    <button onClick={() => setOpenFuturasReceber(v => !v)} className="flex items-center justify-between w-full text-left mb-2">
+                      <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                        {openFuturasReceber ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
                         <ArrowUpCircle className="h-3 w-3 text-green-600" />
-                        A Receber (próx. 30d)
+                        A Receber (próx. 30d) <span className="text-muted-foreground/60">({contasReceber.length})</span>
                       </span>
-                      <span className="font-semibold text-green-600">
-                        {formatCurrencyValue(totalReceber30d)}
-                      </span>
-                    </p>
-                    <div className="space-y-1">
-                      {contasReceber.map((conta) => (
-                        <ContaItem
-                          key={conta.id}
-                          conta={conta}
-                          variant="receber"
-                          fornecedores={fornecedores}
-                          onUpdate={onUpdateConta || (() => {})}
-                          onRemove={onRemoveConta}
-                          onTogglePago={onTogglePago}
-                          onToggleAgendado={onToggleAgendado}
-                          formatCurrency={formatCurrency}
-                        />
-                      ))}
-                    </div>
+                      <span className="font-semibold text-green-600 text-xs">{formatCurrencyValue(totalReceber30d)}</span>
+                    </button>
+                    {openFuturasReceber && <div className="space-y-1 pl-2">{contasReceber.map(conta => <ContaItem key={conta.id} conta={conta} variant="receber" fornecedores={fornecedores} onUpdate={onUpdateConta || (() => {})} onRemove={onRemoveConta} onTogglePago={onTogglePago} onToggleAgendado={onToggleAgendado} formatCurrency={formatCurrency} />)}</div>}
                   </div>
                 )}
 
+                {/* Outras Movimentações */}
                 {contasOutrasFuturas.length > 0 && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground flex items-center justify-between mb-2">
-                      <span className="flex items-center gap-1">
+                    <button onClick={() => setOpenFuturasOutras(v => !v)} className="flex items-center justify-between w-full text-left mb-2">
+                      <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                        {openFuturasOutras ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
                         <RefreshCw className="h-3 w-3 text-blue-600" />
-                        Outras Movimentações (próx. 30d)
+                        Outras Movimentações (próx. 30d) <span className="text-muted-foreground/60">({contasOutrasFuturas.length})</span>
                       </span>
-                      <span className="font-semibold text-blue-600">
-                        {formatCurrencyValue(totalOutras30d)}
-                      </span>
-                    </p>
-                    <div className="space-y-1">
-                      {contasOutrasFuturas.map((conta) => (
-                        <ContaItem
-                          key={conta.id}
-                          conta={conta}
-                          variant={conta.tipo}
-                          fornecedores={fornecedores}
-                          onUpdate={onUpdateConta || (() => {})}
-                          onRemove={onRemoveConta}
-                          onTogglePago={onTogglePago}
-                          onToggleAgendado={onToggleAgendado}
-                          formatCurrency={formatCurrency}
-                        />
-                      ))}
-                    </div>
+                      <span className="font-semibold text-blue-600 text-xs">{formatCurrencyValue(totalOutras30d)}</span>
+                    </button>
+                    {openFuturasOutras && <div className="space-y-1 pl-2">{contasOutrasFuturas.map(conta => <ContaItem key={conta.id} conta={conta} variant={conta.tipo} fornecedores={fornecedores} onUpdate={onUpdateConta || (() => {})} onRemove={onRemoveConta} onTogglePago={onTogglePago} onToggleAgendado={onToggleAgendado} formatCurrency={formatCurrency} />)}</div>}
                   </div>
                 )}
               </div>
@@ -873,8 +846,14 @@ export function ContasFluxoSection({
                       {/* Visualização por lista */}
                       {historicoView === 'lista' && (
                         <>
-                          <ScrollArea className={contasPagas.length > 5 ? 'h-[200px]' : ''}>
-                            <div className="space-y-1.5">
+                          <ScrollArea
+                            style={{
+                              height: contasPagas.length > 5
+                                ? `${Math.min(180 + (historicoLimit / 30 - 1) * 240, 800)}px`
+                                : 'auto'
+                            }}
+                          >
+                            <div className="space-y-1.5 pr-2">
                               {contasPagas.slice(0, historicoLimit).map((conta) => (
                                 <ContaItem
                                   key={conta.id}
