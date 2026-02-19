@@ -63,6 +63,8 @@ export function ContasFluxoSection({
   const [openFuturasPagar, setOpenFuturasPagar] = useState(false);
   const [openFuturasReceber, setOpenFuturasReceber] = useState(false);
   const [openFuturasOutras, setOpenFuturasOutras] = useState(false);
+  // Filtro de agendamento nas futuras
+  const [filtroAgendamento, setFiltroAgendamento] = useState<'todos' | 'agendado' | 'a-agendar'>('todos');
   const [historicoView, setHistoricoView] = useState<'lista' | 'por-conta'>('lista');
   // Filtros do histórico
   const [filtroTexto, setFiltroTexto] = useState('');
@@ -218,11 +220,22 @@ export function ContasFluxoSection({
   const contasOutrasHoje = contasHoje.filter(c => 
     c.tipo !== 'pagar' && c.tipo !== 'receber'
   );
-  const contasPagar = contasFuturas.filter(c => c.tipo === 'pagar');
-  const contasReceber = contasFuturas.filter(c => c.tipo === 'receber');
-  const contasOutrasFuturas = contasFuturas.filter(c => 
+  // Filtra futuras por agendamento
+  const contasFuturasFiltered = contasFuturas.filter(c => {
+    if (filtroAgendamento === 'agendado') return !!c.agendado;
+    if (filtroAgendamento === 'a-agendar') return !c.agendado;
+    return true;
+  });
+
+  const contasPagar = contasFuturasFiltered.filter(c => c.tipo === 'pagar');
+  const contasReceber = contasFuturasFiltered.filter(c => c.tipo === 'receber');
+  const contasOutrasFuturas = contasFuturasFiltered.filter(c => 
     c.tipo !== 'pagar' && c.tipo !== 'receber'
   );
+
+  // Contagens para os badges do filtro
+  const totalAgendadas = contasFuturas.filter(c => !!c.agendado).length;
+  const totalAgendar = contasFuturas.filter(c => !c.agendado).length;
 
   // ========== DETECÇÃO DE DUPLICATAS ==========
   const duplicatasSuspeitas = useMemo(() => {
@@ -715,6 +728,29 @@ export function ContasFluxoSection({
             )}
 
             {/* Próximos 30 dias */}
+            {contasFuturas.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Filtrar:</span>
+                <button
+                  onClick={() => setFiltroAgendamento('todos')}
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${filtroAgendamento === 'todos' ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:border-foreground'}`}
+                >
+                  Todos ({contasFuturas.length})
+                </button>
+                <button
+                  onClick={() => setFiltroAgendamento('agendado')}
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${filtroAgendamento === 'agendado' ? 'bg-purple-600 text-white border-purple-600' : 'border-border text-muted-foreground hover:border-foreground'}`}
+                >
+                  ✓ Agendados ({totalAgendadas})
+                </button>
+                <button
+                  onClick={() => setFiltroAgendamento('a-agendar')}
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${filtroAgendamento === 'a-agendar' ? 'bg-yellow-500 text-white border-yellow-500' : 'border-border text-muted-foreground hover:border-foreground'}`}
+                >
+                  ⏳ A Agendar ({totalAgendar})
+                </button>
+              </div>
+            )}
             {(contasPagar.length > 0 || contasReceber.length > 0 || contasOutrasFuturas.length > 0) && (
               <div className="space-y-3">
                 {/* A Pagar */}
