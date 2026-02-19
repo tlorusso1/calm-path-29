@@ -428,7 +428,7 @@ export function ConciliacaoSection({
       const paraRevisar: ExtractedLancamento[] = [];
       let ignorados = 0;
       let duplicatasIgnoradas = 0;
-      const duplicatasLog: { descricao: string; valor: string; data: string; matchDescricao: string }[] = [];
+      const duplicatasLogLocal: { descricao: string; valor: string; data: string; matchDescricao: string }[] = [];
 
       const contasPagas = contasExistentes.filter(c => c.pago);
 
@@ -454,7 +454,7 @@ export function ConciliacaoSection({
           // Lançamento já foi baixado anteriormente — ignorar e logar
           ignorados++;
           duplicatasIgnoradas++;
-          duplicatasLog.push({
+          duplicatasLogLocal.push({
             descricao: lanc.descricao,
             valor: lanc.valor,
             data: lanc.dataVencimento,
@@ -586,13 +586,13 @@ export function ConciliacaoSection({
       });
 
       // Log resumo de duplicatas no console para diagnóstico
-      if (duplicatasLog.length > 0) {
-        console.group(`🔴 ${duplicatasLog.length} lançamentos ignorados como duplicatas:`);
-        duplicatasLog.forEach(d => {
+      if (duplicatasLogLocal.length > 0) {
+        console.group(`🔴 ${duplicatasLogLocal.length} lançamentos ignorados como duplicatas:`);
+        duplicatasLogLocal.forEach(d => {
           console.log(`  • "${d.descricao}" R$${d.valor} (${d.data}) → match: "${d.matchDescricao}"`);
         });
         console.groupEnd();
-        setDuplicatasLog(duplicatasLog);
+        setDuplicatasLog(duplicatasLogLocal);
         setShowDuplicatasLog(true);
       }
 
