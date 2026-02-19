@@ -54,15 +54,15 @@ export function ContasFluxoSection({
   const [isHistoricoOpen, setIsHistoricoOpen] = useState(false);
   const [historicoLimit, setHistoricoLimit] = useState(30);
   // Dropdowns das seções de contas
-  const [openAtrasadasPagar, setOpenAtrasadasPagar] = useState(true);
-  const [openAtrasadasReceber, setOpenAtrasadasReceber] = useState(true);
-  const [openAtrasadasOutras, setOpenAtrasadasOutras] = useState(true);
-  const [openHojePagar, setOpenHojePagar] = useState(true);
-  const [openHojeReceber, setOpenHojeReceber] = useState(true);
-  const [openHojeOutras, setOpenHojeOutras] = useState(true);
-  const [openFuturasPagar, setOpenFuturasPagar] = useState(true);
-  const [openFuturasReceber, setOpenFuturasReceber] = useState(true);
-  const [openFuturasOutras, setOpenFuturasOutras] = useState(true);
+  const [openAtrasadasPagar, setOpenAtrasadasPagar] = useState(false);
+  const [openAtrasadasReceber, setOpenAtrasadasReceber] = useState(false);
+  const [openAtrasadasOutras, setOpenAtrasadasOutras] = useState(false);
+  const [openHojePagar, setOpenHojePagar] = useState(false);
+  const [openHojeReceber, setOpenHojeReceber] = useState(false);
+  const [openHojeOutras, setOpenHojeOutras] = useState(false);
+  const [openFuturasPagar, setOpenFuturasPagar] = useState(false);
+  const [openFuturasReceber, setOpenFuturasReceber] = useState(false);
+  const [openFuturasOutras, setOpenFuturasOutras] = useState(false);
   const [historicoView, setHistoricoView] = useState<'lista' | 'por-conta'>('lista');
   // Filtros do histórico
   const [filtroTexto, setFiltroTexto] = useState('');
