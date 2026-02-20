@@ -135,6 +135,18 @@ export interface ContaFluxo {
   codigoBarrasPix?: string;  // Código de barras ou PIX copia-e-cola
   numeroNF?: string;         // Número da Nota Fiscal
   chaveDanfe?: string;       // Chave de acesso DANFE (44 dígitos)
+  // Anexos (PDFs, imagens)
+  anexos?: ContaAnexo[];
+}
+
+export interface ContaAnexo {
+  id: string;
+  nome: string;       // Nome original do arquivo
+  url: string;        // URL assinada ou caminho no storage
+  path: string;       // Caminho no bucket (para gerar URL assinada e deletar)
+  tipo: string;       // MIME type
+  tamanho: number;    // Bytes
+  criadoEm: string;   // ISO date
 }
 
 // ============= Financeiro V2 =============
