@@ -5,13 +5,14 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Check, X, Pencil, Calendar, CalendarCheck, CheckCircle, Package, Copy, FileText } from 'lucide-react';
-import { ContaFluxo, ContaFluxoTipo, ContaFluxoNatureza, Fornecedor } from '@/types/focus-mode';
+import { Trash2, Check, X, Pencil, Calendar, CalendarCheck, CheckCircle, Package, Copy, FileText, Paperclip, ExternalLink, Loader2 } from 'lucide-react';
+import { ContaFluxo, ContaFluxoTipo, ContaFluxoNatureza, ContaAnexo, Fornecedor } from '@/types/focus-mode';
 import { format, parseISO, isBefore, isToday, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { isCapitalGiro } from '@/utils/fluxoCaixaCalculator';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ContaItemProps {
   conta: ContaFluxo;
@@ -100,6 +101,10 @@ export function ContaItem({
   const [editNumeroNF, setEditNumeroNF] = useState(conta.numeroNF || '');
   const [editChaveDanfe, setEditChaveDanfe] = useState(conta.chaveDanfe || '');
   const [showDocFields, setShowDocFields] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+  const [loadingUrls, setLoadingUrls] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const status = getStatusConta(conta);
@@ -112,6 +117,65 @@ export function ContaItem({
       inputRef.current.select();
     }
   }, [isEditing]);
+
+  // Gera URLs assinadas para os anexos quando o popover é aberto
+  const loadSignedUrls = async () => {
+    const anexos = conta.anexos || [];
+    if (anexos.length === 0) return;
+    setLoadingUrls(true);
+    const urls: Record<string, string> = {};
+    await Promise.all(
+      anexos.map(async (anexo) => {
+        const { data } = await supabase.storage
+          .from('conta-anexos')
+          .createSignedUrl(anexo.path, 3600);
+        if (data?.signedUrl) urls[anexo.id] = data.signedUrl;
+      })
+    );
+    setSignedUrls(urls);
+    setLoadingUrls(false);
+  };
+
+  const handleUploadAnexos = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploadingFiles(true);
+    const novosAnexos: ContaAnexo[] = [];
+    for (const file of Array.from(files)) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name}: arquivo muito grande (máx. 10 MB)`);
+        continue;
+      }
+      const ext = file.name.split('.').pop();
+      const path = `${conta.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage
+        .from('conta-anexos')
+        .upload(path, file, { contentType: file.type });
+      if (error) {
+        toast.error(`Erro ao enviar ${file.name}`);
+        continue;
+      }
+      novosAnexos.push({
+        id: crypto.randomUUID(),
+        nome: file.name,
+        url: '',
+        path,
+        tipo: file.type,
+        tamanho: file.size,
+        criadoEm: new Date().toISOString(),
+      });
+    }
+    if (novosAnexos.length > 0) {
+      onUpdate(conta.id, { anexos: [...(conta.anexos || []), ...novosAnexos] });
+      toast.success(`${novosAnexos.length} arquivo(s) anexado(s)!`);
+    }
+    setUploadingFiles(false);
+  };
+
+  const handleRemoverAnexo = async (anexo: ContaAnexo) => {
+    await supabase.storage.from('conta-anexos').remove([anexo.path]);
+    onUpdate(conta.id, { anexos: (conta.anexos || []).filter(a => a.id !== anexo.id) });
+    toast.success('Anexo removido');
+  };
 
   const handleSave = () => {
     onUpdate(conta.id, {
@@ -164,6 +228,8 @@ export function ContaItem({
   };
 
   const temDadosDoc = conta.codigoBarrasPix || conta.numeroNF || conta.chaveDanfe;
+  const qtdAnexos = (conta.anexos || []).length;
+  const formatBytes = (b: number) => b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`;
 
   if (isEditing) {
     return (
@@ -287,6 +353,48 @@ export function ContaItem({
                   className="h-8 text-xs font-mono"
                 />
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Linha 5: Anexos */}
+        <div className="w-full">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingFiles}
+            >
+              {uploadingFiles ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
+              {uploadingFiles ? 'Enviando...' : `Anexar PDF / imagem${qtdAnexos > 0 ? ` (${qtdAnexos} anexo${qtdAnexos > 1 ? 's' : ''})` : ''}`}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => handleUploadAnexos(e.target.files)}
+            />
+          </div>
+          {qtdAnexos > 0 && (
+            <div className="mt-1.5 space-y-1">
+              {(conta.anexos || []).map(anexo => (
+                <div key={anexo.id} className="flex items-center gap-1.5 text-[11px] bg-muted/50 rounded px-2 py-1">
+                  <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <span className="truncate flex-1 text-foreground">{anexo.nome}</span>
+                  <span className="text-muted-foreground shrink-0">{formatBytes(anexo.tamanho)}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-5 w-5 p-0 text-destructive hover:text-destructive shrink-0"
+                    onClick={(e) => { e.stopPropagation(); handleRemoverAnexo(anexo); }}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -538,6 +646,75 @@ export function ContaItem({
                 </PopoverContent>
               </Popover>
             )}
+
+            {/* Botão de Anexos — popover com lista e upload */}
+            <Popover>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className={cn(
+                        "h-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted relative",
+                        qtdAnexos > 0 ? "w-auto px-1.5 gap-1" : "w-6"
+                      )}
+                      onClick={(e) => { e.stopPropagation(); loadSignedUrls(); }}
+                    >
+                      <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                      {qtdAnexos > 0 && <span className="text-[10px] font-medium">{qtdAnexos}</span>}
+                    </Button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent>{qtdAnexos > 0 ? `${qtdAnexos} anexo(s)` : 'Anexar documento'}</TooltipContent>
+              </Tooltip>
+              <PopoverContent
+                className="w-72 p-3 text-xs"
+                side="left"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p className="font-medium text-sm mb-2 text-foreground flex items-center gap-1.5">
+                  <Paperclip className="h-3.5 w-3.5" />
+                  Anexos ({qtdAnexos})
+                </p>
+                {loadingUrls && <p className="text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Carregando...</p>}
+                {!loadingUrls && qtdAnexos === 0 && (
+                  <p className="text-muted-foreground mb-2">Nenhum anexo ainda.</p>
+                )}
+                {!loadingUrls && (conta.anexos || []).map(anexo => (
+                  <div key={anexo.id} className="flex items-center gap-1.5 mb-1.5 bg-muted/50 rounded px-2 py-1.5">
+                    <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="truncate flex-1 text-foreground">{anexo.nome}</span>
+                    <span className="text-muted-foreground shrink-0">{formatBytes(anexo.tamanho)}</span>
+                    {signedUrls[anexo.id] && (
+                      <a href={signedUrls[anexo.id]} target="_blank" rel="noopener noreferrer">
+                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-primary shrink-0">
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </a>
+                    )}
+                  </div>
+                ))}
+                <div className="mt-2 pt-2 border-t">
+                  <button
+                    className="text-[11px] text-primary hover:underline flex items-center gap-1"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingFiles}
+                  >
+                    {uploadingFiles ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
+                    {uploadingFiles ? 'Enviando...' : 'Adicionar arquivo(s)'}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="application/pdf,image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => handleUploadAnexos(e.target.files)}
+                  />
+                </div>
+              </PopoverContent>
+            </Popover>
             
             {/* Botões de ação */}
             {!conta.pago && onTogglePago && (
