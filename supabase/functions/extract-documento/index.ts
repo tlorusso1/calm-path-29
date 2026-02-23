@@ -6,9 +6,9 @@ const corsHeaders = {
 };
 
 const systemPrompt = `Você é um especialista em extração de dados de documentos financeiros brasileiros.
-Analise a imagem e extraia TODAS as informações de pagamento que encontrar.
+Analise o documento (imagem ou PDF) e extraia TODAS as informações de pagamento que encontrar.
 
-IMPORTANTE: Se a imagem contiver MÚLTIPLOS documentos, boletos, lançamentos ou transações,
+IMPORTANTE: Se o documento contiver MÚLTIPLOS boletos, lançamentos ou transações,
 você DEVE chamar a função extract_conta UMA VEZ PARA CADA lançamento encontrado.
 NÃO agrupe múltiplos lançamentos em uma única chamada - extraia cada um separadamente.
 
@@ -27,10 +27,14 @@ Regras de extração:
 4. Tipo: 
    - "pagar" para boletos, faturas, NFs de fornecedores, PIX enviados (você precisa pagar)
    - "receber" para NFs emitidas por você, notas de serviço prestado, PIX recebidos
+5. Código de barras: Extraia a linha digitável completa do boleto (47 ou 48 dígitos)
+6. PIX copia-e-cola: Se houver código PIX (geralmente começa com "00020126..."), extraia completo
+7. Número da NF: Extraia o número da nota fiscal se presente
+8. Chave DANFE: Extraia a chave de acesso da NFe/DANFE (44 dígitos numéricos)
 
 Se não conseguir extrair algum campo com certeza, retorne uma string vazia para esse campo.
 Use a função extract_conta para retornar os dados estruturados.
-LEMBRE-SE: Chame extract_conta MÚLTIPLAS VEZES se houver múltiplos lançamentos na imagem!`;
+LEMBRE-SE: Chame extract_conta MÚLTIPLAS VEZES se houver múltiplos lançamentos no documento!`;
 
 const tools = [
   {
@@ -57,6 +61,18 @@ const tools = [
             type: "string",
             enum: ["pagar", "receber"],
             description: "Tipo da conta: pagar ou receber"
+          },
+          codigoBarrasPix: {
+            type: "string",
+            description: "Linha digitável do boleto (47-48 dígitos) OU código PIX copia-e-cola completo. Vazio se não encontrado."
+          },
+          numeroNF: {
+            type: "string",
+            description: "Número da Nota Fiscal. Vazio se não encontrado."
+          },
+          chaveDanfe: {
+            type: "string",
+            description: "Chave de acesso da NFe/DANFE com 44 dígitos. Vazio se não encontrado."
           },
           confianca: {
             type: "number",
@@ -106,6 +122,34 @@ serve(async (req) => {
     // Remove data URL prefix if present
     const base64Data = imageBase64.replace(/^data:[^;]+;base64,/, "");
 
+    // Build content based on mime type
+    const isPdf = mimeType === "application/pdf";
+    
+    const userContent: any[] = [
+      {
+        type: "text",
+        text: "Analise este documento financeiro e extraia todos os dados de pagamento, incluindo código de barras, PIX, número de NF e chave DANFE quando disponíveis."
+      }
+    ];
+
+    if (isPdf) {
+      // For PDFs, use file content type (supported by Gemini)
+      userContent.push({
+        type: "file",
+        file: {
+          filename: "document.pdf",
+          file_data: `data:application/pdf;base64,${base64Data}`
+        }
+      });
+    } else {
+      userContent.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${mimeType};base64,${base64Data}`
+        }
+      });
+    }
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -118,18 +162,7 @@ serve(async (req) => {
           { role: "system", content: systemPrompt },
           {
             role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Analise esta imagem de documento financeiro e extraia os dados de pagamento."
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${mimeType};base64,${base64Data}`
-                }
-              }
-            ]
+            content: userContent
           }
         ],
         tools,
@@ -154,7 +187,7 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
       return new Response(
-        JSON.stringify({ error: "Erro ao processar imagem" }),
+        JSON.stringify({ error: "Erro ao processar documento" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -162,7 +195,7 @@ serve(async (req) => {
     const data = await response.json();
     console.log("AI response:", JSON.stringify(data, null, 2));
 
-    // Extract ALL tool calls (support multiple accounts from one image)
+    // Extract ALL tool calls (support multiple accounts from one document)
     const toolCalls = data.choices?.[0]?.message?.tool_calls || [];
     const extractedContas = toolCalls
       .filter((tc: any) => tc.function?.name === "extract_conta")

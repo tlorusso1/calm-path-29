@@ -6,9 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw, Building2, List, Search, Copy } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw, Building2, List, Search, Copy, Upload, FileUp } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ContaFluxo, Fornecedor, ContaFluxoTipo } from '@/types/focus-mode';
+import { ContaFluxo, ContaAnexo, Fornecedor, ContaFluxoTipo } from '@/types/focus-mode';
 import { format, parseISO, isAfter, isBefore, isToday, addDays, subDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
@@ -72,6 +72,7 @@ export function ContasFluxoSection({
   const [filtroTipo, setFiltroTipo] = useState<ContaFluxoTipo | 'todos'>('todos');
   const [filtroCategoria, setFiltroCategoria] = useState<string | 'todos'>('todos');
   const dropZoneRef = useRef<HTMLDivElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
@@ -319,68 +320,156 @@ export function ContasFluxoSection({
     });
   };
 
-  const processImage = async (file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Imagem muito grande. Máximo 5MB.');
+  const processDocument = async (file: File) => {
+    const isImage = file.type.startsWith('image/');
+    const isPdf = file.type === 'application/pdf';
+    
+    if (!isImage && !isPdf) {
+      toast.error(`${file.name}: formato não suportado. Use PDF ou imagem.`);
+      return;
+    }
+    
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(`${file.name}: arquivo muito grande. Máximo 10MB.`);
+      return;
+    }
+
+    const base64 = await fileToBase64(file);
+    
+    const { data, error } = await supabase.functions.invoke('extract-documento', {
+      body: { imageBase64: base64 }
+    });
+    
+    if (error) {
+      console.error('Error extracting document:', error);
+      toast.error(`Erro ao processar ${file.name}.`);
+      return null;
+    }
+    
+    if (data?.error) {
+      toast.error(`${file.name}: ${data.error}`);
+      return null;
+    }
+    
+    return { contas: data?.contas || [], file };
+  };
+
+  const uploadFileAsAnexo = async (file: File, contaId: string): Promise<ContaAnexo | null> => {
+    const ext = file.name.split('.').pop();
+    const path = `${contaId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage
+      .from('conta-anexos')
+      .upload(path, file, { contentType: file.type });
+    if (error) return null;
+    return {
+      id: crypto.randomUUID(),
+      nome: file.name,
+      url: '',
+      path,
+      tipo: file.type,
+      tamanho: file.size,
+      criadoEm: new Date().toISOString(),
+    };
+  };
+
+  const processMultipleFiles = async (files: File[]) => {
+    const validFiles = files.filter(f => f.type.startsWith('image/') || f.type === 'application/pdf');
+    if (validFiles.length === 0) {
+      toast.error('Nenhum arquivo válido. Use PDF ou imagem.');
       return;
     }
 
     setIsExtracting(true);
     try {
-      const base64 = await fileToBase64(file);
+      // Process all files in parallel
+      const results = await Promise.all(validFiles.map(f => processDocument(f)));
+      const successResults = results.filter(Boolean) as { contas: any[]; file: File }[];
       
-      const { data, error } = await supabase.functions.invoke('extract-documento', {
-        body: { imageBase64: base64 }
-      });
-      
-      if (error) {
-        console.error('Error extracting document:', error);
-        toast.error('Erro ao processar documento. Tente novamente.');
+      if (successResults.length === 0) {
+        toast.error('Não foi possível extrair dados dos documentos.');
         return;
       }
-      
-      if (data?.error) {
-        toast.error(data.error);
+
+      // Collect all extracted contas with their source file
+      const allContas: { conta: any; file: File }[] = [];
+      for (const result of successResults) {
+        for (const conta of result.contas) {
+          allContas.push({ conta, file: result.file });
+        }
+      }
+
+      if (allContas.length === 0) {
+        toast.error('Nenhum lançamento encontrado nos documentos.');
         return;
       }
-      
-      const contasExtraidas = data?.contas || [];
-      
-      if (contasExtraidas.length === 0) {
-        toast.error('Nenhum lançamento encontrado na imagem.');
-        return;
-      }
-      
-      if (contasExtraidas.length === 1) {
-        const c = contasExtraidas[0];
+
+      // If single conta from single file, pre-fill the form
+      if (allContas.length === 1 && validFiles.length === 1) {
+        const { conta: c, file } = allContas[0];
         if (c.descricao) setDescricao(c.descricao);
         if (c.valor) setValor(c.valor);
         if (c.dataVencimento) setDataVencimento(c.dataVencimento);
         if (c.tipo) setTipo(c.tipo);
-        toast.success('Dados extraídos! Confira e clique em + para adicionar.');
-      } else {
+        
+        // Auto-add with doc fields + attachment
         if (onAddMultipleContas) {
-          const contasParaAdicionar = contasExtraidas.map((c: any) => ({
+          const contaId = crypto.randomUUID();
+          const anexo = await uploadFileAsAnexo(file, contaId);
+          const novaConta: Omit<ContaFluxo, 'id'> = {
             tipo: c.tipo || 'pagar',
             descricao: c.descricao || '',
             valor: c.valor || '',
             dataVencimento: c.dataVencimento || '',
             pago: false,
-          }));
-          onAddMultipleContas(contasParaAdicionar);
-          toast.success(`${contasExtraidas.length} lançamentos extraídos e adicionados!`);
+            codigoBarrasPix: c.codigoBarrasPix || undefined,
+            numeroNF: c.numeroNF || undefined,
+            chaveDanfe: c.chaveDanfe || undefined,
+            anexos: anexo ? [anexo] : undefined,
+          };
+          onAddMultipleContas([novaConta]);
+          toast.success('Conta extraída e adicionada com anexo!');
+          setDescricao('');
+          setValor('');
+          setDataVencimento('');
         } else {
-          const c = contasExtraidas[0];
-          if (c.descricao) setDescricao(c.descricao);
-          if (c.valor) setValor(c.valor);
-          if (c.dataVencimento) setDataVencimento(c.dataVencimento);
-          if (c.tipo) setTipo(c.tipo);
-          toast.success(`Extraídos ${contasExtraidas.length} itens. Mostrando o primeiro.`);
+          toast.success('Dados extraídos! Confira e clique em + para adicionar.');
         }
+        return;
+      }
+
+      // Multiple contas: add all with doc fields + attachments
+      if (onAddMultipleContas) {
+        const contasParaAdicionar: Omit<ContaFluxo, 'id'>[] = [];
+        
+        for (const { conta: c, file } of allContas) {
+          const contaId = crypto.randomUUID();
+          const anexo = await uploadFileAsAnexo(file, contaId);
+          contasParaAdicionar.push({
+            tipo: c.tipo || 'pagar',
+            descricao: c.descricao || '',
+            valor: c.valor || '',
+            dataVencimento: c.dataVencimento || '',
+            pago: false,
+            codigoBarrasPix: c.codigoBarrasPix || undefined,
+            numeroNF: c.numeroNF || undefined,
+            chaveDanfe: c.chaveDanfe || undefined,
+            anexos: anexo ? [anexo] : undefined,
+          });
+        }
+        
+        onAddMultipleContas(contasParaAdicionar);
+        toast.success(`${contasParaAdicionar.length} lançamento(s) extraído(s) de ${validFiles.length} documento(s)!`);
+      } else {
+        const c = allContas[0].conta;
+        if (c.descricao) setDescricao(c.descricao);
+        if (c.valor) setValor(c.valor);
+        if (c.dataVencimento) setDataVencimento(c.dataVencimento);
+        if (c.tipo) setTipo(c.tipo);
+        toast.success(`Extraídos ${allContas.length} itens. Mostrando o primeiro.`);
       }
     } catch (err) {
-      console.error('Error processing image:', err);
-      toast.error('Erro ao processar imagem.');
+      console.error('Error processing documents:', err);
+      toast.error('Erro ao processar documentos.');
     } finally {
       setIsExtracting(false);
     }
@@ -393,7 +482,7 @@ export function ContasFluxoSection({
         const blob = item.getAsFile();
         if (blob) {
           e.preventDefault();
-          await processImage(blob);
+          await processMultipleFiles([blob]);
           return;
         }
       }
@@ -414,10 +503,20 @@ export function ContasFluxoSection({
     e.preventDefault();
     setIsDragOver(false);
     
-    const file = e.dataTransfer?.files?.[0];
-    if (file?.type.startsWith('image/')) {
-      await processImage(file);
+    const files = Array.from(e.dataTransfer?.files || []);
+    const validFiles = files.filter(f => f.type.startsWith('image/') || f.type === 'application/pdf');
+    if (validFiles.length > 0) {
+      await processMultipleFiles(validFiles);
     }
+  };
+
+  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      await processMultipleFiles(files);
+    }
+    // Reset input
+    if (pdfInputRef.current) pdfInputRef.current.value = '';
   };
 
   // Normaliza string para similaridade
@@ -534,12 +633,13 @@ export function ContasFluxoSection({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0" onPaste={handlePaste}>
-            {/* Zona de Drop/Paste para OCR */}
+            {/* Zona de Drop/Paste/Upload para PDFs e imagens */}
             <div
               ref={dropZoneRef}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
+              onClick={() => !isExtracting && pdfInputRef.current?.click()}
               className={`
                 relative border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer
                 ${isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/30 hover:border-muted-foreground/50'}
@@ -549,16 +649,27 @@ export function ContasFluxoSection({
               {isExtracting ? (
                 <div className="flex items-center justify-center gap-2 py-2">
                   <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  <span className="text-sm text-muted-foreground">Extraindo dados...</span>
+                  <span className="text-sm text-muted-foreground">Extraindo dados dos documentos...</span>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-1 py-1">
-                  <ImageIcon className="h-6 w-6 text-muted-foreground/60" />
+                  <FileUp className="h-6 w-6 text-muted-foreground/60" />
                   <p className="text-xs text-muted-foreground">
-                    Cole (Ctrl+V) ou arraste uma imagem de boleto, NF ou DDA
+                    Arraste PDFs ou imagens de boletos, NFs ou DDAs
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/60">
+                    Ctrl+V para colar imagem • Múltiplos arquivos aceitos • Extrai código de barras, PIX, NF e DANFE
                   </p>
                 </div>
               )}
+              <input
+                ref={pdfInputRef}
+                type="file"
+                multiple
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleFileInput}
+              />
             </div>
 
             {/* Form para adicionar - Responsivo */}

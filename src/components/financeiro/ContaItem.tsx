@@ -647,7 +647,8 @@ export function ContaItem({
               </Popover>
             )}
 
-            {/* Botão de Anexos — popover com lista e upload */}
+            {/* Botão de Anexos — só aparece quando há anexos */}
+            {qtdAnexos > 0 && (
             <Popover>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -656,17 +657,16 @@ export function ContaItem({
                       size="sm"
                       variant="ghost"
                       className={cn(
-                        "h-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted relative",
-                        qtdAnexos > 0 ? "w-auto px-1.5 gap-1" : "w-6"
+                        "h-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted relative w-auto px-1.5 gap-1"
                       )}
                       onClick={(e) => { e.stopPropagation(); loadSignedUrls(); }}
                     >
                       <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                      {qtdAnexos > 0 && <span className="text-[10px] font-medium">{qtdAnexos}</span>}
+                      <span className="text-[10px] font-medium">{qtdAnexos}</span>
                     </Button>
                   </PopoverTrigger>
                 </TooltipTrigger>
-                <TooltipContent>{qtdAnexos > 0 ? `${qtdAnexos} anexo(s)` : 'Anexar documento'}</TooltipContent>
+                <TooltipContent>{`${qtdAnexos} anexo(s)`}</TooltipContent>
               </Tooltip>
               <PopoverContent
                 className="w-72 p-3 text-xs"
@@ -678,9 +678,6 @@ export function ContaItem({
                   Anexos ({qtdAnexos})
                 </p>
                 {loadingUrls && <p className="text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Carregando...</p>}
-                {!loadingUrls && qtdAnexos === 0 && (
-                  <p className="text-muted-foreground mb-2">Nenhum anexo ainda.</p>
-                )}
                 {!loadingUrls && (conta.anexos || []).map(anexo => (
                   <div key={anexo.id} className="flex items-center gap-1.5 mb-1.5 bg-muted/50 rounded px-2 py-1.5">
                     <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -695,26 +692,9 @@ export function ContaItem({
                     )}
                   </div>
                 ))}
-                <div className="mt-2 pt-2 border-t">
-                  <button
-                    className="text-[11px] text-primary hover:underline flex items-center gap-1"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingFiles}
-                  >
-                    {uploadingFiles ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
-                    {uploadingFiles ? 'Enviando...' : 'Adicionar arquivo(s)'}
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="application/pdf,image/jpeg,image/png,image/webp"
-                    className="hidden"
-                    onChange={(e) => handleUploadAnexos(e.target.files)}
-                  />
-                </div>
               </PopoverContent>
             </Popover>
+            )}
             
             {/* Botões de ação */}
             {!conta.pago && onTogglePago && (
