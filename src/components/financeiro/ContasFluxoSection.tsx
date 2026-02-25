@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw, Building2, List, Search, Copy, Upload, FileUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw, Building2, List, Search, Copy, Upload, FileUp, Check } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ContaFluxo, ContaAnexo, Fornecedor, ContaFluxoTipo } from '@/types/focus-mode';
 import { format, parseISO, isAfter, isBefore, isToday, addDays, subDays } from 'date-fns';
@@ -239,6 +239,8 @@ export function ContasFluxoSection({
   const totalAgendar = contasFuturas.filter(c => !c.agendado).length;
 
   // ========== DETECÇÃO DE DUPLICATAS ==========
+  const [duplicatasDispensadas, setDuplicatasDispensadas] = useState<Set<string>>(new Set());
+  
   const duplicatasSuspeitas = useMemo(() => {
     const contasNaoPagas = contas.filter(c => !c.pago && c.tipo === 'pagar');
     
@@ -304,7 +306,10 @@ export function ContasFluxoSection({
     return suspeitas;
   }, [contas]);
 
-  const totalDuplicatasSuspeitas = duplicatasSuspeitas.reduce((acc, grupo) => acc + grupo.length, 0);
+  // Chave única de grupo para dispensar
+  const grupoKey = (grupo: ContaFluxo[]) => grupo.map(c => c.id).sort().join('|');
+  const duplicatasFiltradas = duplicatasSuspeitas.filter(g => !duplicatasDispensadas.has(grupoKey(g)));
+  const totalDuplicatasSuspeitas = duplicatasFiltradas.reduce((acc, grupo) => acc + grupo.length, 0);
 
   // Totais 30 dias
   const totalPagar30d = contasPagar.reduce((acc, c) => acc + parseValorFlexivel(c.valor), 0);
@@ -732,47 +737,64 @@ export function ContasFluxoSection({
             </div>
 
             {/* 🔍 Painel de Duplicatas Suspeitas */}
-            {duplicatasSuspeitas.length > 0 && (
+            {duplicatasFiltradas.length > 0 && (
               <div className="space-y-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700">
                 <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
                   <Copy className="h-3 w-3" />
-                  Possíveis duplicatas ({duplicatasSuspeitas.length} grupo{duplicatasSuspeitas.length > 1 ? 's' : ''})
+                  Possíveis duplicatas ({duplicatasFiltradas.length} grupo{duplicatasFiltradas.length > 1 ? 's' : ''})
                 </p>
                 <p className="text-[10px] text-amber-600 dark:text-amber-500">
-                  Contas com mesmo valor e datas próximas. Revise e remova as que forem duplicadas.
+                  Contas com mesmo valor e datas próximas. Remova duplicadas ou dispense se estiver correto.
                 </p>
                 <div className="space-y-2 mt-1">
-                  {duplicatasSuspeitas.map((grupo, gi) => (
-                    <div key={gi} className="p-2 rounded border border-amber-200 dark:border-amber-800 bg-background/60 space-y-1">
-                      <p className="text-[10px] font-medium text-muted-foreground">
-                        Grupo {gi + 1} — {formatCurrency(grupo[0].valor)} × {grupo.length} itens
-                      </p>
-                      {grupo.map(conta => (
-                        <div key={conta.id} className="flex items-center justify-between text-xs gap-2 py-1 border-b last:border-b-0 border-border/50">
-                          <div className="flex-1 min-w-0">
-                            <span className="truncate block">{conta.descricao}</span>
-                            <span className="text-[10px] text-muted-foreground">
-                              {format(parseISO(conta.dataVencimento), 'dd/MM')} • {formatCurrency(conta.valor)}
-                              {conta.conciliado && ' • conc'}
-                              {conta.agendado && ' • agend'}
-                            </span>
-                          </div>
+                  {duplicatasFiltradas.map((grupo, gi) => {
+                    const gk = grupoKey(grupo);
+                    return (
+                      <div key={gk} className="p-2 rounded border border-amber-200 dark:border-amber-800 bg-background/60 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-medium text-muted-foreground">
+                            Grupo {gi + 1} — {formatCurrency(grupo[0].valor)} × {grupo.length} itens
+                          </p>
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-6 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            className="h-6 px-2 text-xs text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30"
                             onClick={() => {
-                              onRemoveConta(conta.id);
-                              toast.success('Conta removida.');
+                              setDuplicatasDispensadas(prev => new Set([...prev, gk]));
+                              toast.success('Grupo dispensado — não são duplicatas.');
                             }}
                           >
-                            <Trash2 className="h-3 w-3 mr-1" />
-                            <span className="text-[10px]">Remover</span>
+                            <Check className="h-3 w-3 mr-1" />
+                            Tudo certo
                           </Button>
                         </div>
-                      ))}
-                    </div>
-                  ))}
+                        {grupo.map(conta => (
+                          <div key={conta.id} className="flex items-center justify-between text-xs gap-2 py-1 border-b last:border-b-0 border-border/50">
+                            <div className="flex-1 min-w-0">
+                              <span className="truncate block">{conta.descricao}</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {format(parseISO(conta.dataVencimento), 'dd/MM')} • {formatCurrency(conta.valor)}
+                                {conta.conciliado && ' • conc'}
+                                {conta.agendado && ' • agend'}
+                              </span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => {
+                                onRemoveConta(conta.id);
+                                toast.success('Conta removida.');
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              <span className="text-[10px]">Remover</span>
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
