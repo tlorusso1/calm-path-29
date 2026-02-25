@@ -242,7 +242,8 @@ export function ContasFluxoSection({
   const [duplicatasDispensadas, setDuplicatasDispensadas] = useState<Set<string>>(new Set());
   
   const duplicatasSuspeitas = useMemo(() => {
-    const contasNaoPagas = contas.filter(c => !c.pago && c.tipo === 'pagar');
+    // Inclui todas as contas a pagar (pagas e não pagas) para detectar duplicatas vindas da conciliação
+    const contasPagar = contas.filter(c => c.tipo === 'pagar');
     
     // Normaliza string para comparação de similaridade
     const normalizar = (s: string) =>
@@ -262,8 +263,8 @@ export function ContasFluxoSection({
     const jaAgrupados = new Set<string>();
     const suspeitas: ContaFluxo[][] = [];
 
-    for (let i = 0; i < contasNaoPagas.length; i++) {
-      const a = contasNaoPagas[i];
+    for (let i = 0; i < contasPagar.length; i++) {
+      const a = contasPagar[i];
       if (jaAgrupados.has(a.id)) continue;
 
       const valorA = parseValorFlexivel(a.valor);
@@ -272,8 +273,8 @@ export function ContasFluxoSection({
 
       const grupo: ContaFluxo[] = [a];
 
-      for (let j = i + 1; j < contasNaoPagas.length; j++) {
-        const b = contasNaoPagas[j];
+      for (let j = i + 1; j < contasPagar.length; j++) {
+        const b = contasPagar[j];
         if (jaAgrupados.has(b.id)) continue;
 
         const valorB = parseValorFlexivel(b.valor);
