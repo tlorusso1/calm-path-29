@@ -731,6 +731,52 @@ export function ContasFluxoSection({
               </div>
             </div>
 
+            {/* 🔍 Painel de Duplicatas Suspeitas */}
+            {duplicatasSuspeitas.length > 0 && (
+              <div className="space-y-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                  <Copy className="h-3 w-3" />
+                  Possíveis duplicatas ({duplicatasSuspeitas.length} grupo{duplicatasSuspeitas.length > 1 ? 's' : ''})
+                </p>
+                <p className="text-[10px] text-amber-600 dark:text-amber-500">
+                  Contas com mesmo valor e datas próximas. Revise e remova as que forem duplicadas.
+                </p>
+                <div className="space-y-2 mt-1">
+                  {duplicatasSuspeitas.map((grupo, gi) => (
+                    <div key={gi} className="p-2 rounded border border-amber-200 dark:border-amber-800 bg-background/60 space-y-1">
+                      <p className="text-[10px] font-medium text-muted-foreground">
+                        Grupo {gi + 1} — {formatCurrency(grupo[0].valor)} × {grupo.length} itens
+                      </p>
+                      {grupo.map(conta => (
+                        <div key={conta.id} className="flex items-center justify-between text-xs gap-2 py-1 border-b last:border-b-0 border-border/50">
+                          <div className="flex-1 min-w-0">
+                            <span className="truncate block">{conta.descricao}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {format(parseISO(conta.dataVencimento), 'dd/MM')} • {formatCurrency(conta.valor)}
+                              {conta.conciliado && ' • conc'}
+                              {conta.agendado && ' • agend'}
+                            </span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => {
+                              onRemoveConta(conta.id);
+                              toast.success('Conta removida.');
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            <span className="text-[10px]">Remover</span>
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* ⚠️ Atrasadas */}
             {(contasPagarAtrasadas.length > 0 || contasReceberAtrasadas.length > 0 || contasOutrasAtrasadas.length > 0) && (
               <div className="space-y-2 p-3 rounded-lg bg-destructive/5 border border-destructive/20">
