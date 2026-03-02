@@ -1,4 +1,4 @@
-import { FinancialState } from "../finance-core/getFinancialState"
+import { FinancialState } from "../finance-core/src/finance-core/getFinancialState"
 
 export type BirdState = {
   state: "safe" | "attention" | "risk"

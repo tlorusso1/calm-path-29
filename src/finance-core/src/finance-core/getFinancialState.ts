@@ -1,4 +1,4 @@
-import { FinancialValue } from "./types"
+import { FinancialValue } from "../../types"
 
 export type FinancialState = {
   cashNow: FinancialValue
