@@ -302,9 +302,9 @@ export function SupplyChainMode({
           <CardTitle className="flex items-center gap-2 text-base">
             📊 Visão Executiva
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="ml-1 h-7 px-2 text-xs"
+              className="ml-2 h-8 px-3 text-xs gap-1.5"
               onClick={() => {
                 if (!user?.id) return;
                 const link = `${window.location.origin}/estoque/${user.id}`;

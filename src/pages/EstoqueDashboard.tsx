@@ -119,11 +119,7 @@ export default function EstoqueDashboard() {
   }, [userId]);
 
   const sortedItens = data?.itens
-    ? [...data.itens].sort((a, b) => {
-        const sa = STATUS_ORDER[a.status || 'verde'] ?? 3;
-        const sb = STATUS_ORDER[b.status || 'verde'] ?? 3;
-        return sa - sb;
-      })
+    ? [...data.itens].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
     : [];
 
   if (loading && !data) {
