@@ -158,14 +158,22 @@ export function SupplyChainMode({
     });
 
     // Recalcular demanda semanal se já existem movimentações
-    if (data.movimentacoes && data.movimentacoes.length > 0) {
-      const demandaMap = calcularDemandaSemanalPorItem(data.movimentacoes);
+    const movs = data.movimentacoes ?? [];
+    console.log('[DEBUG handleColarLista] movimentacoes:', movs.length, 'itens:', todosItens.length);
+    if (movs.length > 0) {
+      const demandaMap = calcularDemandaSemanalPorItem(movs);
+      console.log('[DEBUG handleColarLista] demandaMap keys:', [...demandaMap.keys()]);
+      console.log('[DEBUG handleColarLista] itens nomes normalizados:', todosItens.map(i => normalizarNomeProduto(i.nome)));
+      let matched = 0;
       for (let i = 0; i < todosItens.length; i++) {
-        const demanda = demandaMap.get(normalizarNomeProduto(todosItens[i].nome));
+        const key = normalizarNomeProduto(todosItens[i].nome);
+        const demanda = demandaMap.get(key);
         if (demanda !== undefined) {
           todosItens[i] = { ...todosItens[i], demandaSemanal: demanda };
+          matched++;
         }
       }
+      console.log('[DEBUG handleColarLista] matched:', matched);
     }
 
     // Atualizar tudo de uma vez
