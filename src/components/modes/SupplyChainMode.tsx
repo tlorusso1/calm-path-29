@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { FocusMode, SupplyChainStage, ItemEstoque, TipoEstoque, MovimentacaoEstoque, DEFAULT_SUPPLYCHAIN_DATA } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -36,6 +37,7 @@ import {
   ArrowDownUp,
   TrendingUp,
   RotateCcw,
+  Share2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -71,6 +73,7 @@ export function SupplyChainMode({
   onRemoveItem,
   flushSave,
 }: SupplyChainModeProps) {
+  const { user } = useAuth();
   const [novoItem, setNovoItem] = useState({
     nome: '',
     tipo: 'produto_acabado' as TipoEstoque,
@@ -298,6 +301,20 @@ export function SupplyChainMode({
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             📊 Visão Executiva
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-1 h-7 px-2 text-xs"
+              onClick={() => {
+                if (!user?.id) return;
+                const link = `${window.location.origin}/estoque/${user.id}`;
+                navigator.clipboard.writeText(link);
+                toast({ title: 'Link copiado!', description: 'Compartilhe com seu time.' });
+              }}
+            >
+              <Share2 className="h-3.5 w-3.5 mr-1" />
+              Compartilhar
+            </Button>
             <Badge className={cn("ml-auto", getStatusColor(resumo.statusGeral))}>
               {resumo.statusGeral === 'verde' ? 'Saudável' :
                resumo.statusGeral === 'amarelo' ? 'Atenção' : 'Crítico'}
