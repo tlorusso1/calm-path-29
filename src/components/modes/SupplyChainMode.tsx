@@ -307,7 +307,7 @@ export function SupplyChainMode({
               className="ml-2 h-8 px-3 text-xs gap-1.5"
               onClick={() => {
                 if (!user?.id) return;
-                const link = `${window.location.origin}/estoque/${user.id}`;
+                const link = `${window.location.origin}/estoques/${user.id}`;
                 navigator.clipboard.writeText(link);
                 toast({ title: 'Link copiado!', description: 'Compartilhe com seu time.' });
               }}
