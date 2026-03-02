@@ -65,13 +65,14 @@ export function parsearMovimentacoes(texto: string): MovimentacaoEstoque[] {
         const valorIdx = headers.findIndex(h => h.includes('valor') && h.includes('saida'));
         const loteIdx = headers.findIndex(h => h.includes('lote') && !h.includes('validade'));
         const validadeIdx = headers.findIndex(h => h.includes('validade'));
-        // Detectar coluna de data/hora nas saídas (datahora, data, ou última coluna com timestamp)
+        // Detectar coluna de data/hora nas saídas
         let dataHoraIdx = headers.findIndex(h => h.includes('datahora'));
+        if (dataHoraIdx < 0) dataHoraIdx = headers.findIndex(h => h.includes('datasaida') || h.includes('data_saida'));
         if (dataHoraIdx < 0) dataHoraIdx = headers.findIndex(h => h === 'data');
-        // Fallback: última coluna que parece timestamp
+        // Fallback: última coluna que parece timestamp (com ou sem hora)
         if (dataHoraIdx < 0) {
           for (let ci = cells.length - 1; ci >= 0; ci--) {
-            if (cells[ci] && cells[ci].includes('/') && cells[ci].includes(':')) {
+            if (cells[ci] && cells[ci].includes('/')) {
               dataHoraIdx = ci;
               break;
             }
@@ -207,6 +208,10 @@ function parseValidadeCSV(text: string): string | undefined {
  */
 export function normalizarNomeProduto(nome: string): string {
   return nome
+    .replace(/^["']+|["']+$/g, '')       // aspas iniciais/finais
+    .replace(/^\[B\]\s*/i, '')            // prefixo [B]
+    .replace(/^\[FOOD SERVICE\]\s*-?\s*/i, '') // prefixo [FOOD SERVICE]
+    .replace(/^NICE®?\s*/i, '')           // prefixo NICE / NICE®
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
