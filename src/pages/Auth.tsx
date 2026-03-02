@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import birdLogoWhite from '@/assets/bird-logo-white.png';
+import { ShaderBackground } from '@/components/ui/digital-aurora';
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -54,57 +55,79 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">🎯 Foco Agora</CardTitle>
-          <CardDescription>
-            {isLogin ? 'Entre na sua conta' : 'Crie sua conta'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Sua senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Carregando...' : isLogin ? 'Entrar' : 'Criar conta'}
-            </Button>
-          </form>
+    <div className="relative flex min-h-screen items-center justify-center px-4">
+      <ShaderBackground />
+      <div className="relative z-10 w-full max-w-md animate-fade-in">
+        {/* Logo */}
+        <div className="mb-8 text-center flex flex-col items-center">
+          <img src={birdLogoWhite} alt="Foco Agora" className="h-10 object-contain mb-3 drop-shadow-lg" />
+          <p className="mt-2 text-lg text-white drop-shadow-md">
+            Foco no que importa.
+          </p>
+          <p className="text-sm text-white/80 drop-shadow-md">
+            Gestão simplificada para seu negócio.
+          </p>
+        </div>
 
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
+        <Card className="border-border/50 shadow-lg bg-card/80 backdrop-blur-xl">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl">
+              {isLogin ? 'Entrar' : 'Criar conta'}
+            </CardTitle>
+            <CardDescription>
               {isLogin
-                ? 'Não tem conta? Cadastre-se'
-                : 'Já tem conta? Entre'}
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+                ? 'Entre para acessar seu painel'
+                : 'Comece a organizar seu negócio em minutos'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label htmlFor="email" className="text-sm font-medium text-foreground">
+                  Email
+                </label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="password" className="text-sm font-medium text-foreground">
+                  Senha
+                </label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Aguarde...' : isLogin ? 'Entrar' : 'Criar conta'}
+              </Button>
+            </form>
+
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {isLogin
+                  ? 'Não tem conta? Criar agora'
+                  : 'Já tem conta? Entrar'}
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
