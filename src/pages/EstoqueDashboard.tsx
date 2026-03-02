@@ -182,7 +182,7 @@ export default function EstoqueDashboard() {
 
       {/* Content */}
       <main className="max-w-5xl mx-auto px-4 py-6">
-        {/* Summary badges */}
+      {/* Summary badges */}
         <div className="flex flex-wrap gap-2 mb-4">
           <Badge variant="outline">{sortedItens.length} itens</Badge>
           <Badge className="bg-red-500/90 text-white border-0">
@@ -195,6 +195,45 @@ export default function EstoqueDashboard() {
             {sortedItens.filter(i => i.status === 'verde').length} OK
           </Badge>
         </div>
+
+        {/* Alerts */}
+        {(() => {
+          const rupturas = sortedItens.filter(i => i.status === 'vermelho');
+          const cobertBaixa = sortedItens.filter(i => i.coberturaDias !== undefined && i.coberturaDias !== null && i.coberturaDias <= 7 && i.status !== 'vermelho');
+          const vencendo = sortedItens.filter(i => {
+            const dias = calcDiasAteVencimento(i.dataValidade);
+            return dias !== null && dias <= 30;
+          });
+          if (rupturas.length === 0 && cobertBaixa.length === 0 && vencendo.length === 0) return null;
+          return (
+            <div className="flex flex-col gap-2 mb-4">
+              {rupturas.length > 0 && (
+                <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 p-3">
+                  <p className="text-sm font-medium text-red-700 dark:text-red-400">
+                    🚨 Ruptura / Crítico: {rupturas.map(i => i.nome).join(', ')}
+                  </p>
+                </div>
+              )}
+              {cobertBaixa.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-3">
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                    ⚠️ Cobertura baixa (≤ 7 dias): {cobertBaixa.map(i => `${i.nome} (${i.coberturaDias}d)`).join(', ')}
+                  </p>
+                </div>
+              )}
+              {vencendo.length > 0 && (
+                <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900 p-3">
+                  <p className="text-sm font-medium text-orange-700 dark:text-orange-400">
+                    📅 Vencendo em breve (≤ 30 dias): {vencendo.map(i => {
+                      const d = calcDiasAteVencimento(i.dataValidade);
+                      return `${i.nome} (${d}d)`;
+                    }).join(', ')}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Table */}
         <Card>
@@ -220,7 +259,7 @@ export default function EstoqueDashboard() {
                       item.status === 'vermelho' && 'bg-red-50/50 dark:bg-red-950/10',
                       item.status === 'amarelo' && 'bg-amber-50/30 dark:bg-amber-950/10',
                     )}>
-                      <TableCell className="font-medium text-sm max-w-[200px] truncate">
+                      <TableCell className="font-medium text-sm">
                         {item.nome}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
