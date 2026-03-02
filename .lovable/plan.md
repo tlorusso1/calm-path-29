@@ -1,52 +1,53 @@
 
-Objetivo: corrigir definitivamente o caso em que “Saída/sem” não atualiza após colar/importar, incluindo o CSV que você enviou (com cabeçalho `DataSaida` e nomes com prefixo `NICE®`).
+# Dashboard Público de Estoques
 
-1) Diagnóstico confirmado (causa raiz)
-- Hoje existe inconsistência no “nome canônico” do produto:
-  - Parser de movimentações remove prefixo `NICE` (e `[B]`) ao criar `movimentacoes`.
-  - Itens de estoque normalmente mantêm `NICE` no nome exibido.
-  - O match de demanda usa `normalizarNomeProduto`, que atualmente não remove `NICE`.
-- Resultado prático: a chave da movimentação vira algo como `milk - castanha...`, enquanto o item vira `nice milk - castanha...` → sem match → `demandaSemanal` não preenche.
-- Gap adicional: `DataSaida` não está explicitamente mapeado como coluna de data (hoje depende de fallback por conteúdo da célula).
+Criar uma página pública (sem autenticação) que mostra o status atual dos estoques, compartilhável com o time via link.
 
-2) Correções de implementação (arquivos e sequência)
+## Arquitetura
 
-2.1 Padronizar normalização de nome para matching
-Arquivo: `src/utils/movimentacoesParser.ts`
-- Ajustar `normalizarNomeProduto()` para tratar também prefixos de catálogo:
-  - remover aspas iniciais/finais,
-  - remover prefixo `[B]`,
-  - remover prefixo `NICE`/`NICE®` no início,
-  - manter restante (peso/gramagem/sabor) para não colidir SKUs diferentes.
-- Importante: essa mudança atua só no match, sem forçar alteração visual do nome salvo.
+A página será acessível em `/estoque/:userId` (ou um token). Como os dados de estoque estão na tabela `focus_mode_states` protegida por RLS, precisamos de uma edge function que busca os dados com service role e os expõe publicamente.
 
-2.2 Tornar detecção de data robusta para `DataSaida`
-Arquivo: `src/utils/movimentacoesParser.ts`
-- Na detecção da coluna de data em saídas, incluir explicitamente variações:
-  - `datasaida`, `data_saida`, `datahora`, `data`.
-- Melhorar fallback para aceitar também célula com apenas data (`DD/MM/YYYY`) sem hora.
+## Implementação
 
-2.3 Limpar logs de debug temporários
-Arquivo: `src/components/modes/SupplyChainMode.tsx`
-- Remover `console.log('[DEBUG handleColarLista] ...')` adicionados para investigação.
-- Manter somente a lógica funcional de recálculo.
+### 1. Edge Function: `supabase/functions/public-estoque/index.ts`
+- Recebe `?user_id=<uuid>` como query param
+- Usa service role key para ler `focus_mode_states` do usuário (semana atual)
+- Extrai `modes.supplychain.supplyChainData` (itens + ultimaImportacaoMov)
+- Retorna JSON com:
+  - Lista de itens (nome, tipo, quantidade, unidade, demandaSemanal, coberturaDias, status, dataValidade, precoCusto)
+  - Data da última atualização (`updated_at` do registro)
+  - Data da última importação de movimentações (`ultimaImportacaoMov`)
+- Não expõe dados financeiros nem outros módulos
 
-2.4 Garantir recálculo nos dois fluxos (já existente, validar)
-Arquivo: `src/components/modes/SupplyChainMode.tsx`
-- Confirmar comportamento final:
-  - Ao importar em “Mov.”: recalcula `demandaSemanal` dos itens.
-  - Ao colar em “Estoques” com movimentações já existentes: recalcula e aplica automaticamente `Saída/sem`.
+### 2. Página pública: `src/pages/EstoqueDashboard.tsx`
+- Rota: `/estoque/:userId`
+- Não requer autenticação (fora do ProtectedRoute)
+- Faz fetch na edge function com o userId da URL
+- Exibe:
+  - Header com logo Nice Foods + título "Status de Estoques"
+  - Badge com "Última atualização: DD/MM/YYYY HH:mm"
+  - Tabela com colunas: Produto, Tipo, Qtde, Saída/sem, Cobertura (dias), Status (badge colorido), Validade
+  - Status visual: verde/amarelo/vermelho com badges coloridos
+  - Itens ordenados por status (vermelho primeiro, depois amarelo, depois verde)
+- Design limpo, responsivo, sem sidebar/header do app principal
+- Auto-refresh a cada 5 minutos
 
-3) Critérios de aceite (com seu cenário)
-- Colar/importar o CSV enviado na aba “Mov.”:
-  - movimentações são reconhecidas,
-  - itens correspondentes (inclusive os com nome começando em `NICE`) recebem `Saída/sem` > 0.
-- Em seguida colar lista na aba “Estoques”:
-  - novos/atualizados já aparecem com `Saída/sem` preenchida automaticamente (sem precisar reimportar movimentos).
-- Não gerar regressão em produtos sem prefixo `NICE` e nem em nomes com acentos/marca registrada.
+### 3. Rota no App.tsx
+- Adicionar rota `/estoque/:userId` FORA do ProtectedRoute
+- Componente: `EstoqueDashboard`
 
-Seção técnica (resumo de trade-off)
-- Optei por corrigir a normalização (matching) em vez de alterar o nome armazenado nas movimentações para evitar:
-  - quebrar deduplicação histórica por ID,
-  - alterar comportamento de dados já salvos.
-- A normalização continuará conservadora (não remove gramagem/variante), minimizando risco de colidir produtos diferentes.
+### 4. Link de compartilhamento no SupplyChainMode
+- Adicionar botão "Compartilhar com time" no header do módulo Supply Chain
+- Ao clicar, copia o link `{origin}/estoque/{userId}` para o clipboard
+- Toast confirmando que foi copiado
+
+## Arquivos criados/modificados
+- **Criar**: `supabase/functions/public-estoque/index.ts` - edge function
+- **Criar**: `src/pages/EstoqueDashboard.tsx` - página pública
+- **Modificar**: `src/App.tsx` - adicionar rota
+- **Modificar**: `src/components/modes/SupplyChainMode.tsx` - botão de compartilhar
+
+## Segurança
+- A edge function expõe APENAS dados de estoque (itens), nada financeiro
+- O userId na URL é um UUID, difícil de adivinhar
+- Sem dados sensíveis expostos (apenas nomes de produtos, quantidades, validades)
