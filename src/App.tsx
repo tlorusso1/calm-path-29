@@ -23,7 +23,7 @@ const App = () => (
           <AuthProvider>
             <Routes>
               <Route path="/auth" element={<Auth />} />
-              <Route path="/estoque/:userId" element={<EstoqueDashboard />} />
+              <Route path="/estoques/:userId" element={<EstoqueDashboard />} />
               <Route
                 path="/"
                 element={
