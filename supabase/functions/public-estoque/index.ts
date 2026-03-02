@@ -2,7 +2,28 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+}
+
+// Réguas de cobertura por tipo
+const REGRAS_COBERTURA: Record<string, { critico: number; atencao: number }> = {
+  produto_acabado: { critico: 15, atencao: 30 },
+  embalagem: { critico: 30, atencao: 60 },
+  insumo: { critico: 20, atencao: 40 },
+  materia_prima: { critico: 20, atencao: 40 },
+}
+
+function calcCobertura(quantidade: number, demandaSemanal: number): number | null {
+  if (demandaSemanal <= 0) return null
+  return Math.round(quantidade / (demandaSemanal / 7))
+}
+
+function calcStatus(coberturaDias: number | null, tipo: string): string {
+  if (coberturaDias === null) return 'amarelo'
+  const regra = REGRAS_COBERTURA[tipo] || REGRAS_COBERTURA.produto_acabado
+  if (coberturaDias < regra.critico) return 'vermelho'
+  if (coberturaDias < regra.atencao) return 'amarelo'
+  return 'verde'
 }
 
 Deno.serve(async (req) => {
@@ -26,7 +47,6 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // Get the most recent focus_mode_states for this user
     const { data, error } = await supabase
       .from('focus_mode_states')
       .select('modes, updated_at')
@@ -52,17 +72,24 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Extract only stock-relevant data (no financial data)
-    const itens = (supplyChainData.itens || []).map((item: any) => ({
-      nome: item.nome,
-      tipo: item.tipo,
-      quantidade: item.quantidade,
-      unidade: item.unidade,
-      demandaSemanal: item.demandaSemanal,
-      coberturaDias: item.coberturaDias,
-      status: item.status,
-      dataValidade: item.dataValidade,
-    }))
+    const demandaMedia = supplyChainData.demandaSemanalMedia || 0
+
+    const itens = (supplyChainData.itens || []).map((item: any) => {
+      const demanda = item.demandaSemanal ?? demandaMedia
+      const coberturaDias = calcCobertura(item.quantidade, demanda)
+      const status = calcStatus(coberturaDias, item.tipo || 'produto_acabado')
+
+      return {
+        nome: item.nome,
+        tipo: item.tipo,
+        quantidade: item.quantidade,
+        unidade: item.unidade,
+        demandaSemanal: demanda > 0 ? demanda : undefined,
+        coberturaDias: coberturaDias ?? undefined,
+        status,
+        dataValidade: item.dataValidade,
+      }
+    })
 
     return new Response(JSON.stringify({
       itens,
