@@ -124,24 +124,30 @@ export function SupplyChainMode({
     const itensAtualizados: string[] = [];
     let novosItens = 0;
     
+    // Construir lista final de itens (cópia mutável)
+    const todosItens = [...data.itens];
+
     itensImportados.forEach(itemImportado => {
       if (!itemImportado.nome || !itemImportado.quantidade) return;
       
-      // Procurar item existente pelo nome (case insensitive)
-      const nomeNormalizado = itemImportado.nome.toLowerCase().trim();
-      const itemExistente = data.itens.find(
-        i => i.nome.toLowerCase().trim() === nomeNormalizado
+      // Procurar item existente pelo nome (normalizado)
+      const nomeNormalizado = normalizarNomeProduto(itemImportado.nome);
+      const idxExistente = todosItens.findIndex(
+        i => normalizarNomeProduto(i.nome) === nomeNormalizado
       );
       
-      if (itemExistente) {
+      if (idxExistente >= 0) {
         // UPSERT: Atualizar APENAS quantidade - preserva demandaSemanal e dataValidade
-        onUpdateItem(itemExistente.id, { 
-          quantidade: itemImportado.quantidade 
-        });
-        itensAtualizados.push(itemExistente.nome);
+        todosItens[idxExistente] = {
+          ...todosItens[idxExistente],
+          quantidade: itemImportado.quantidade,
+        };
+        itensAtualizados.push(todosItens[idxExistente].nome);
       } else {
         // Criar novo item
-        onAddItem({
+        const novoId = crypto.randomUUID();
+        todosItens.push({
+          id: novoId,
           nome: itemImportado.nome,
           tipo: itemImportado.tipo || 'produto_acabado',
           quantidade: itemImportado.quantidade,
@@ -150,9 +156,23 @@ export function SupplyChainMode({
         novosItens++;
       }
     });
+
+    // Recalcular demanda semanal se já existem movimentações
+    if (data.movimentacoes && data.movimentacoes.length > 0) {
+      const demandaMap = calcularDemandaSemanalPorItem(data.movimentacoes);
+      for (let i = 0; i < todosItens.length; i++) {
+        const demanda = demandaMap.get(normalizarNomeProduto(todosItens[i].nome));
+        if (demanda !== undefined) {
+          todosItens[i] = { ...todosItens[i], demandaSemanal: demanda };
+        }
+      }
+    }
+
+    // Atualizar tudo de uma vez
+    onUpdateSupplyChainData({ itens: todosItens });
     
     // Mostrar modal de revisão se houver itens atualizados com validade
-    const itensComValidade = data.itens.filter(i => 
+    const itensComValidade = todosItens.filter(i => 
       itensAtualizados.includes(i.nome) && i.dataValidade
     );
     
