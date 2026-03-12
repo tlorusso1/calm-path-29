@@ -243,7 +243,7 @@ export function ContasFluxoSection({
   const totalAgendar = contasFuturas.filter(c => !c.agendado).length;
 
   // ========== DETECÇÃO DE DUPLICATAS ==========
-  const [duplicatasDispensadas, setDuplicatasDispensadas] = useState<Set<string>>(new Set());
+  const [duplicatasDispensadas, setDuplicatasDispensadas] = useState<Set<string>>(() => new Set(dispensadasPersistidas));
   
   const duplicatasSuspeitas = useMemo(() => {
     // Inclui todas as contas a pagar (pagas e não pagas) para detectar duplicatas vindas da conciliação
