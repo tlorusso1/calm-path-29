@@ -765,7 +765,9 @@ export function ContasFluxoSection({
                             variant="ghost"
                             className="h-6 px-2 text-xs text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30"
                             onClick={() => {
-                              setDuplicatasDispensadas(prev => new Set([...prev, gk]));
+                              const newSet = new Set([...duplicatasDispensadas, gk]);
+                              setDuplicatasDispensadas(newSet);
+                              onUpdateDuplicatasDispensadas?.([...newSet]);
                               toast.success('Grupo dispensado — não são duplicatas.');
                             }}
                           >
