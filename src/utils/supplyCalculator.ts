@@ -126,7 +126,7 @@ export function processarSupply(data: SupplyChainStage): SupplyResumo {
   
   // Agrupar por tipo
   const porTipo = {
-    produto_acabado: itensProcessados.filter(i => i.tipo === 'produto_acabado'),
+    produto_acabado: itensProcessados.filter(i => i.tipo === 'produto_acabado' || i.tipo === 'acessorio' || i.tipo === 'brinde' || i.tipo === 'material_pdv'),
     embalagem: itensProcessados.filter(i => i.tipo === 'embalagem'),
     insumo: itensProcessados.filter(i => i.tipo === 'insumo' || i.tipo === 'materia_prima'),
   };
