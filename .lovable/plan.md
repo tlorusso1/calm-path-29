@@ -1,53 +1,23 @@
 
-# Dashboard Público de Estoques
 
-Criar uma página pública (sem autenticação) que mostra o status atual dos estoques, compartilhável com o time via link.
+## Plan: Separar alertas e tabela por categoria de produto
 
-## Arquitetura
+### Problema
+1. **Alertas internos (SupplyChainMode)**: Ruptura Iminente, Cobertura Baixa, Vencendo etc. misturam todos os tipos de produto. Produtos acabados precisam ter destaque principal.
+2. **Dashboard público (EstoqueDashboard)**: A tabela lista tudo junto. Precisa separar visualmente por categoria (Produtos Acabados, Acessórios, Brindes, Material PDV).
 
-A página será acessível em `/estoque/:userId` (ou um token). Como os dados de estoque estão na tabela `focus_mode_states` protegida por RLS, precisamos de uma edge function que busca os dados com service role e os expõe publicamente.
+### Mudanças
 
-## Implementação
+#### 1. `src/components/modes/SupplyChainMode.tsx` — Alertas por categoria
+- Nos blocos de alerta (Ruptura Iminente, Cobertura Baixa, Vencendo em Breve), agrupar itens por tipo.
+- Mostrar primeiro os **Produtos Acabados** (com destaque), depois as demais categorias com sub-headers.
+- Estrutura: dentro de cada bloco de alerta, iterar por tipo na ordem definida (produto_acabado > acessorio > brinde > material_pdv > embalagem > insumo > materia_prima), mostrando um sub-label com o nome do tipo antes da lista de itens daquela categoria.
 
-### 1. Edge Function: `supabase/functions/public-estoque/index.ts`
-- Recebe `?user_id=<uuid>` como query param
-- Usa service role key para ler `focus_mode_states` do usuário (semana atual)
-- Extrai `modes.supplychain.supplyChainData` (itens + ultimaImportacaoMov)
-- Retorna JSON com:
-  - Lista de itens (nome, tipo, quantidade, unidade, demandaSemanal, coberturaDias, status, dataValidade, precoCusto)
-  - Data da última atualização (`updated_at` do registro)
-  - Data da última importação de movimentações (`ultimaImportacaoMov`)
-- Não expõe dados financeiros nem outros módulos
+#### 2. `src/pages/EstoqueDashboard.tsx` — Tabela separada por categoria
+- Em vez de uma tabela única, renderizar uma seção por tipo público (Produtos Acabados, Acessórios, Brindes, Material PDV).
+- Cada seção terá um heading com o nome da categoria e sua própria tabela (ou usar um separator/heading row).
+- Os alertas no topo também seguirão a mesma lógica: primeiro produtos acabados, depois o resto agrupado.
 
-### 2. Página pública: `src/pages/EstoqueDashboard.tsx`
-- Rota: `/estoque/:userId`
-- Não requer autenticação (fora do ProtectedRoute)
-- Faz fetch na edge function com o userId da URL
-- Exibe:
-  - Header com logo Nice Foods + título "Status de Estoques"
-  - Badge com "Última atualização: DD/MM/YYYY HH:mm"
-  - Tabela com colunas: Produto, Tipo, Qtde, Saída/sem, Cobertura (dias), Status (badge colorido), Validade
-  - Status visual: verde/amarelo/vermelho com badges coloridos
-  - Itens ordenados por status (vermelho primeiro, depois amarelo, depois verde)
-- Design limpo, responsivo, sem sidebar/header do app principal
-- Auto-refresh a cada 5 minutos
+#### 3. Alertas no dashboard público — Prioridade produtos acabados
+- Nos blocos de Ruptura/Atenção/Vencendo, listar primeiro os produtos acabados, depois os demais com separação visual (ex: sub-label do tipo).
 
-### 3. Rota no App.tsx
-- Adicionar rota `/estoque/:userId` FORA do ProtectedRoute
-- Componente: `EstoqueDashboard`
-
-### 4. Link de compartilhamento no SupplyChainMode
-- Adicionar botão "Compartilhar com time" no header do módulo Supply Chain
-- Ao clicar, copia o link `{origin}/estoque/{userId}` para o clipboard
-- Toast confirmando que foi copiado
-
-## Arquivos criados/modificados
-- **Criar**: `supabase/functions/public-estoque/index.ts` - edge function
-- **Criar**: `src/pages/EstoqueDashboard.tsx` - página pública
-- **Modificar**: `src/App.tsx` - adicionar rota
-- **Modificar**: `src/components/modes/SupplyChainMode.tsx` - botão de compartilhar
-
-## Segurança
-- A edge function expõe APENAS dados de estoque (itens), nada financeiro
-- O userId na URL é um UUID, difícil de adivinhar
-- Sem dados sensíveis expostos (apenas nomes de produtos, quantidades, validades)
