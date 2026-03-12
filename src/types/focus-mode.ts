@@ -256,6 +256,9 @@ export interface FinanceiroStage {
   // NOVO: Mapeamentos descrição→fornecedor para conciliação automática
   mapeamentosDescricao?: MapeamentoDescricaoFornecedor[];
   
+  // Chaves de grupos de duplicatas dispensados pelo usuário (persistido)
+  duplicatasDispensadas?: string[];
+  
   // NOVO: Snapshots mensais (gerados após conciliação)
   snapshotsMensais?: {
     mesAno: string;

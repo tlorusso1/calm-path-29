@@ -18,6 +18,8 @@ import { ContaItem } from './ContaItem';
 interface ContasFluxoSectionProps {
   contas: ContaFluxo[];
   fornecedores?: Fornecedor[];
+  duplicatasDispensadas?: string[];
+  onUpdateDuplicatasDispensadas?: (keys: string[]) => void;
   onAddConta: (conta: Omit<ContaFluxo, 'id'>) => void;
   onAddMultipleContas?: (contas: Omit<ContaFluxo, 'id'>[]) => void;
   onUpdateConta?: (id: string, updates: Partial<ContaFluxo>) => void;
@@ -31,6 +33,8 @@ interface ContasFluxoSectionProps {
 export function ContasFluxoSection({
   contas,
   fornecedores = [],
+  duplicatasDispensadas: dispensadasPersistidas = [],
+  onUpdateDuplicatasDispensadas,
   onAddConta,
   onAddMultipleContas,
   onUpdateConta,
@@ -239,7 +243,7 @@ export function ContasFluxoSection({
   const totalAgendar = contasFuturas.filter(c => !c.agendado).length;
 
   // ========== DETECÇÃO DE DUPLICATAS ==========
-  const [duplicatasDispensadas, setDuplicatasDispensadas] = useState<Set<string>>(new Set());
+  const [duplicatasDispensadas, setDuplicatasDispensadas] = useState<Set<string>>(() => new Set(dispensadasPersistidas));
   
   const duplicatasSuspeitas = useMemo(() => {
     // Inclui todas as contas a pagar (pagas e não pagas) para detectar duplicatas vindas da conciliação
@@ -761,7 +765,9 @@ export function ContasFluxoSection({
                             variant="ghost"
                             className="h-6 px-2 text-xs text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30"
                             onClick={() => {
-                              setDuplicatasDispensadas(prev => new Set([...prev, gk]));
+                              const newSet = new Set([...duplicatasDispensadas, gk]);
+                              setDuplicatasDispensadas(newSet);
+                              onUpdateDuplicatasDispensadas?.([...newSet]);
                               toast.success('Grupo dispensado — não são duplicatas.');
                             }}
                           >
