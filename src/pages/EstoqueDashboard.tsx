@@ -25,10 +25,24 @@ interface EstoqueData {
 }
 
 const TIPO_LABELS: Record<string, string> = {
-  produto_acabado: 'Produto',
-  materia_prima: 'Matéria-Prima',
+  produto_acabado: 'Produto Acabado',
+  acessorio: 'Acessório',
+  brinde: 'Brinde',
+  material_pdv: 'Material PDV',
   embalagem: 'Embalagem',
   insumo: 'Insumo',
+  materia_prima: 'Matéria-Prima',
+};
+
+// Tipos visíveis no dashboard público (externo)
+const TIPOS_PUBLICOS = ['produto_acabado', 'acessorio', 'brinde', 'material_pdv'];
+
+// Ordem de exibição por tipo
+const TIPO_ORDER: Record<string, number> = {
+  produto_acabado: 0,
+  acessorio: 1,
+  brinde: 2,
+  material_pdv: 3,
 };
 
 const STATUS_ORDER: Record<string, number> = {
