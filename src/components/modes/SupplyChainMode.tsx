@@ -659,7 +659,10 @@ export function SupplyChainMode({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="produto_acabado">Produto</SelectItem>
+                    <SelectItem value="produto_acabado">Produto Acabado</SelectItem>
+                    <SelectItem value="acessorio">Acessório</SelectItem>
+                    <SelectItem value="brinde">Brinde</SelectItem>
+                    <SelectItem value="material_pdv">Material PDV</SelectItem>
                     <SelectItem value="embalagem">Embalagem</SelectItem>
                     <SelectItem value="insumo">Insumo</SelectItem>
                     <SelectItem value="materia_prima">Matéria-Prima</SelectItem>
