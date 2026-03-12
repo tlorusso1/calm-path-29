@@ -18,6 +18,8 @@ import { ContaItem } from './ContaItem';
 interface ContasFluxoSectionProps {
   contas: ContaFluxo[];
   fornecedores?: Fornecedor[];
+  duplicatasDispensadas?: string[];
+  onUpdateDuplicatasDispensadas?: (keys: string[]) => void;
   onAddConta: (conta: Omit<ContaFluxo, 'id'>) => void;
   onAddMultipleContas?: (contas: Omit<ContaFluxo, 'id'>[]) => void;
   onUpdateConta?: (id: string, updates: Partial<ContaFluxo>) => void;

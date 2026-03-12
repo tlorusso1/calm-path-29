@@ -378,7 +378,7 @@ export function useFocusModes() {
   const [state, setState] = useState<FocusModeState>(createDefaultState);
   const [isLoading, setIsLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const debounceRef = React.useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLoadDone = React.useRef(false);
   const wasLoadedWithData = React.useRef(false);
   const jwtRef = React.useRef<string | null>(null);
