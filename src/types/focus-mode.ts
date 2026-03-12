@@ -473,6 +473,9 @@ export type SupplyChainRitmo = 'semanal' | 'quinzenal' | 'mensal';
 // Tipos de Estoque
 export type TipoEstoque = 
   | 'produto_acabado' 
+  | 'acessorio'
+  | 'brinde'
+  | 'material_pdv'
   | 'embalagem' 
   | 'insumo' 
   | 'materia_prima';

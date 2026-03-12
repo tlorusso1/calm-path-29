@@ -17,6 +17,9 @@ interface RegraCobertura {
 
 export const REGRAS_COBERTURA: Record<TipoEstoque, RegraCobertura> = {
   produto_acabado: { critico: 15, atencao: 30, ideal: 45 },
+  acessorio: { critico: 15, atencao: 30, ideal: 45 },
+  brinde: { critico: 15, atencao: 30, ideal: 45 },
+  material_pdv: { critico: 15, atencao: 30, ideal: 45 },
   embalagem: { critico: 30, atencao: 60, ideal: 90 },
   insumo: { critico: 20, atencao: 40, ideal: 60 },
   materia_prima: { critico: 20, atencao: 40, ideal: 60 },
@@ -24,6 +27,9 @@ export const REGRAS_COBERTURA: Record<TipoEstoque, RegraCobertura> = {
 
 export const TIPO_LABELS: Record<TipoEstoque, string> = {
   produto_acabado: 'Produto Acabado',
+  acessorio: 'Acessório',
+  brinde: 'Brinde',
+  material_pdv: 'Material PDV',
   embalagem: 'Embalagem',
   insumo: 'Insumo',
   materia_prima: 'Matéria-Prima',
