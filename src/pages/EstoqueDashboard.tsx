@@ -133,7 +133,14 @@ export default function EstoqueDashboard() {
   }, [userId]);
 
   const sortedItens = data?.itens
-    ? [...data.itens].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    ? [...data.itens]
+        .filter(i => TIPOS_PUBLICOS.includes(i.tipo))
+        .sort((a, b) => {
+          const tipoA = TIPO_ORDER[a.tipo] ?? 99;
+          const tipoB = TIPO_ORDER[b.tipo] ?? 99;
+          if (tipoA !== tipoB) return tipoA - tipoB;
+          return a.nome.localeCompare(b.nome, 'pt-BR');
+        })
     : [];
 
   if (loading && !data) {
