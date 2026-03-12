@@ -739,12 +739,9 @@ export function SupplyChainMode({
                   }
                   
                   const movExistentes = data.movimentacoes || [];
-                  const idsExistentes = new Set(movExistentes.map(m => m.id));
                   
-                  // Deduplicar: só adicionar movimentações com IDs novos
-                  const novasDeduplicadas = novas.filter(m => !idsExistentes.has(m.id));
-                  const duplicatasIgnoradas = novas.length - novasDeduplicadas.length;
-                  const todasMovimentacoes = [...movExistentes, ...novasDeduplicadas];
+                  // Deduplicar por conteúdo (tipo+produto+qtd+data), não por ID de linha
+                  const { resultado: todasMovimentacoes, novasAdicionadas, duplicatasIgnoradas } = deduplicarMovimentacoes(movExistentes, novas);
                   
                   // Recalcular demanda semanal dos itens (usando normalizarNomeProduto consistente)
                   const demandaMap = calcularDemandaSemanalPorItem(todasMovimentacoes);
@@ -761,8 +758,8 @@ export function SupplyChainMode({
                     return item;
                   });
                   
-                  const saidas = novasDeduplicadas.filter(m => m.tipo === 'saida').length;
-                  const entradas = novasDeduplicadas.filter(m => m.tipo === 'entrada').length;
+                  const saidas = novas.filter(m => m.tipo === 'saida').length;
+                  const entradas = novas.filter(m => m.tipo === 'entrada').length;
                   
                   onUpdateSupplyChainData({ 
                     movimentacoes: todasMovimentacoes,
@@ -773,7 +770,7 @@ export function SupplyChainMode({
                   const descDuplicatas = duplicatasIgnoradas > 0 ? ` (${duplicatasIgnoradas} duplicatas ignoradas)` : '';
                   toast({
                     title: "Movimentações Importadas",
-                    description: `${saidas} saídas, ${entradas} entradas${itensAtualizados > 0 ? `. Demanda atualizada para ${itensAtualizados} produtos` : ''}${descDuplicatas}`,
+                    description: `${saidas} saídas, ${entradas} entradas no CSV. ${novasAdicionadas} novas adicionadas${itensAtualizados > 0 ? `. Demanda atualizada para ${itensAtualizados} produtos` : ''}${descDuplicatas}`,
                   });
                   flushSave?.();
                   setTextoMovimentacoes('');
