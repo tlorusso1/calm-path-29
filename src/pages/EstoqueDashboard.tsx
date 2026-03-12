@@ -222,7 +222,7 @@ export default function EstoqueDashboard() {
           </Badge>
         </div>
 
-        {/* Alerts */}
+        {/* Alerts - grouped by tipo, produtos acabados first */}
         {(() => {
           const rupturas = sortedItens.filter(i => i.status === 'vermelho');
           const cobertBaixa = sortedItens.filter(i => i.coberturaDias !== undefined && i.coberturaDias !== null && i.coberturaDias <= 7 && i.status !== 'vermelho');
@@ -231,30 +231,57 @@ export default function EstoqueDashboard() {
             return dias !== null && dias <= 30;
           });
           if (rupturas.length === 0 && cobertBaixa.length === 0 && vencendo.length === 0) return null;
+
+          const groupByTipo = (items: ItemEstoque[]) => {
+            const grouped: Record<string, ItemEstoque[]> = {};
+            for (const item of items) {
+              (grouped[item.tipo] ??= []).push(item);
+            }
+            return TIPOS_PUBLICOS.filter(t => grouped[t]).map(t => ({ tipo: t, items: grouped[t] }));
+          };
+
           return (
             <div className="flex flex-col gap-2 mb-4">
               {rupturas.length > 0 && (
                 <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 p-3">
-                  <p className="text-sm font-medium text-red-700 dark:text-red-400">
-                    🚨 Ruptura / Crítico: {rupturas.map(i => i.nome).join(', ')}
-                  </p>
+                  <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">🚨 Ruptura / Crítico</p>
+                  {groupByTipo(rupturas).map(({ tipo, items }) => (
+                    <div key={tipo}>
+                      {groupByTipo(rupturas).length > 1 && (
+                        <p className="text-[10px] uppercase tracking-wider text-red-500/70 dark:text-red-400/60 font-semibold mt-1">{TIPO_LABELS[tipo]}</p>
+                      )}
+                      <p className="text-sm text-red-700 dark:text-red-400">{items.map(i => i.nome).join(', ')}</p>
+                    </div>
+                  ))}
                 </div>
               )}
               {cobertBaixa.length > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-3">
-                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                    ⚠️ Cobertura baixa (≤ 7 dias): {cobertBaixa.map(i => `${i.nome} (${i.coberturaDias}d)`).join(', ')}
-                  </p>
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">⚠️ Cobertura baixa (≤ 7 dias)</p>
+                  {groupByTipo(cobertBaixa).map(({ tipo, items }) => (
+                    <div key={tipo}>
+                      {groupByTipo(cobertBaixa).length > 1 && (
+                        <p className="text-[10px] uppercase tracking-wider text-amber-500/70 dark:text-amber-400/60 font-semibold mt-1">{TIPO_LABELS[tipo]}</p>
+                      )}
+                      <p className="text-sm text-amber-700 dark:text-amber-400">{items.map(i => `${i.nome} (${i.coberturaDias}d)`).join(', ')}</p>
+                    </div>
+                  ))}
                 </div>
               )}
               {vencendo.length > 0 && (
                 <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900 p-3">
-                  <p className="text-sm font-medium text-orange-700 dark:text-orange-400">
-                    📅 Vencendo em breve (≤ 30 dias): {vencendo.map(i => {
-                      const d = calcDiasAteVencimento(i.dataValidade);
-                      return `${i.nome} (${d}d)`;
-                    }).join(', ')}
-                  </p>
+                  <p className="text-sm font-medium text-orange-700 dark:text-orange-400 mb-1">📅 Vencendo em breve (≤ 30 dias)</p>
+                  {groupByTipo(vencendo).map(({ tipo, items }) => (
+                    <div key={tipo}>
+                      {groupByTipo(vencendo).length > 1 && (
+                        <p className="text-[10px] uppercase tracking-wider text-orange-500/70 dark:text-orange-400/60 font-semibold mt-1">{TIPO_LABELS[tipo]}</p>
+                      )}
+                      <p className="text-sm text-orange-700 dark:text-orange-400">{items.map(i => {
+                        const d = calcDiasAteVencimento(i.dataValidade);
+                        return `${i.nome} (${d}d)`;
+                      }).join(', ')}</p>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
