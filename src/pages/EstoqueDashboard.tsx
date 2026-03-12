@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Package, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import niceLogoUrl from '@/assets/nice-foods-logo.png';
+import { CoberturaChart } from '@/components/CoberturaChart';
 
 interface ItemEstoque {
   nome: string;
@@ -288,6 +289,58 @@ export default function EstoqueDashboard() {
           );
         })()}
 
+        {/* 📊 Gráfico de Cobertura por Tipo */}
+        {TIPOS_PUBLICOS.filter(tipo => itensByTipo[tipo]).map(tipo => {
+          const items = itensByTipo[tipo]
+            .filter(i => i.coberturaDias !== undefined && i.coberturaDias !== null)
+            .map(i => ({ nome: i.nome, coberturaDias: i.coberturaDias! }));
+          if (items.length === 0) return null;
+          return (
+            <Card key={`chart-${tipo}`} className="mb-4">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm font-semibold">
+                  📊 Cobertura — {TIPO_LABELS[tipo]}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <CoberturaChart itens={items} />
+              </CardContent>
+            </Card>
+          );
+        })}
+
+        {/* ⏳ Validades Mais Próximas */}
+        {(() => {
+          const itensComValidade = sortedItens
+            .map(i => ({ nome: i.nome, dias: calcDiasAteVencimento(i.dataValidade) }))
+            .filter(i => i.dias !== null)
+            .sort((a, b) => a.dias! - b.dias!) as { nome: string; dias: number }[];
+          if (itensComValidade.length === 0) return null;
+          const top10 = itensComValidade.slice(0, 10);
+          return (
+            <Card className="mb-4">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm font-semibold">⏳ Validades Mais Próximas</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-2">
+                {top10.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-sm">
+                    <span className="text-foreground">{item.nome}</span>
+                    <span className={cn(
+                      "text-xs font-medium",
+                      item.dias <= 30 ? "text-red-600 dark:text-red-400" :
+                      item.dias <= 60 ? "text-amber-600 dark:text-amber-400" :
+                      "text-muted-foreground"
+                    )}>
+                      vence em {item.dias}d
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          );
+        })()}
+
         {/* Tables by category */}
         {TIPOS_PUBLICOS.filter(tipo => itensByTipo[tipo]).map(tipo => {
           const items = itensByTipo[tipo];
@@ -303,7 +356,7 @@ export default function EstoqueDashboard() {
                       <TableRow>
                         <TableHead>Produto</TableHead>
                         <TableHead className="text-right">Qtde</TableHead>
-                        <TableHead className="text-right hidden sm:table-cell">Saída/sem</TableHead>
+                        <TableHead className="text-right hidden sm:table-cell">Dura até</TableHead>
                         <TableHead className="text-right">Cobertura</TableHead>
                         <TableHead className="text-center">Status</TableHead>
                         <TableHead className="hidden md:table-cell">Validade</TableHead>
@@ -313,6 +366,14 @@ export default function EstoqueDashboard() {
                       {items.map((item, idx) => {
                         const diasVenc = calcDiasAteVencimento(item.dataValidade);
                         const vencimentoProximo = diasVenc !== null && diasVenc <= 30;
+                        // Calculate projected date
+                        const dataProjetada = item.coberturaDias !== undefined && item.coberturaDias !== null
+                          ? (() => {
+                              const d = new Date();
+                              d.setDate(d.getDate() + item.coberturaDias!);
+                              return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                            })()
+                          : null;
                         return (
                           <TableRow key={idx} className={cn(
                             item.status === 'vermelho' && 'bg-red-50/50 dark:bg-red-950/10',
@@ -325,11 +386,13 @@ export default function EstoqueDashboard() {
                               {item.quantidade} {item.unidade}
                             </TableCell>
                             <TableCell className="text-right text-sm hidden sm:table-cell">
-                              {item.demandaSemanal ? `${item.demandaSemanal.toFixed(0)}` : '—'}
+                              {dataProjetada
+                                ? `📦 ${dataProjetada}`
+                                : '—'}
                             </TableCell>
                             <TableCell className="text-right text-sm">
                               {item.coberturaDias !== undefined && item.coberturaDias !== null
-                                ? `${item.coberturaDias}d`
+                                ? `~${item.coberturaDias}d`
                                 : '—'}
                             </TableCell>
                             <TableCell className="text-center">

@@ -40,6 +40,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CoberturaChart } from '@/components/CoberturaChart';
 import { 
   processarSupply, 
   TIPO_LABELS, 
@@ -465,6 +466,20 @@ export function SupplyChainMode({
                     ))}
                   </div>
                 )}
+              </div>
+            );
+          })()}
+
+          {/* 📊 Gráfico de Cobertura */}
+          {(() => {
+            const itensComCobertura = itensProcessados
+              .filter(i => i.coberturaDias !== undefined && i.coberturaDias !== null)
+              .map(i => ({ nome: i.nome, coberturaDias: i.coberturaDias!, tipo: i.tipo }));
+            if (itensComCobertura.length === 0) return null;
+            return (
+              <div className="pt-3 border-t border-border">
+                <p className="text-xs font-medium text-muted-foreground mb-2">📊 Cobertura por Produto</p>
+                <CoberturaChart itens={itensComCobertura} />
               </div>
             );
           })()}
