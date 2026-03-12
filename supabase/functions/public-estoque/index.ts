@@ -8,6 +8,9 @@ const corsHeaders = {
 // Réguas de cobertura por tipo
 const REGRAS_COBERTURA: Record<string, { critico: number; atencao: number }> = {
   produto_acabado: { critico: 15, atencao: 30 },
+  acessorio: { critico: 15, atencao: 30 },
+  brinde: { critico: 15, atencao: 30 },
+  material_pdv: { critico: 15, atencao: 30 },
   embalagem: { critico: 30, atencao: 60 },
   insumo: { critico: 20, atencao: 40 },
   materia_prima: { critico: 20, atencao: 40 },
