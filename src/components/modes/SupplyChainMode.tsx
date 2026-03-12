@@ -55,6 +55,7 @@ import {
   topProdutosPorSaida,
   normalizarNomeProduto,
 } from '@/utils/movimentacoesParser';
+import { deduplicarMovimentacoes } from '@/utils/movimentacoesParser';
 
 interface SupplyChainModeProps {
   mode: FocusMode;
