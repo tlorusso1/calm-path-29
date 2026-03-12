@@ -455,6 +455,9 @@ export function parsearListaEstoque(texto: string): Partial<ItemEstoque>[] {
 
 function detectarTipo(texto: string): TipoEstoque {
   const t = texto.toLowerCase();
+  if (t.includes('brinde') || t.includes('ebook') || t.includes('e-book')) return 'brinde';
+  if (t.includes('acess')) return 'acessorio';
+  if (t.includes('material') && t.includes('pdv')) return 'material_pdv';
   if (t.includes('prod') || t.includes('acab')) return 'produto_acabado';
   if (t.includes('embal') || t.includes('pote') || t.includes('tampa') || t.includes('caixa')) return 'embalagem';
   if (t.includes('insum')) return 'insumo';
@@ -464,6 +467,7 @@ function detectarTipo(texto: string): TipoEstoque {
 
 function detectarTipoPorNome(nome: string): TipoEstoque {
   const n = nome.toLowerCase();
+  if (n.includes('ebook') || n.includes('e-book') || n.includes('e book')) return 'brinde';
   if (n.includes('pote') || n.includes('tampa') || n.includes('caixa') || n.includes('embal') || n.includes('sachet') || n.includes('copo') || n.includes('mug')) {
     return 'embalagem';
   }
