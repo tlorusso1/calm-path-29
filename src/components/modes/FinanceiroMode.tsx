@@ -573,6 +573,8 @@ export function FinanceiroMode({
             <ContasFluxoSection
               contas={data.contasFluxo || []}
               fornecedores={data.fornecedores || []}
+              duplicatasDispensadas={data.duplicatasDispensadas || []}
+              onUpdateDuplicatasDispensadas={(keys) => onUpdateFinanceiroData({ duplicatasDispensadas: keys })}
               onAddConta={handleAddConta}
               onAddMultipleContas={handleAddMultipleContas}
               onUpdateConta={handleUpdateConta}
