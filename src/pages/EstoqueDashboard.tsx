@@ -289,6 +289,58 @@ export default function EstoqueDashboard() {
           );
         })()}
 
+        {/* 📊 Gráfico de Cobertura por Tipo */}
+        {TIPOS_PUBLICOS.filter(tipo => itensByTipo[tipo]).map(tipo => {
+          const items = itensByTipo[tipo]
+            .filter(i => i.coberturaDias !== undefined && i.coberturaDias !== null)
+            .map(i => ({ nome: i.nome, coberturaDias: i.coberturaDias! }));
+          if (items.length === 0) return null;
+          return (
+            <Card key={`chart-${tipo}`} className="mb-4">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm font-semibold">
+                  📊 Cobertura — {TIPO_LABELS[tipo]}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <CoberturaChart itens={items} />
+              </CardContent>
+            </Card>
+          );
+        })}
+
+        {/* ⏳ Validades Mais Próximas */}
+        {(() => {
+          const itensComValidade = sortedItens
+            .map(i => ({ nome: i.nome, dias: calcDiasAteVencimento(i.dataValidade) }))
+            .filter(i => i.dias !== null)
+            .sort((a, b) => a.dias! - b.dias!) as { nome: string; dias: number }[];
+          if (itensComValidade.length === 0) return null;
+          const top10 = itensComValidade.slice(0, 10);
+          return (
+            <Card className="mb-4">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm font-semibold">⏳ Validades Mais Próximas</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-2">
+                {top10.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-sm">
+                    <span className="text-foreground">{item.nome}</span>
+                    <span className={cn(
+                      "text-xs font-medium",
+                      item.dias <= 30 ? "text-red-600 dark:text-red-400" :
+                      item.dias <= 60 ? "text-amber-600 dark:text-amber-400" :
+                      "text-muted-foreground"
+                    )}>
+                      vence em {item.dias}d
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          );
+        })()}
+
         {/* Tables by category */}
         {TIPOS_PUBLICOS.filter(tipo => itensByTipo[tipo]).map(tipo => {
           const items = itensByTipo[tipo];
