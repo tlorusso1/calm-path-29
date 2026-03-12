@@ -261,6 +261,47 @@ export function SupplyChainMode({
   const formatCurrency = (val: number) =>
     val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  // Ordem dos tipos para agrupamento nos alertas
+  const TIPO_ORDER_ALERT: TipoEstoque[] = ['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'insumo', 'materia_prima'];
+
+  // Helper: renderiza lista de itens agrupada por tipo
+  function renderAlertGroupedByTipo<T extends { id: string; tipo: TipoEstoque }>(
+    itens: T[],
+    renderItem: (item: T) => React.ReactNode
+  ) {
+    const grouped = new Map<TipoEstoque, T[]>();
+    for (const item of itens) {
+      const list = grouped.get(item.tipo) || [];
+      list.push(item);
+      grouped.set(item.tipo, list);
+    }
+
+    const tipos = TIPO_ORDER_ALERT.filter(t => grouped.has(t));
+    const showHeaders = tipos.length > 1;
+
+    return (
+      <div className="ml-6 space-y-1">
+        {tipos.map(tipo => (
+          <div key={tipo}>
+            {showHeaders && (
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-1.5 mb-0.5">
+                {TIPO_LABELS[tipo]}
+              </p>
+            )}
+            <ul className="space-y-0.5">
+              {grouped.get(tipo)!.map(item => (
+                <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
+                  <span>•</span>
+                  {renderItem(item)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* ========== DEMANDA SEMANAL ========== */}

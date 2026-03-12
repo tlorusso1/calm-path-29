@@ -288,73 +288,80 @@ export default function EstoqueDashboard() {
           );
         })()}
 
-        {/* Table */}
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Produto</TableHead>
-                  <TableHead className="hidden sm:table-cell">Tipo</TableHead>
-                  <TableHead className="text-right">Qtde</TableHead>
-                  <TableHead className="text-right hidden sm:table-cell">Saída/sem</TableHead>
-                  <TableHead className="text-right">Cobertura</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="hidden md:table-cell">Validade</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedItens.map((item, idx) => {
-                  const diasVenc = calcDiasAteVencimento(item.dataValidade);
-                  const vencimentoProximo = diasVenc !== null && diasVenc <= 30;
-                  return (
-                    <TableRow key={idx} className={cn(
-                      item.status === 'vermelho' && 'bg-red-50/50 dark:bg-red-950/10',
-                      item.status === 'amarelo' && 'bg-amber-50/30 dark:bg-amber-950/10',
-                    )}>
-                      <TableCell className="font-medium text-sm">
-                        {item.nome}
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
-                        {TIPO_LABELS[item.tipo] || item.tipo}
-                      </TableCell>
-                      <TableCell className="text-right text-sm">
-                        {item.quantidade} {item.unidade}
-                      </TableCell>
-                      <TableCell className="text-right text-sm hidden sm:table-cell">
-                        {item.demandaSemanal ? `${item.demandaSemanal.toFixed(0)}` : '—'}
-                      </TableCell>
-                      <TableCell className="text-right text-sm">
-                        {item.coberturaDias !== undefined && item.coberturaDias !== null
-                          ? `${item.coberturaDias}d`
-                          : '—'}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {getStatusBadge(item.status)}
-                      </TableCell>
-                      <TableCell className={cn(
-                        "hidden md:table-cell text-sm",
-                        vencimentoProximo && "text-red-600 dark:text-red-400 font-medium"
-                      )}>
-                        {formatValidade(item.dataValidade)}
-                        {diasVenc !== null && diasVenc <= 30 && (
-                          <span className="text-xs ml-1">({diasVenc}d)</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {sortedItens.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      Nenhum item de estoque cadastrado.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        {/* Tables by category */}
+        {TIPOS_PUBLICOS.filter(tipo => itensByTipo[tipo]).map(tipo => {
+          const items = itensByTipo[tipo];
+          return (
+            <div key={tipo} className="mb-6">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                {TIPO_LABELS[tipo]} ({items.length})
+              </h2>
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Produto</TableHead>
+                        <TableHead className="text-right">Qtde</TableHead>
+                        <TableHead className="text-right hidden sm:table-cell">Saída/sem</TableHead>
+                        <TableHead className="text-right">Cobertura</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="hidden md:table-cell">Validade</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {items.map((item, idx) => {
+                        const diasVenc = calcDiasAteVencimento(item.dataValidade);
+                        const vencimentoProximo = diasVenc !== null && diasVenc <= 30;
+                        return (
+                          <TableRow key={idx} className={cn(
+                            item.status === 'vermelho' && 'bg-red-50/50 dark:bg-red-950/10',
+                            item.status === 'amarelo' && 'bg-amber-50/30 dark:bg-amber-950/10',
+                          )}>
+                            <TableCell className="font-medium text-sm">
+                              {item.nome}
+                            </TableCell>
+                            <TableCell className="text-right text-sm">
+                              {item.quantidade} {item.unidade}
+                            </TableCell>
+                            <TableCell className="text-right text-sm hidden sm:table-cell">
+                              {item.demandaSemanal ? `${item.demandaSemanal.toFixed(0)}` : '—'}
+                            </TableCell>
+                            <TableCell className="text-right text-sm">
+                              {item.coberturaDias !== undefined && item.coberturaDias !== null
+                                ? `${item.coberturaDias}d`
+                                : '—'}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {getStatusBadge(item.status)}
+                            </TableCell>
+                            <TableCell className={cn(
+                              "hidden md:table-cell text-sm",
+                              vencimentoProximo && "text-red-600 dark:text-red-400 font-medium"
+                            )}>
+                              {formatValidade(item.dataValidade)}
+                              {diasVenc !== null && diasVenc <= 30 && (
+                                <span className="text-xs ml-1">({diasVenc}d)</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          );
+        })}
+
+        {sortedItens.length === 0 && (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              Nenhum item de estoque cadastrado.
+            </CardContent>
+          </Card>
+        )}
 
         <p className="text-xs text-muted-foreground text-center mt-6">
           Atualiza automaticamente a cada 5 minutos
