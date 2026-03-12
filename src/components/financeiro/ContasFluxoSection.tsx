@@ -33,6 +33,8 @@ interface ContasFluxoSectionProps {
 export function ContasFluxoSection({
   contas,
   fornecedores = [],
+  duplicatasDispensadas: dispensadasPersistidas = [],
+  onUpdateDuplicatasDispensadas,
   onAddConta,
   onAddMultipleContas,
   onUpdateConta,
