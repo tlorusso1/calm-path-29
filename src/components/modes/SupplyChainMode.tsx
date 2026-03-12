@@ -659,7 +659,10 @@ export function SupplyChainMode({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="produto_acabado">Produto</SelectItem>
+                    <SelectItem value="produto_acabado">Produto Acabado</SelectItem>
+                    <SelectItem value="acessorio">Acessório</SelectItem>
+                    <SelectItem value="brinde">Brinde</SelectItem>
+                    <SelectItem value="material_pdv">Material PDV</SelectItem>
                     <SelectItem value="embalagem">Embalagem</SelectItem>
                     <SelectItem value="insumo">Insumo</SelectItem>
                     <SelectItem value="materia_prima">Matéria-Prima</SelectItem>
@@ -995,8 +998,32 @@ export function SupplyChainMode({
                         </Button>
                       </div>
                       
-                      {/* Campos editáveis: Saída semanal + Validade */}
+                      {/* Campos editáveis: Tipo + Saída semanal + Validade */}
                       <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
+                        {/* Tipo */}
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                            Tipo:
+                          </Label>
+                          <Select
+                            value={item.tipo}
+                            onValueChange={(v) => onUpdateItem(item.id, { tipo: v as TipoEstoque })}
+                          >
+                            <SelectTrigger className="h-7 w-32 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="produto_acabado">Produto Acabado</SelectItem>
+                              <SelectItem value="acessorio">Acessório</SelectItem>
+                              <SelectItem value="brinde">Brinde</SelectItem>
+                              <SelectItem value="material_pdv">Material PDV</SelectItem>
+                              <SelectItem value="embalagem">Embalagem</SelectItem>
+                              <SelectItem value="insumo">Insumo</SelectItem>
+                              <SelectItem value="materia_prima">Matéria-Prima</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
                         {/* Saída semanal */}
                         <div className="flex items-center gap-2">
                           <Label className="text-xs text-muted-foreground whitespace-nowrap">
