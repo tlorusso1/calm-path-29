@@ -14,17 +14,67 @@ function cleanProductName(text: string): string {
 
 /**
  * Gera ID determinístico baseado no conteúdo (djb2 hash)
- * Inclui índice de linha para garantir unicidade quando timestamp + produto + qtd são idênticos
- * (ex: 2 vendas do mesmo item no mesmo segundo)
+ * NÃO inclui índice de linha para permitir dedup entre reimportações
  */
-function gerarIdMovimentacao(tipo: string, produto: string, quantidade: number, data: string, lote?: string, linhaIdx?: number): string {
-  const str = `${tipo}|${produto.toLowerCase()}|${quantidade}|${data}|${lote || ''}|${linhaIdx ?? ''}`;
+function gerarIdMovimentacao(tipo: string, produto: string, quantidade: number, data: string, lote?: string, _linhaIdx?: number): string {
+  const str = `${tipo}|${produto.toLowerCase()}|${quantidade}|${data}|${lote || ''}`;
   let hash = 5381;
   for (let i = 0; i < str.length; i++) {
     hash = ((hash << 5) + hash) + str.charCodeAt(i);
-    hash = hash & hash; // Converte para 32-bit integer
+    hash = hash & hash;
   }
+  // Para lidar com transações idênticas no mesmo segundo, usar sufixo de contagem
   return Math.abs(hash).toString(36);
+}
+
+/**
+ * Gera chave de conteúdo para dedup (sem linhaIdx)
+ */
+export function gerarChaveConteudo(m: { tipo: string; produto: string; quantidade: number; data: string }): string {
+  return `${m.tipo}|${m.produto.toLowerCase().trim()}|${m.quantidade}|${m.data}`;
+}
+
+/**
+ * Deduplica movimentações por conteúdo, mantendo a contagem correta
+ * quando há transações idênticas legítimas (mesmo produto, mesmo segundo)
+ */
+export function deduplicarMovimentacoes(
+  existentes: MovimentacaoEstoque[],
+  novas: MovimentacaoEstoque[]
+): { resultado: MovimentacaoEstoque[]; novasAdicionadas: number; duplicatasIgnoradas: number } {
+  // Contar ocorrências de cada chave nas existentes
+  const contagemExistente = new Map<string, number>();
+  for (const m of existentes) {
+    const key = gerarChaveConteudo(m);
+    contagemExistente.set(key, (contagemExistente.get(key) || 0) + 1);
+  }
+
+  // Contar ocorrências de cada chave nas novas
+  const contagemNovas = new Map<string, number>();
+  const novasUnicas: MovimentacaoEstoque[] = [];
+  let duplicatasIgnoradas = 0;
+
+  for (const m of novas) {
+    const key = gerarChaveConteudo(m);
+    const jaExiste = contagemExistente.get(key) || 0;
+    const jaContadaNovas = contagemNovas.get(key) || 0;
+
+    if (jaContadaNovas < jaExiste) {
+      // Essa ocorrência já existe nas existentes — pular
+      contagemNovas.set(key, jaContadaNovas + 1);
+      duplicatasIgnoradas++;
+    } else {
+      // Nova ocorrência legítima
+      contagemNovas.set(key, jaContadaNovas + 1);
+      novasUnicas.push(m);
+    }
+  }
+
+  return {
+    resultado: [...existentes, ...novasUnicas],
+    novasAdicionadas: novasUnicas.length,
+    duplicatasIgnoradas,
+  };
 }
 
 /**
