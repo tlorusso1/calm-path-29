@@ -132,16 +132,21 @@ export default function EstoqueDashboard() {
     return () => clearInterval(interval);
   }, [userId]);
 
-  const sortedItens = data?.itens
+  const allPublicItens = data?.itens
     ? [...data.itens]
         .filter(i => TIPOS_PUBLICOS.includes(i.tipo))
-        .sort((a, b) => {
-          const tipoA = TIPO_ORDER[a.tipo] ?? 99;
-          const tipoB = TIPO_ORDER[b.tipo] ?? 99;
-          if (tipoA !== tipoB) return tipoA - tipoB;
-          return a.nome.localeCompare(b.nome, 'pt-BR');
-        })
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
     : [];
+
+  // Group by tipo for sectioned display
+  const itensByTipo = TIPOS_PUBLICOS.reduce<Record<string, ItemEstoque[]>>((acc, tipo) => {
+    const items = allPublicItens.filter(i => i.tipo === tipo);
+    if (items.length > 0) acc[tipo] = items;
+    return acc;
+  }, {});
+
+  // Flat sorted for summary counts (backward compat)
+  const sortedItens = allPublicItens;
 
   if (loading && !data) {
     return (
