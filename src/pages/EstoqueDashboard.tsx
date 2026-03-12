@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Package, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import niceLogoUrl from '@/assets/nice-foods-logo.png';
+import { CoberturaChart } from '@/components/CoberturaChart';
 
 interface ItemEstoque {
   nome: string;
