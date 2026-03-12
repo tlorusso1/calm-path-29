@@ -356,7 +356,7 @@ export default function EstoqueDashboard() {
                       <TableRow>
                         <TableHead>Produto</TableHead>
                         <TableHead className="text-right">Qtde</TableHead>
-                        <TableHead className="text-right hidden sm:table-cell">Saída/sem</TableHead>
+                        <TableHead className="text-right hidden sm:table-cell">Dura até</TableHead>
                         <TableHead className="text-right">Cobertura</TableHead>
                         <TableHead className="text-center">Status</TableHead>
                         <TableHead className="hidden md:table-cell">Validade</TableHead>
@@ -366,6 +366,14 @@ export default function EstoqueDashboard() {
                       {items.map((item, idx) => {
                         const diasVenc = calcDiasAteVencimento(item.dataValidade);
                         const vencimentoProximo = diasVenc !== null && diasVenc <= 30;
+                        // Calculate projected date
+                        const dataProjetada = item.coberturaDias !== undefined && item.coberturaDias !== null
+                          ? (() => {
+                              const d = new Date();
+                              d.setDate(d.getDate() + item.coberturaDias!);
+                              return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                            })()
+                          : null;
                         return (
                           <TableRow key={idx} className={cn(
                             item.status === 'vermelho' && 'bg-red-50/50 dark:bg-red-950/10',
@@ -378,11 +386,13 @@ export default function EstoqueDashboard() {
                               {item.quantidade} {item.unidade}
                             </TableCell>
                             <TableCell className="text-right text-sm hidden sm:table-cell">
-                              {item.demandaSemanal ? `${item.demandaSemanal.toFixed(0)}` : '—'}
+                              {dataProjetada
+                                ? `📦 ${dataProjetada}`
+                                : '—'}
                             </TableCell>
                             <TableCell className="text-right text-sm">
                               {item.coberturaDias !== undefined && item.coberturaDias !== null
-                                ? `${item.coberturaDias}d`
+                                ? `~${item.coberturaDias}d`
                                 : '—'}
                             </TableCell>
                             <TableCell className="text-center">
