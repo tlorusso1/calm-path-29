@@ -261,6 +261,47 @@ export function SupplyChainMode({
   const formatCurrency = (val: number) =>
     val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  // Ordem dos tipos para agrupamento nos alertas
+  const TIPO_ORDER_ALERT: TipoEstoque[] = ['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'insumo', 'materia_prima'];
+
+  // Helper: renderiza lista de itens agrupada por tipo
+  function renderAlertGroupedByTipo<T extends { id: string; tipo: TipoEstoque }>(
+    itens: T[],
+    renderItem: (item: T) => React.ReactNode
+  ) {
+    const grouped = new Map<TipoEstoque, T[]>();
+    for (const item of itens) {
+      const list = grouped.get(item.tipo) || [];
+      list.push(item);
+      grouped.set(item.tipo, list);
+    }
+
+    const tipos = TIPO_ORDER_ALERT.filter(t => grouped.has(t));
+    const showHeaders = tipos.length > 1;
+
+    return (
+      <div className="ml-6 space-y-1">
+        {tipos.map(tipo => (
+          <div key={tipo}>
+            {showHeaders && (
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-1.5 mb-0.5">
+                {TIPO_LABELS[tipo]}
+              </p>
+            )}
+            <ul className="space-y-0.5">
+              {grouped.get(tipo)!.map(item => (
+                <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
+                  <span>•</span>
+                  {renderItem(item)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* ========== DEMANDA SEMANAL ========== */}
@@ -445,21 +486,19 @@ export function SupplyChainMode({
                       Ruptura Iminente
                     </span>
                   </div>
-                  <ul className="ml-6 space-y-0.5">
-                    {itensProcessados
-                      .filter(i => i.status === 'vermelho')
-                      .map(item => (
-                        <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
-                          <span>•</span>
-                          <span>{item.nome}</span>
-                          {item.coberturaDias !== undefined && (
-                            <span className="text-destructive font-medium">
-                              ({item.coberturaDias}d)
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                  </ul>
+                  {renderAlertGroupedByTipo(
+                    itensProcessados.filter(i => i.status === 'vermelho'),
+                    (item) => (
+                      <>
+                        <span>{item.nome}</span>
+                        {item.coberturaDias !== undefined && (
+                          <span className="text-destructive font-medium">
+                            ({item.coberturaDias}d)
+                          </span>
+                        )}
+                      </>
+                    )
+                  )}
                 </div>
               )}
 
@@ -472,22 +511,21 @@ export function SupplyChainMode({
                       Cobertura Baixa (Atenção)
                     </span>
                   </div>
-                  <ul className="ml-6 space-y-0.5">
-                    {itensProcessados
+                  {renderAlertGroupedByTipo(
+                    itensProcessados
                       .filter(i => i.status === 'amarelo')
-                      .sort((a, b) => (a.coberturaDias ?? 999) - (b.coberturaDias ?? 999))
-                      .map(item => (
-                        <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
-                          <span>•</span>
-                          <span>{item.nome}</span>
-                          {item.coberturaDias !== undefined && (
-                            <span className="text-yellow-600 font-medium">
-                              ({item.coberturaDias}d)
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                  </ul>
+                      .sort((a, b) => (a.coberturaDias ?? 999) - (b.coberturaDias ?? 999)),
+                    (item) => (
+                      <>
+                        <span>{item.nome}</span>
+                        {item.coberturaDias !== undefined && (
+                          <span className="text-yellow-600 font-medium">
+                            ({item.coberturaDias}d)
+                          </span>
+                        )}
+                      </>
+                    )
+                  )}
                 </div>
               )}
 
@@ -501,11 +539,6 @@ export function SupplyChainMode({
                   .filter(item => 
                     item.diasVenc !== null && 
                     item.coberturaDias !== undefined &&
-                    // Acelerar vendas quando: tem mais estoque do que tempo de prateleira
-                    // com margem de 30 dias. Ou seja: o produto vai vencer ANTES de acabar
-                    // o estoque, sobrando menos de 30d de validade pra vender o restante.
-                    // Regra: diasVenc < coberturaDias + 30  (mas já ativo, não vencido)
-                    // E diasVenc > 30 (se ≤30, vai aparecer em "Vencimento Crítico")
                     item.diasVenc! > 30 &&
                     item.diasVenc! < (item.coberturaDias! + 30)
                   )
@@ -521,17 +554,17 @@ export function SupplyChainMode({
                         Acelerar Vendas
                       </span>
                     </div>
-                    <ul className="ml-6 space-y-0.5">
-                      {itensParaAcelerar.map(item => (
-                        <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
-                          <span>•</span>
+                    {renderAlertGroupedByTipo(
+                      itensParaAcelerar,
+                      (item) => (
+                        <>
                           <span>{item.nome}</span>
                           <span className="text-orange-600 font-medium">
                             (vence: {item.diasVenc}d, estoque: {item.coberturaDias}d)
                           </span>
-                        </li>
-                      ))}
-                    </ul>
+                        </>
+                      )
+                    )}
                   </div>
                 );
               })()}
@@ -562,15 +595,15 @@ export function SupplyChainMode({
                             Vencimento Crítico (&lt;30d)
                           </span>
                         </div>
-                        <ul className="ml-6 space-y-0.5">
-                          {criticos.map(item => (
-                            <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
-                              <span>•</span>
+                        {renderAlertGroupedByTipo(
+                          criticos,
+                          (item) => (
+                            <>
                               <span>{item.nome}</span>
                               <span className="text-destructive font-medium">({item.diasVenc}d)</span>
-                            </li>
-                          ))}
-                        </ul>
+                            </>
+                          )
+                        )}
                       </div>
                     )}
                     {alerta.length > 0 && (
@@ -581,15 +614,15 @@ export function SupplyChainMode({
                             Vencendo em Breve (30-60d)
                           </span>
                         </div>
-                        <ul className="ml-6 space-y-0.5">
-                          {alerta.map(item => (
-                            <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
-                              <span>•</span>
+                        {renderAlertGroupedByTipo(
+                          alerta,
+                          (item) => (
+                            <>
                               <span>{item.nome}</span>
                               <span className="text-yellow-600 font-medium">({item.diasVenc}d)</span>
-                            </li>
-                          ))}
-                        </ul>
+                            </>
+                          )
+                        )}
                       </div>
                     )}
                     {aviso.length > 0 && (
@@ -600,15 +633,15 @@ export function SupplyChainMode({
                             Atenção Vencimento (60-90d)
                           </span>
                         </div>
-                        <ul className="ml-6 space-y-0.5">
-                          {aviso.map(item => (
-                            <li key={item.id} className="text-sm text-muted-foreground flex items-center gap-1">
-                              <span>•</span>
+                        {renderAlertGroupedByTipo(
+                          aviso,
+                          (item) => (
+                            <>
                               <span>{item.nome}</span>
                               <span className="font-medium">({item.diasVenc}d)</span>
-                            </li>
-                          ))}
-                        </ul>
+                            </>
+                          )
+                        )}
                       </div>
                     )}
                   </div>

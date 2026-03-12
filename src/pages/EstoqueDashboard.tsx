@@ -132,16 +132,21 @@ export default function EstoqueDashboard() {
     return () => clearInterval(interval);
   }, [userId]);
 
-  const sortedItens = data?.itens
+  const allPublicItens = data?.itens
     ? [...data.itens]
         .filter(i => TIPOS_PUBLICOS.includes(i.tipo))
-        .sort((a, b) => {
-          const tipoA = TIPO_ORDER[a.tipo] ?? 99;
-          const tipoB = TIPO_ORDER[b.tipo] ?? 99;
-          if (tipoA !== tipoB) return tipoA - tipoB;
-          return a.nome.localeCompare(b.nome, 'pt-BR');
-        })
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
     : [];
+
+  // Group by tipo for sectioned display
+  const itensByTipo = TIPOS_PUBLICOS.reduce<Record<string, ItemEstoque[]>>((acc, tipo) => {
+    const items = allPublicItens.filter(i => i.tipo === tipo);
+    if (items.length > 0) acc[tipo] = items;
+    return acc;
+  }, {});
+
+  // Flat sorted for summary counts (backward compat)
+  const sortedItens = allPublicItens;
 
   if (loading && !data) {
     return (
@@ -217,7 +222,7 @@ export default function EstoqueDashboard() {
           </Badge>
         </div>
 
-        {/* Alerts */}
+        {/* Alerts - grouped by tipo, produtos acabados first */}
         {(() => {
           const rupturas = sortedItens.filter(i => i.status === 'vermelho');
           const cobertBaixa = sortedItens.filter(i => i.coberturaDias !== undefined && i.coberturaDias !== null && i.coberturaDias <= 7 && i.status !== 'vermelho');
@@ -226,103 +231,137 @@ export default function EstoqueDashboard() {
             return dias !== null && dias <= 30;
           });
           if (rupturas.length === 0 && cobertBaixa.length === 0 && vencendo.length === 0) return null;
+
+          const groupByTipo = (items: ItemEstoque[]) => {
+            const grouped: Record<string, ItemEstoque[]> = {};
+            for (const item of items) {
+              (grouped[item.tipo] ??= []).push(item);
+            }
+            return TIPOS_PUBLICOS.filter(t => grouped[t]).map(t => ({ tipo: t, items: grouped[t] }));
+          };
+
           return (
             <div className="flex flex-col gap-2 mb-4">
               {rupturas.length > 0 && (
                 <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 p-3">
-                  <p className="text-sm font-medium text-red-700 dark:text-red-400">
-                    🚨 Ruptura / Crítico: {rupturas.map(i => i.nome).join(', ')}
-                  </p>
+                  <p className="text-sm font-medium text-red-700 dark:text-red-400 mb-1">🚨 Ruptura / Crítico</p>
+                  {groupByTipo(rupturas).map(({ tipo, items }) => (
+                    <div key={tipo}>
+                      {groupByTipo(rupturas).length > 1 && (
+                        <p className="text-[10px] uppercase tracking-wider text-red-500/70 dark:text-red-400/60 font-semibold mt-1">{TIPO_LABELS[tipo]}</p>
+                      )}
+                      <p className="text-sm text-red-700 dark:text-red-400">{items.map(i => i.nome).join(', ')}</p>
+                    </div>
+                  ))}
                 </div>
               )}
               {cobertBaixa.length > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-3">
-                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                    ⚠️ Cobertura baixa (≤ 7 dias): {cobertBaixa.map(i => `${i.nome} (${i.coberturaDias}d)`).join(', ')}
-                  </p>
+                  <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">⚠️ Cobertura baixa (≤ 7 dias)</p>
+                  {groupByTipo(cobertBaixa).map(({ tipo, items }) => (
+                    <div key={tipo}>
+                      {groupByTipo(cobertBaixa).length > 1 && (
+                        <p className="text-[10px] uppercase tracking-wider text-amber-500/70 dark:text-amber-400/60 font-semibold mt-1">{TIPO_LABELS[tipo]}</p>
+                      )}
+                      <p className="text-sm text-amber-700 dark:text-amber-400">{items.map(i => `${i.nome} (${i.coberturaDias}d)`).join(', ')}</p>
+                    </div>
+                  ))}
                 </div>
               )}
               {vencendo.length > 0 && (
                 <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900 p-3">
-                  <p className="text-sm font-medium text-orange-700 dark:text-orange-400">
-                    📅 Vencendo em breve (≤ 30 dias): {vencendo.map(i => {
-                      const d = calcDiasAteVencimento(i.dataValidade);
-                      return `${i.nome} (${d}d)`;
-                    }).join(', ')}
-                  </p>
+                  <p className="text-sm font-medium text-orange-700 dark:text-orange-400 mb-1">📅 Vencendo em breve (≤ 30 dias)</p>
+                  {groupByTipo(vencendo).map(({ tipo, items }) => (
+                    <div key={tipo}>
+                      {groupByTipo(vencendo).length > 1 && (
+                        <p className="text-[10px] uppercase tracking-wider text-orange-500/70 dark:text-orange-400/60 font-semibold mt-1">{TIPO_LABELS[tipo]}</p>
+                      )}
+                      <p className="text-sm text-orange-700 dark:text-orange-400">{items.map(i => {
+                        const d = calcDiasAteVencimento(i.dataValidade);
+                        return `${i.nome} (${d}d)`;
+                      }).join(', ')}</p>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
           );
         })()}
 
-        {/* Table */}
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Produto</TableHead>
-                  <TableHead className="hidden sm:table-cell">Tipo</TableHead>
-                  <TableHead className="text-right">Qtde</TableHead>
-                  <TableHead className="text-right hidden sm:table-cell">Saída/sem</TableHead>
-                  <TableHead className="text-right">Cobertura</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="hidden md:table-cell">Validade</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedItens.map((item, idx) => {
-                  const diasVenc = calcDiasAteVencimento(item.dataValidade);
-                  const vencimentoProximo = diasVenc !== null && diasVenc <= 30;
-                  return (
-                    <TableRow key={idx} className={cn(
-                      item.status === 'vermelho' && 'bg-red-50/50 dark:bg-red-950/10',
-                      item.status === 'amarelo' && 'bg-amber-50/30 dark:bg-amber-950/10',
-                    )}>
-                      <TableCell className="font-medium text-sm">
-                        {item.nome}
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
-                        {TIPO_LABELS[item.tipo] || item.tipo}
-                      </TableCell>
-                      <TableCell className="text-right text-sm">
-                        {item.quantidade} {item.unidade}
-                      </TableCell>
-                      <TableCell className="text-right text-sm hidden sm:table-cell">
-                        {item.demandaSemanal ? `${item.demandaSemanal.toFixed(0)}` : '—'}
-                      </TableCell>
-                      <TableCell className="text-right text-sm">
-                        {item.coberturaDias !== undefined && item.coberturaDias !== null
-                          ? `${item.coberturaDias}d`
-                          : '—'}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {getStatusBadge(item.status)}
-                      </TableCell>
-                      <TableCell className={cn(
-                        "hidden md:table-cell text-sm",
-                        vencimentoProximo && "text-red-600 dark:text-red-400 font-medium"
-                      )}>
-                        {formatValidade(item.dataValidade)}
-                        {diasVenc !== null && diasVenc <= 30 && (
-                          <span className="text-xs ml-1">({diasVenc}d)</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {sortedItens.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      Nenhum item de estoque cadastrado.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        {/* Tables by category */}
+        {TIPOS_PUBLICOS.filter(tipo => itensByTipo[tipo]).map(tipo => {
+          const items = itensByTipo[tipo];
+          return (
+            <div key={tipo} className="mb-6">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                {TIPO_LABELS[tipo]} ({items.length})
+              </h2>
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Produto</TableHead>
+                        <TableHead className="text-right">Qtde</TableHead>
+                        <TableHead className="text-right hidden sm:table-cell">Saída/sem</TableHead>
+                        <TableHead className="text-right">Cobertura</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="hidden md:table-cell">Validade</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {items.map((item, idx) => {
+                        const diasVenc = calcDiasAteVencimento(item.dataValidade);
+                        const vencimentoProximo = diasVenc !== null && diasVenc <= 30;
+                        return (
+                          <TableRow key={idx} className={cn(
+                            item.status === 'vermelho' && 'bg-red-50/50 dark:bg-red-950/10',
+                            item.status === 'amarelo' && 'bg-amber-50/30 dark:bg-amber-950/10',
+                          )}>
+                            <TableCell className="font-medium text-sm">
+                              {item.nome}
+                            </TableCell>
+                            <TableCell className="text-right text-sm">
+                              {item.quantidade} {item.unidade}
+                            </TableCell>
+                            <TableCell className="text-right text-sm hidden sm:table-cell">
+                              {item.demandaSemanal ? `${item.demandaSemanal.toFixed(0)}` : '—'}
+                            </TableCell>
+                            <TableCell className="text-right text-sm">
+                              {item.coberturaDias !== undefined && item.coberturaDias !== null
+                                ? `${item.coberturaDias}d`
+                                : '—'}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {getStatusBadge(item.status)}
+                            </TableCell>
+                            <TableCell className={cn(
+                              "hidden md:table-cell text-sm",
+                              vencimentoProximo && "text-red-600 dark:text-red-400 font-medium"
+                            )}>
+                              {formatValidade(item.dataValidade)}
+                              {diasVenc !== null && diasVenc <= 30 && (
+                                <span className="text-xs ml-1">({diasVenc}d)</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          );
+        })}
+
+        {sortedItens.length === 0 && (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              Nenhum item de estoque cadastrado.
+            </CardContent>
+          </Card>
+        )}
 
         <p className="text-xs text-muted-foreground text-center mt-6">
           Atualiza automaticamente a cada 5 minutos
