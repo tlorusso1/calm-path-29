@@ -1,53 +1,43 @@
 
-# Dashboard Público de Estoques
 
-Criar uma página pública (sem autenticação) que mostra o status atual dos estoques, compartilhável com o time via link.
+## Plano: Gráfico de Cobertura + Validades Separadas + "Dura até"
 
-## Arquitetura
+### 3 mudanças principais
 
-A página será acessível em `/estoque/:userId` (ou um token). Como os dados de estoque estão na tabela `focus_mode_states` protegida por RLS, precisamos de uma edge function que busca os dados com service role e os expõe publicamente.
+#### 1. Gráfico de Cobertura por Produto (SupplyChainMode + EstoqueDashboard)
+Adicionar um componente visual de barras horizontais mostrando cobertura por produto, ordenado de maior para menor. Usar barras CSS puras (div com width proporcional ao maior valor), sem dependência de recharts.
 
-## Implementação
+- **SupplyChainMode**: Novo bloco dentro da Visão Executiva, abaixo dos alertas, filtrando apenas produtos acabados com cobertura definida.
+- **EstoqueDashboard**: Novo Card "📊 Cobertura por Produto" logo após os summary badges e alertas, antes das tabelas. Agrupado por tipo público.
 
-### 1. Edge Function: `supabase/functions/public-estoque/index.ts`
-- Recebe `?user_id=<uuid>` como query param
-- Usa service role key para ler `focus_mode_states` do usuário (semana atual)
-- Extrai `modes.supplychain.supplyChainData` (itens + ultimaImportacaoMov)
-- Retorna JSON com:
-  - Lista de itens (nome, tipo, quantidade, unidade, demandaSemanal, coberturaDias, status, dataValidade, precoCusto)
-  - Data da última atualização (`updated_at` do registro)
-  - Data da última importação de movimentações (`ultimaImportacaoMov`)
-- Não expõe dados financeiros nem outros módulos
+Estrutura visual:
+```text
+📊 Cobertura
+Barista         ████████████████ 134d
+Avelã           █████████████   126d
+Levedura        ████              25d
+```
 
-### 2. Página pública: `src/pages/EstoqueDashboard.tsx`
-- Rota: `/estoque/:userId`
-- Não requer autenticação (fora do ProtectedRoute)
-- Faz fetch na edge function com o userId da URL
-- Exibe:
-  - Header com logo Nice Foods + título "Status de Estoques"
-  - Badge com "Última atualização: DD/MM/YYYY HH:mm"
-  - Tabela com colunas: Produto, Tipo, Qtde, Saída/sem, Cobertura (dias), Status (badge colorido), Validade
-  - Status visual: verde/amarelo/vermelho com badges coloridos
-  - Itens ordenados por status (vermelho primeiro, depois amarelo, depois verde)
-- Design limpo, responsivo, sem sidebar/header do app principal
-- Auto-refresh a cada 5 minutos
+Cores das barras: verde (>30d), amarelo (15-30d), vermelho (<15d).
 
-### 3. Rota no App.tsx
-- Adicionar rota `/estoque/:userId` FORA do ProtectedRoute
-- Componente: `EstoqueDashboard`
+#### 2. Bloco "Validades Mais Próximas" (só EstoqueDashboard)
+Novo Card separado no dashboard público, após o gráfico de cobertura:
 
-### 4. Link de compartilhamento no SupplyChainMode
-- Adicionar botão "Compartilhar com time" no header do módulo Supply Chain
-- Ao clicar, copia o link `{origin}/estoque/{userId}` para o clipboard
-- Toast confirmando que foi copiado
+```text
+⏳ VALIDADES MAIS PRÓXIMAS
+Parmesão — vence em 96 dias
+Molho Branco — vence em 82 dias
+Carbonara — vence em 48 dias
+```
 
-## Arquivos criados/modificados
-- **Criar**: `supabase/functions/public-estoque/index.ts` - edge function
-- **Criar**: `src/pages/EstoqueDashboard.tsx` - página pública
-- **Modificar**: `src/App.tsx` - adicionar rota
-- **Modificar**: `src/components/modes/SupplyChainMode.tsx` - botão de compartilhar
+Filtra itens com validade definida, ordena pelo mais próximo, mostra os top ~10. Separado dos alertas de estoque para deixar claro que é outro tipo de risco.
 
-## Segurança
-- A edge function expõe APENAS dados de estoque (itens), nada financeiro
-- O userId na URL é um UUID, difícil de adivinhar
-- Sem dados sensíveis expostos (apenas nomes de produtos, quantidades, validades)
+#### 3. "Dura ~X dias" em vez de "Saída/sem" (EstoqueDashboard)
+Na tabela do dashboard público, trocar a coluna "Saída/sem" por "Dura até":
+- Se tem coberturaDias: mostrar `📦 dura ~Xd` ou calcular data projetada (`dura até DD/MM`)
+- Se não tem demanda: mostrar `—`
+
+### Arquivos alterados
+- **`src/components/modes/SupplyChainMode.tsx`**: Adicionar gráfico de barras de cobertura na Visão Executiva
+- **`src/pages/EstoqueDashboard.tsx`**: Adicionar gráfico de cobertura, bloco de validades separado, trocar coluna saída/sem por "dura até"
+
