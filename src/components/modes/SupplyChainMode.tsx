@@ -40,6 +40,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CoberturaChart } from '@/components/CoberturaChart';
 import { 
   processarSupply, 
   TIPO_LABELS, 
