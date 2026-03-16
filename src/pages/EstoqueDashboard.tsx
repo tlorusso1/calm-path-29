@@ -379,6 +379,7 @@ export default function EstoqueDashboard() {
                             </TableCell>
                             <TableCell className="text-right text-sm hidden sm:table-cell">
                               {item.demandaSemanal ? item.demandaSemanal.toFixed(1) : '—'}
+                            </TableCell>
                             <TableCell className="text-right text-sm">
                               {item.coberturaDias !== undefined && item.coberturaDias !== null
                                 ? `~${item.coberturaDias}d`
