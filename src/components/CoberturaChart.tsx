@@ -35,7 +35,7 @@ export function CoberturaChart({ itens, limit, className }: CoberturaChartProps)
         const pct = Math.max((item.coberturaDias / maxDias) * 100, 2);
         return (
           <div key={idx} className="flex items-center gap-2">
-            <span className="text-xs truncate w-[120px] sm:w-[160px] text-right text-muted-foreground shrink-0">
+            <span className="text-[11px] sm:text-xs truncate w-[160px] sm:w-[220px] text-right text-muted-foreground shrink-0">
               {item.nome}
             </span>
             <div className="flex-1 h-4 bg-muted/40 rounded-sm overflow-hidden">

@@ -1,30 +1,53 @@
 
+# Dashboard Público de Estoques
 
-## Problemas identificados
+Criar uma página pública (sem autenticação) que mostra o status atual dos estoques, compartilhável com o time via link.
 
-1. **Dashboard público não mostra as mudanças** — Pela screenshot, a tabela ainda tem "Saída/sem" e não tem o gráfico de cobertura nem o bloco de validades. Isso pode ser porque o código foi editado mas o deploy não refletiu, ou o screenshot é anterior. Vou verificar o código atual.
+## Arquitetura
 
-2. **Nomes truncados no gráfico de cobertura** — O `CoberturaChart` usa `w-[120px] sm:w-[160px]` para os nomes, o que trunca nomes longos como "NICE® MILK - AVEIA BARISTA - 400G".
+A página será acessível em `/estoque/:userId` (ou um token). Como os dados de estoque estão na tabela `focus_mode_states` protegida por RLS, precisamos de uma edge function que busca os dados com service role e os expõe publicamente.
 
-3. **Coluna "Dura até" com data não é clara** — O usuário prefere manter apenas a cobertura em dias (`~134d`), sem a coluna extra de data projetada.
+## Implementação
 
-## Plano
+### 1. Edge Function: `supabase/functions/public-estoque/index.ts`
+- Recebe `?user_id=<uuid>` como query param
+- Usa service role key para ler `focus_mode_states` do usuário (semana atual)
+- Extrai `modes.supplychain.supplyChainData` (itens + ultimaImportacaoMov)
+- Retorna JSON com:
+  - Lista de itens (nome, tipo, quantidade, unidade, demandaSemanal, coberturaDias, status, dataValidade, precoCusto)
+  - Data da última atualização (`updated_at` do registro)
+  - Data da última importação de movimentações (`ultimaImportacaoMov`)
+- Não expõe dados financeiros nem outros módulos
 
-### 1. CoberturaChart — Mais espaço para nomes
-Em `src/components/CoberturaChart.tsx`: aumentar a largura dos nomes de `w-[120px] sm:w-[160px]` para `w-[160px] sm:w-[220px]` e usar fonte ligeiramente maior.
+### 2. Página pública: `src/pages/EstoqueDashboard.tsx`
+- Rota: `/estoque/:userId`
+- Não requer autenticação (fora do ProtectedRoute)
+- Faz fetch na edge function com o userId da URL
+- Exibe:
+  - Header com logo Nice Foods + título "Status de Estoques"
+  - Badge com "Última atualização: DD/MM/YYYY HH:mm"
+  - Tabela com colunas: Produto, Tipo, Qtde, Saída/sem, Cobertura (dias), Status (badge colorido), Validade
+  - Status visual: verde/amarelo/vermelho com badges coloridos
+  - Itens ordenados por status (vermelho primeiro, depois amarelo, depois verde)
+- Design limpo, responsivo, sem sidebar/header do app principal
+- Auto-refresh a cada 5 minutos
 
-### 2. EstoqueDashboard — Reverter "Dura até", voltar ao formato original
-Em `src/pages/EstoqueDashboard.tsx`:
-- **Remover** a coluna "Dura até" (linhas 359, 388-392) — voltar ao formato anterior com "Saída/sem" mostrando `demandaSemanal`
-- **Manter** o gráfico de cobertura por tipo (já implementado, linhas 292-310)
-- **Manter** o bloco "Validades Mais Próximas" (já implementado, linhas 312-342)
+### 3. Rota no App.tsx
+- Adicionar rota `/estoque/:userId` FORA do ProtectedRoute
+- Componente: `EstoqueDashboard`
 
-Resultado: tabela volta a ter `Produto | Qtde | Saída/sem | Cobertura | Status | Validade`, como o screenshot original mostra que era mais simples e claro.
+### 4. Link de compartilhamento no SupplyChainMode
+- Adicionar botão "Compartilhar com time" no header do módulo Supply Chain
+- Ao clicar, copia o link `{origin}/estoque/{userId}` para o clipboard
+- Toast confirmando que foi copiado
 
-### 3. SupplyChainMode — Mais espaço para nomes no gráfico
-Garantir que o `CoberturaChart` no SupplyChainMode também use os nomes mais largos (já usa o componente, então a mudança no componente resolve).
+## Arquivos criados/modificados
+- **Criar**: `supabase/functions/public-estoque/index.ts` - edge function
+- **Criar**: `src/pages/EstoqueDashboard.tsx` - página pública
+- **Modificar**: `src/App.tsx` - adicionar rota
+- **Modificar**: `src/components/modes/SupplyChainMode.tsx` - botão de compartilhar
 
-### Arquivos alterados
-- `src/components/CoberturaChart.tsx` — Aumentar largura dos nomes
-- `src/pages/EstoqueDashboard.tsx` — Reverter coluna "Dura até" para "Saída/sem"
-
+## Segurança
+- A edge function expõe APENAS dados de estoque (itens), nada financeiro
+- O userId na URL é um UUID, difícil de adivinhar
+- Sem dados sensíveis expostos (apenas nomes de produtos, quantidades, validades)
