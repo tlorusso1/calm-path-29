@@ -84,16 +84,15 @@ export function ContasFluxoSection({
   hoje.setHours(0, 0, 0, 0);
   const limite30d = addDays(hoje, 30);
   
-  // ========== HISTÓRICO: Contas pagas dos últimos 60 dias ==========
+  // ========== HISTÓRICO: Contas pagas ==========
   const { contasPagas, totalSaidas, totalEntradas, saldoPeriodo, porConta } = useMemo(() => {
-    const limite60dAtras = subDays(hoje, 60);
+    let pagas = contas.filter(c => c.pago);
     
-    let pagas = contas
-      .filter(c => c.pago)
-      .filter(c => {
-        const data = parseISO(c.dataVencimento);
-        return isAfter(data, limite60dAtras);
-      });
+    // Filtro por ano (sempre aplicado)
+    pagas = pagas.filter(c => {
+      const data = parseISO(c.dataVencimento);
+      return data.getFullYear() === filtroAno;
+    });
     
     // Aplicar filtros
     if (filtroTexto.trim()) {
@@ -106,6 +105,10 @@ export function ContasFluxoSection({
         const data = parseISO(c.dataVencimento);
         return data.getMonth() + 1 === filtroMes;
       });
+    }
+    
+    if (filtroFornecedor !== 'todos') {
+      pagas = pagas.filter(c => c.fornecedorId === filtroFornecedor);
     }
     
     if (filtroTipo !== 'todos') {
