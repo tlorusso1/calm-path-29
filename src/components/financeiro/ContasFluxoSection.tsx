@@ -72,6 +72,9 @@ export function ContasFluxoSection({
   const [historicoView, setHistoricoView] = useState<'lista' | 'por-conta'>('lista');
   // Filtros do histórico
   const [filtroTexto, setFiltroTexto] = useState('');
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
   const [filtroMes, setFiltroMes] = useState<number | 'todos'>('todos');
   const [filtroAno, setFiltroAno] = useState<number>(hoje.getFullYear());
   const [filtroTipo, setFiltroTipo] = useState<ContaFluxoTipo | 'todos'>('todos');
@@ -79,9 +82,6 @@ export function ContasFluxoSection({
   const [filtroFornecedor, setFiltroFornecedor] = useState<string | 'todos'>('todos');
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
-
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
   const limite30d = addDays(hoje, 30);
   
   // ========== HISTÓRICO: Contas pagas ==========
