@@ -188,7 +188,7 @@ export function ContasFluxoSection({
       saldoPeriodo: entradas - saidas,
       porConta: porContaArray,
     };
-  }, [contas, hoje, filtroTexto, filtroMes, filtroTipo, filtroCategoria, fornecedores]);
+  }, [contas, filtroTexto, filtroMes, filtroAno, filtroTipo, filtroCategoria, filtroFornecedor, fornecedores]);
   
   const formatCurrencyValue = (value: number): string => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
