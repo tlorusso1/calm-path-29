@@ -997,8 +997,8 @@ export function ContasFluxoSection({
               </p>
             )}
             
-            {/* ========== HISTÓRICO (últimos 60 dias) ========== */}
-            {contasPagas.length > 0 && (
+            {/* ========== HISTÓRICO ========== */}
+            {(contasPagas.length > 0 || filtroMes !== 'todos' || filtroFornecedor !== 'todos') && (
               <Collapsible open={isHistoricoOpen} onOpenChange={setIsHistoricoOpen}>
                 <div className="border-t pt-3 mt-3">
                   <CollapsibleTrigger asChild>
