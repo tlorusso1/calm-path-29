@@ -73,8 +73,10 @@ export function ContasFluxoSection({
   // Filtros do histórico
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroMes, setFiltroMes] = useState<number | 'todos'>('todos');
+  const [filtroAno, setFiltroAno] = useState<number>(hoje.getFullYear());
   const [filtroTipo, setFiltroTipo] = useState<ContaFluxoTipo | 'todos'>('todos');
   const [filtroCategoria, setFiltroCategoria] = useState<string | 'todos'>('todos');
+  const [filtroFornecedor, setFiltroFornecedor] = useState<string | 'todos'>('todos');
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
