@@ -1005,7 +1005,7 @@ export function ContasFluxoSection({
                     <button className="flex items-center justify-between w-full text-left hover:bg-muted/50 rounded-lg p-2 -mx-2 transition-colors">
                       <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                         <History className="h-3.5 w-3.5" />
-                        Histórico (últimos 60d)
+                        Histórico
                       </span>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary" className="text-xs">
