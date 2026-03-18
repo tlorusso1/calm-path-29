@@ -73,8 +73,10 @@ export function ContasFluxoSection({
   // Filtros do histórico
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroMes, setFiltroMes] = useState<number | 'todos'>('todos');
+  const [filtroAno, setFiltroAno] = useState<number>(hoje.getFullYear());
   const [filtroTipo, setFiltroTipo] = useState<ContaFluxoTipo | 'todos'>('todos');
   const [filtroCategoria, setFiltroCategoria] = useState<string | 'todos'>('todos');
+  const [filtroFornecedor, setFiltroFornecedor] = useState<string | 'todos'>('todos');
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
@@ -82,16 +84,15 @@ export function ContasFluxoSection({
   hoje.setHours(0, 0, 0, 0);
   const limite30d = addDays(hoje, 30);
   
-  // ========== HISTÓRICO: Contas pagas dos últimos 60 dias ==========
+  // ========== HISTÓRICO: Contas pagas ==========
   const { contasPagas, totalSaidas, totalEntradas, saldoPeriodo, porConta } = useMemo(() => {
-    const limite60dAtras = subDays(hoje, 60);
+    let pagas = contas.filter(c => c.pago);
     
-    let pagas = contas
-      .filter(c => c.pago)
-      .filter(c => {
-        const data = parseISO(c.dataVencimento);
-        return isAfter(data, limite60dAtras);
-      });
+    // Filtro por ano (sempre aplicado)
+    pagas = pagas.filter(c => {
+      const data = parseISO(c.dataVencimento);
+      return data.getFullYear() === filtroAno;
+    });
     
     // Aplicar filtros
     if (filtroTexto.trim()) {
@@ -104,6 +105,10 @@ export function ContasFluxoSection({
         const data = parseISO(c.dataVencimento);
         return data.getMonth() + 1 === filtroMes;
       });
+    }
+    
+    if (filtroFornecedor !== 'todos') {
+      pagas = pagas.filter(c => c.fornecedorId === filtroFornecedor);
     }
     
     if (filtroTipo !== 'todos') {
@@ -183,7 +188,7 @@ export function ContasFluxoSection({
       saldoPeriodo: entradas - saidas,
       porConta: porContaArray,
     };
-  }, [contas, hoje, filtroTexto, filtroMes, filtroTipo, filtroCategoria, fornecedores]);
+  }, [contas, filtroTexto, filtroMes, filtroAno, filtroTipo, filtroCategoria, filtroFornecedor, fornecedores]);
   
   const formatCurrencyValue = (value: number): string => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -992,15 +997,15 @@ export function ContasFluxoSection({
               </p>
             )}
             
-            {/* ========== HISTÓRICO (últimos 60 dias) ========== */}
-            {contasPagas.length > 0 && (
+            {/* ========== HISTÓRICO ========== */}
+            {(contasPagas.length > 0 || filtroMes !== 'todos' || filtroFornecedor !== 'todos') && (
               <Collapsible open={isHistoricoOpen} onOpenChange={setIsHistoricoOpen}>
                 <div className="border-t pt-3 mt-3">
                   <CollapsibleTrigger asChild>
                     <button className="flex items-center justify-between w-full text-left hover:bg-muted/50 rounded-lg p-2 -mx-2 transition-colors">
                       <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                         <History className="h-3.5 w-3.5" />
-                        Histórico (últimos 60d)
+                        Histórico
                       </span>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary" className="text-xs">
@@ -1076,9 +1081,21 @@ export function ContasFluxoSection({
                           />
                         </div>
                         
+                        {/* Filtro por ano */}
+                        <Select value={String(filtroAno)} onValueChange={(v) => setFiltroAno(Number(v))}>
+                          <SelectTrigger className="h-8 w-[80px] text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[2024, 2025, 2026, 2027].map(a => (
+                              <SelectItem key={a} value={String(a)}>{a}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
                         {/* Filtro por mês */}
                         <Select value={String(filtroMes)} onValueChange={(v) => setFiltroMes(v === 'todos' ? 'todos' : Number(v))}>
-                          <SelectTrigger className="h-8 w-[100px] text-xs">
+                          <SelectTrigger className="h-8 w-[90px] text-xs">
                             <SelectValue placeholder="Mês" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1116,7 +1133,7 @@ export function ContasFluxoSection({
                         
                         {/* Filtro por categoria DRE */}
                         <Select value={filtroCategoria as string} onValueChange={setFiltroCategoria}>
-                          <SelectTrigger className="h-8 w-[140px] text-xs">
+                          <SelectTrigger className="h-8 w-[120px] text-xs">
                             <SelectValue placeholder="Categoria" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1127,10 +1144,28 @@ export function ContasFluxoSection({
                             <SelectItem value="Financeiro">Financeiro</SelectItem>
                           </SelectContent>
                         </Select>
+
+                        {/* Filtro por fornecedor */}
+                        {fornecedores.length > 0 && (
+                          <Select value={filtroFornecedor} onValueChange={setFiltroFornecedor}>
+                            <SelectTrigger className="h-8 w-[140px] text-xs">
+                              <SelectValue placeholder="Fornecedor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="todos">Todos</SelectItem>
+                              {fornecedores
+                                .sort((a, b) => a.nome.localeCompare(b.nome))
+                                .map(f => (
+                                  <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>
+                                ))
+                              }
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
 
                       {/* Mostrar quantidade de resultados após filtros */}
-                      {(filtroTexto || filtroMes !== 'todos' || filtroTipo !== 'todos' || filtroCategoria !== 'todos') && (
+                      {(filtroTexto || filtroMes !== 'todos' || filtroTipo !== 'todos' || filtroCategoria !== 'todos' || filtroFornecedor !== 'todos') && (
                         <div className="text-xs text-muted-foreground px-1">
                           {contasPagas.length} resultado{contasPagas.length !== 1 ? 's' : ''}
                         </div>
