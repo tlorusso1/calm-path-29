@@ -1081,9 +1081,21 @@ export function ContasFluxoSection({
                           />
                         </div>
                         
+                        {/* Filtro por ano */}
+                        <Select value={String(filtroAno)} onValueChange={(v) => setFiltroAno(Number(v))}>
+                          <SelectTrigger className="h-8 w-[80px] text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[2024, 2025, 2026, 2027].map(a => (
+                              <SelectItem key={a} value={String(a)}>{a}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
                         {/* Filtro por mês */}
                         <Select value={String(filtroMes)} onValueChange={(v) => setFiltroMes(v === 'todos' ? 'todos' : Number(v))}>
-                          <SelectTrigger className="h-8 w-[100px] text-xs">
+                          <SelectTrigger className="h-8 w-[90px] text-xs">
                             <SelectValue placeholder="Mês" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1121,7 +1133,7 @@ export function ContasFluxoSection({
                         
                         {/* Filtro por categoria DRE */}
                         <Select value={filtroCategoria as string} onValueChange={setFiltroCategoria}>
-                          <SelectTrigger className="h-8 w-[140px] text-xs">
+                          <SelectTrigger className="h-8 w-[120px] text-xs">
                             <SelectValue placeholder="Categoria" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1132,10 +1144,28 @@ export function ContasFluxoSection({
                             <SelectItem value="Financeiro">Financeiro</SelectItem>
                           </SelectContent>
                         </Select>
+
+                        {/* Filtro por fornecedor */}
+                        {fornecedores.length > 0 && (
+                          <Select value={filtroFornecedor} onValueChange={setFiltroFornecedor}>
+                            <SelectTrigger className="h-8 w-[140px] text-xs">
+                              <SelectValue placeholder="Fornecedor" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="todos">Todos</SelectItem>
+                              {fornecedores
+                                .sort((a, b) => a.nome.localeCompare(b.nome))
+                                .map(f => (
+                                  <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>
+                                ))
+                              }
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
 
                       {/* Mostrar quantidade de resultados após filtros */}
-                      {(filtroTexto || filtroMes !== 'todos' || filtroTipo !== 'todos' || filtroCategoria !== 'todos') && (
+                      {(filtroTexto || filtroMes !== 'todos' || filtroTipo !== 'todos' || filtroCategoria !== 'todos' || filtroFornecedor !== 'todos') && (
                         <div className="text-xs text-muted-foreground px-1">
                           {contasPagas.length} resultado{contasPagas.length !== 1 ? 's' : ''}
                         </div>
