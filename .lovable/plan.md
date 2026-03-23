@@ -1,53 +1,33 @@
 
-# Dashboard Público de Estoques
 
-Criar uma página pública (sem autenticação) que mostra o status atual dos estoques, compartilhável com o time via link.
+## Problema
 
-## Arquitetura
+Os nomes dos produtos estão truncados (`w-[160px] sm:w-[220px]` com `truncate`) no gráfico de barras horizontais, tornando-os ilegíveis — especialmente no mobile.
 
-A página será acessível em `/estoque/:userId` (ou um token). Como os dados de estoque estão na tabela `focus_mode_states` protegida por RLS, precisamos de uma edge function que busca os dados com service role e os expõe publicamente.
+## Proposta: Layout empilhado (nome em cima, barra embaixo)
 
-## Implementação
+Em vez de nome e barra na mesma linha (que força truncamento), usar **duas linhas por item**:
 
-### 1. Edge Function: `supabase/functions/public-estoque/index.ts`
-- Recebe `?user_id=<uuid>` como query param
-- Usa service role key para ler `focus_mode_states` do usuário (semana atual)
-- Extrai `modes.supplychain.supplyChainData` (itens + ultimaImportacaoMov)
-- Retorna JSON com:
-  - Lista de itens (nome, tipo, quantidade, unidade, demandaSemanal, coberturaDias, status, dataValidade, precoCusto)
-  - Data da última atualização (`updated_at` do registro)
-  - Data da última importação de movimentações (`ultimaImportacaoMov`)
-- Não expõe dados financeiros nem outros módulos
+```text
+NICE® MILK - AVEIA BARISTA 1L
+████████████████████████████████████  238d
 
-### 2. Página pública: `src/pages/EstoqueDashboard.tsx`
-- Rota: `/estoque/:userId`
-- Não requer autenticação (fora do ProtectedRoute)
-- Faz fetch na edge function com o userId da URL
-- Exibe:
-  - Header com logo Nice Foods + título "Status de Estoques"
-  - Badge com "Última atualização: DD/MM/YYYY HH:mm"
-  - Tabela com colunas: Produto, Tipo, Qtde, Saída/sem, Cobertura (dias), Status (badge colorido), Validade
-  - Status visual: verde/amarelo/vermelho com badges coloridos
-  - Itens ordenados por status (vermelho primeiro, depois amarelo, depois verde)
-- Design limpo, responsivo, sem sidebar/header do app principal
-- Auto-refresh a cada 5 minutos
+NICE® SPICES - CARBONARA 40G
+██████████████                        87d
+```
 
-### 3. Rota no App.tsx
-- Adicionar rota `/estoque/:userId` FORA do ProtectedRoute
-- Componente: `EstoqueDashboard`
+**Vantagens:**
+- Nome completo sempre visível, sem truncamento
+- Barra ocupa toda a largura disponível → melhor legibilidade visual
+- Funciona bem em mobile e desktop
+- O valor em dias fica à direita da barra
 
-### 4. Link de compartilhamento no SupplyChainMode
-- Adicionar botão "Compartilhar com time" no header do módulo Supply Chain
-- Ao clicar, copia o link `{origin}/estoque/{userId}` para o clipboard
-- Toast confirmando que foi copiado
+## Mudanças técnicas
 
-## Arquivos criados/modificados
-- **Criar**: `supabase/functions/public-estoque/index.ts` - edge function
-- **Criar**: `src/pages/EstoqueDashboard.tsx` - página pública
-- **Modificar**: `src/App.tsx` - adicionar rota
-- **Modificar**: `src/components/modes/SupplyChainMode.tsx` - botão de compartilhar
+**`src/components/CoberturaChart.tsx`:**
+- Trocar layout de `flex items-center` (horizontal) para layout empilhado (vertical por item)
+- Linha 1: nome do produto em texto completo (sem `truncate`, sem largura fixa)
+- Linha 2: barra + valor em dias
+- Manter cores por faixa de risco (verde/amarelo/vermelho)
+- Espaçamento entre itens ligeiramente maior (`space-y-3`)
 
-## Segurança
-- A edge function expõe APENAS dados de estoque (itens), nada financeiro
-- O userId na URL é um UUID, difícil de adivinhar
-- Sem dados sensíveis expostos (apenas nomes de produtos, quantidades, validades)
