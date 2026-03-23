@@ -279,10 +279,11 @@ export function calcularDemandaSemanalPorItem(
   const saidas = movimentacoes.filter(m => m.tipo === 'saida');
   if (saidas.length === 0) return new Map();
 
-  // Janela fixa: últimas 4 semanas (28 dias)
   const agora = Date.now();
   const janela28d = agora - 28 * 24 * 60 * 60 * 1000;
   const janela7d = agora - 7 * 24 * 60 * 60 * 1000;
+
+  let usandoJanelaRecente = true;
 
   // Filtrar saídas dentro da janela de 28 dias
   let saidasJanela = saidas.filter(s => {
@@ -290,7 +291,7 @@ export function calcularDemandaSemanalPorItem(
     return !isNaN(ts) && ts >= janela28d;
   });
 
-  // Se não há dados nos últimos 28 dias, tentar últimos 7 dias mínimo
+  // Se não há dados nos últimos 28 dias, tentar últimos 7 dias
   if (saidasJanela.length === 0) {
     saidasJanela = saidas.filter(s => {
       const ts = new Date(s.data).getTime();
@@ -298,9 +299,10 @@ export function calcularDemandaSemanalPorItem(
     });
   }
 
-  // Se ainda não há dados, usar tudo (fallback)
+  // Se ainda não há dados recentes, usar tudo (fallback)
   if (saidasJanela.length === 0) {
     saidasJanela = saidas;
+    usandoJanelaRecente = false;
   }
 
   // Agrupar por produto normalizado
@@ -319,9 +321,13 @@ export function calcularDemandaSemanalPorItem(
   if (datas.length === 0) return new Map();
 
   const minData = Math.min(...datas);
-  const maxData = Math.max(...datas, agora);
-  // Mínimo 7 dias para evitar distorção com dados muito recentes
-  const periodoDias = Math.max(7, (maxData - minData) / (24 * 60 * 60 * 1000));
+  const maxData = Math.max(...datas);
+  
+  // Período = range dos dados. Se janela recente, usar agora como teto.
+  // Se fallback (dados antigos), usar apenas o range real dos dados.
+  const tetoData = usandoJanelaRecente ? agora : maxData;
+  // Mínimo 7 dias para evitar distorção com dados de poucos dias
+  const periodoDias = Math.max(7, (tetoData - minData) / (24 * 60 * 60 * 1000));
   const periodoSemanas = periodoDias / 7;
 
   const resultado = new Map<string, number>();
