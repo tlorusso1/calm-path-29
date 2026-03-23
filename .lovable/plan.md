@@ -1,33 +1,51 @@
 
 
-## Problema
+## Gráficos de Saída por Produto na aba Análise
 
-Os nomes dos produtos estão truncados (`w-[160px] sm:w-[220px]` com `truncate`) no gráfico de barras horizontais, tornando-os ilegíveis — especialmente no mobile.
+### O que será adicionado
 
-## Proposta: Layout empilhado (nome em cima, barra embaixo)
+Na aba **Análise** do Supply Chain, adicionar dois gráficos visuais acima da tabela existente:
 
-Em vez de nome e barra na mesma linha (que força truncamento), usar **duas linhas por item**:
+1. **Gráfico de Saídas Semanais (barras empilhadas)** — Mostra o volume total de saídas por semana, com cada produto como uma fatia colorida da barra. Permite ver se o total está subindo ou descendo, e qual produto puxa mais.
+
+2. **Mix de Produtos (% do total)** — Barras horizontais mostrando a participação de cada produto no total de saídas dos últimos 30 dias. Ex: "MILK AVEIA — 35%", "SPICES CARBONARA — 22%", etc.
+
+### Como funciona
+
+- Os dados já existem: `MovimentacaoEstoque[]` com `tipo`, `produto`, `quantidade` e `data`
+- Agrupar saídas por semana (ISO week) e por produto
+- Usar CSS puro (barras div) — sem biblioteca de gráficos externa — consistente com o `CoberturaChart`
+
+### Layout visual
 
 ```text
-NICE® MILK - AVEIA BARISTA 1L
-████████████████████████████████████  238d
+📈 Saídas por Semana
+┌──────────────────────────────────────────┐
+│ Sem 10  ████████████████████████  480 un │
+│ Sem 11  ██████████████████████████ 520 un│
+│ Sem 12  ████████████████████  420 un     │
+│ Sem 13  ██████████████████████████████ 600│
+└──────────────────────────────────────────┘
+  ▲ cada cor = um produto (legenda abaixo)
 
-NICE® SPICES - CARBONARA 40G
-██████████████                        87d
+📊 Mix de Produtos (últimos 30d)
+┌──────────────────────────────────────────┐
+│ MILK AVEIA 1L                            │
+│ ██████████████████████████████████  35%  │
+│ SPICES CARBONARA                         │
+│ ██████████████████████  22%              │
+│ ...                                      │
+└──────────────────────────────────────────┘
 ```
 
-**Vantagens:**
-- Nome completo sempre visível, sem truncamento
-- Barra ocupa toda a largura disponível → melhor legibilidade visual
-- Funciona bem em mobile e desktop
-- O valor em dias fica à direita da barra
+### Mudanças técnicas
 
-## Mudanças técnicas
+**Novo componente `src/components/SaidasChart.tsx`:**
+- Recebe `movimentacoes: MovimentacaoEstoque[]`
+- Agrupa saídas por semana ISO e por produto
+- Renderiza barras empilhadas coloridas (CSS puro) com legenda
+- Renderiza barras horizontais de % por produto (reutilizando padrão do CoberturaChart)
 
-**`src/components/CoberturaChart.tsx`:**
-- Trocar layout de `flex items-center` (horizontal) para layout empilhado (vertical por item)
-- Linha 1: nome do produto em texto completo (sem `truncate`, sem largura fixa)
-- Linha 2: barra + valor em dias
-- Manter cores por faixa de risco (verde/amarelo/vermelho)
-- Espaçamento entre itens ligeiramente maior (`space-y-3`)
+**`src/components/modes/SupplyChainMode.tsx`:**
+- Importar e renderizar `SaidasChart` no início da `TabsContent value="analise"`, antes da tabela existente
 
