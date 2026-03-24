@@ -21,7 +21,6 @@ const PRODUCT_COLOR_MAP: Record<string, string> = {
   'molho branco': 'bg-sky-400',
 };
 
-// Fallback para produtos não mapeados
 const FALLBACK_COLORS = [
   'bg-violet-500', 'bg-teal-500', 'bg-indigo-500', 'bg-lime-500',
   'bg-fuchsia-500', 'bg-cyan-500', 'bg-emerald-500', 'bg-amber-500',
@@ -32,7 +31,6 @@ function getProductColor(name: string): string {
   for (const [key, color] of Object.entries(PRODUCT_COLOR_MAP)) {
     if (lower.includes(key)) return color;
   }
-  // Fallback determinístico baseado no nome
   let hash = 0;
   for (let i = 0; i < lower.length; i++) hash = ((hash << 5) - hash) + lower.charCodeAt(i);
   return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length];
@@ -68,7 +66,6 @@ interface ProductMix {
 export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
   const saidas = useMemo(() => movimentacoes.filter(m => m.tipo === 'saida'), [movimentacoes]);
 
-  // Top products by volume (for consistent color assignment)
   const topProducts = useMemo(() => {
     const map = new Map<string, number>();
     for (const s of saidas) {
@@ -79,15 +76,8 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
       .map(([name]) => name);
   }, [saidas]);
 
-  const productColorMap = useMemo(() => {
-    const map = new Map<string, number>();
-    topProducts.forEach((name, i) => map.set(name, i % PRODUCT_COLORS.length));
-    return map;
-  }, [topProducts]);
-
-  // Weekly stacked data (last 8 weeks)
   const weeklyData = useMemo<WeekData[]>(() => {
-    const corte = Date.now() - 56 * 24 * 60 * 60 * 1000; // 8 weeks
+    const corte = Date.now() - 56 * 24 * 60 * 60 * 1000;
     const weekMap = new Map<string, Map<string, number>>();
 
     for (const s of saidas) {
@@ -116,7 +106,6 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
       });
   }, [saidas]);
 
-  // Product mix (last 30 days)
   const productMix = useMemo<ProductMix[]>(() => {
     const corte = Date.now() - 30 * 24 * 60 * 60 * 1000;
     const map = new Map<string, number>();
@@ -137,7 +126,6 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
       .slice(0, 10);
   }, [saidas]);
 
-  // Tendência: comparar últimas 2 semanas
   const trend = useMemo(() => {
     if (weeklyData.length < 2) return null;
     const last = weeklyData[weeklyData.length - 1].total;
@@ -153,7 +141,6 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
 
   return (
     <div className={cn("space-y-5", className)}>
-      {/* === Saídas por Semana (barras empilhadas) === */}
       {weeklyData.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -184,11 +171,10 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
                     {week.products.map((product, pi) => {
                       const pct = (product.qty / maxWeekTotal) * 100;
                       if (pct < 0.5) return null;
-                      const colorIdx = productColorMap.get(product.name) ?? (pi % PRODUCT_COLORS.length);
                       return (
                         <div
                           key={pi}
-                          className={cn("h-full transition-all", PRODUCT_COLORS[colorIdx])}
+                          className={cn("h-full transition-all", getProductColor(product.name))}
                           style={{ width: `${pct}%` }}
                           title={`${product.name}: ${product.qty} un`}
                         />
@@ -203,11 +189,10 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
             ))}
           </div>
 
-          {/* Legenda */}
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
-            {topProducts.slice(0, 8).map((name, i) => (
+            {topProducts.slice(0, 8).map((name) => (
               <div key={name} className="flex items-center gap-1">
-                <div className={cn("w-2 h-2 rounded-full", PRODUCT_DOT_COLORS[i % PRODUCT_DOT_COLORS.length])} />
+                <div className={cn("w-2 h-2 rounded-full", getProductColor(name))} />
                 <span className="text-[10px] text-muted-foreground leading-tight">{name}</span>
               </div>
             ))}
@@ -218,39 +203,35 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
         </div>
       )}
 
-      {/* === Mix de Produtos (% últimos 30d) === */}
       {productMix.length > 0 && (
         <div className="space-y-2">
           <h4 className="text-xs font-semibold text-muted-foreground">
             📊 Mix de Produtos (últimos 30d)
           </h4>
           <div className="space-y-2">
-            {productMix.map((item) => {
-              const colorIdx = productColorMap.get(item.name) ?? 0;
-              return (
-                <div key={item.name} className="space-y-0.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground leading-tight">
-                      {item.name}
-                    </span>
-                    <span className="text-xs font-medium text-muted-foreground shrink-0 ml-2">
-                      {item.qty} un
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-3.5 bg-muted/40 rounded-sm overflow-hidden">
-                      <div
-                        className={cn("h-full rounded-sm transition-all", PRODUCT_COLORS[colorIdx])}
-                        style={{ width: `${item.pct}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] font-semibold w-[36px] text-right shrink-0 text-muted-foreground">
-                      {item.pct.toFixed(0)}%
-                    </span>
-                  </div>
+            {productMix.map((item) => (
+              <div key={item.name} className="space-y-0.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground leading-tight">
+                    {item.name}
+                  </span>
+                  <span className="text-xs font-medium text-muted-foreground shrink-0 ml-2">
+                    {item.qty} un
+                  </span>
                 </div>
-              );
-            })}
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-3.5 bg-muted/40 rounded-sm overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-sm transition-all", getProductColor(item.name))}
+                      style={{ width: `${item.pct}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-semibold w-[36px] text-right shrink-0 text-muted-foreground">
+                    {item.pct.toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
