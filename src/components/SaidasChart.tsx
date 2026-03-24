@@ -78,7 +78,8 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
   }, [saidas]);
 
   const weeklyData = useMemo<WeekData[]>(() => {
-    const corte = Date.now() - 56 * 24 * 60 * 60 * 1000;
+    const dias = showAllWeeks ? 365 : 56;
+    const corte = Date.now() - dias * 24 * 60 * 60 * 1000;
     const weekMap = new Map<string, Map<string, number>>();
 
     for (const s of saidas) {
