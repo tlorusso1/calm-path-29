@@ -119,10 +119,6 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
       .slice(0, 10);
   }, [saidas]);
 
-  if (saidas.length === 0) return null;
-
-  const maxWeekTotal = Math.max(...weeklyData.map(w => w.total), 1);
-
   // Tendência: comparar últimas 2 semanas
   const trend = useMemo(() => {
     if (weeklyData.length < 2) return null;
