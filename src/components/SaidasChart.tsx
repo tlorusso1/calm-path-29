@@ -106,7 +106,7 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
           products: productList,
         };
       });
-  }, [saidas]);
+  }, [saidas, showAllWeeks]);
 
   const productMix = useMemo<ProductMix[]>(() => {
     const corte = Date.now() - 30 * 24 * 60 * 60 * 1000;
