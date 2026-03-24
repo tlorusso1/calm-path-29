@@ -149,17 +149,25 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
             <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
               📈 Saídas por Semana
             </h4>
-            {trend && (
-              <span className={cn(
-                "text-[10px] font-medium",
-                trend.direction === 'up' ? "text-emerald-600 dark:text-emerald-400" :
-                trend.direction === 'down' ? "text-rose-600 dark:text-rose-400" :
-                "text-muted-foreground"
-              )}>
-                {trend.direction === 'up' ? '↑' : trend.direction === 'down' ? '↓' : '→'}
-                {' '}{Math.abs(trend.pctChange).toFixed(0)}% vs semana anterior
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {trend && (
+                <span className={cn(
+                  "text-[10px] font-medium",
+                  trend.direction === 'up' ? "text-emerald-600 dark:text-emerald-400" :
+                  trend.direction === 'down' ? "text-rose-600 dark:text-rose-400" :
+                  "text-muted-foreground"
+                )}>
+                  {trend.direction === 'up' ? '↑' : trend.direction === 'down' ? '↓' : '→'}
+                  {' '}{Math.abs(trend.pctChange).toFixed(0)}% vs semana anterior
+                </span>
+              )}
+              <button
+                onClick={() => setShowAllWeeks(!showAllWeeks)}
+                className="text-[10px] font-medium text-primary hover:underline"
+              >
+                {showAllWeeks ? 'Últimas 8 sem' : 'Ver tudo'}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1.5">
