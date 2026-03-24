@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CoberturaChart } from '@/components/CoberturaChart';
+import { SaidasChart } from '@/components/SaidasChart';
 import { 
   processarSupply, 
   TIPO_LABELS, 
