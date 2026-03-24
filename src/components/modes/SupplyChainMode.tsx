@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CoberturaChart } from '@/components/CoberturaChart';
+import { SaidasChart } from '@/components/SaidasChart';
 import { 
   processarSupply, 
   TIPO_LABELS, 
@@ -881,6 +882,9 @@ export function SupplyChainMode({
 
             {/* ========== ABA ANÁLISE: Saídas por Produto ========== */}
             <TabsContent value="analise" className="space-y-3">
+              {/* Gráficos de tendência de saídas */}
+              <SaidasChart movimentacoes={data.movimentacoes || []} />
+
               {(() => {
                 const movs = data.movimentacoes || [];
                 const saidas = movs.filter(m => m.tipo === 'saida');
