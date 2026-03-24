@@ -64,6 +64,7 @@ interface ProductMix {
 }
 
 export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
+  const [showAllWeeks, setShowAllWeeks] = useState(false);
   const saidas = useMemo(() => movimentacoes.filter(m => m.tipo === 'saida'), [movimentacoes]);
 
   const topProducts = useMemo(() => {
