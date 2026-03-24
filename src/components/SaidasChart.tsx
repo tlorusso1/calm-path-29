@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { MovimentacaoEstoque } from '@/types/focus-mode';
 
@@ -64,6 +64,7 @@ interface ProductMix {
 }
 
 export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
+  const [showAllWeeks, setShowAllWeeks] = useState(false);
   const saidas = useMemo(() => movimentacoes.filter(m => m.tipo === 'saida'), [movimentacoes]);
 
   const topProducts = useMemo(() => {
@@ -77,7 +78,8 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
   }, [saidas]);
 
   const weeklyData = useMemo<WeekData[]>(() => {
-    const corte = Date.now() - 56 * 24 * 60 * 60 * 1000;
+    const dias = showAllWeeks ? 365 : 56;
+    const corte = Date.now() - dias * 24 * 60 * 60 * 1000;
     const weekMap = new Map<string, Map<string, number>>();
 
     for (const s of saidas) {
@@ -104,7 +106,7 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
           products: productList,
         };
       });
-  }, [saidas]);
+  }, [saidas, showAllWeeks]);
 
   const productMix = useMemo<ProductMix[]>(() => {
     const corte = Date.now() - 30 * 24 * 60 * 60 * 1000;
@@ -147,17 +149,25 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
             <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
               📈 Saídas por Semana
             </h4>
-            {trend && (
-              <span className={cn(
-                "text-[10px] font-medium",
-                trend.direction === 'up' ? "text-emerald-600 dark:text-emerald-400" :
-                trend.direction === 'down' ? "text-rose-600 dark:text-rose-400" :
-                "text-muted-foreground"
-              )}>
-                {trend.direction === 'up' ? '↑' : trend.direction === 'down' ? '↓' : '→'}
-                {' '}{Math.abs(trend.pctChange).toFixed(0)}% vs semana anterior
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {trend && (
+                <span className={cn(
+                  "text-[10px] font-medium",
+                  trend.direction === 'up' ? "text-emerald-600 dark:text-emerald-400" :
+                  trend.direction === 'down' ? "text-rose-600 dark:text-rose-400" :
+                  "text-muted-foreground"
+                )}>
+                  {trend.direction === 'up' ? '↑' : trend.direction === 'down' ? '↓' : '→'}
+                  {' '}{Math.abs(trend.pctChange).toFixed(0)}% vs semana anterior
+                </span>
+              )}
+              <button
+                onClick={() => setShowAllWeeks(!showAllWeeks)}
+                className="text-[10px] font-medium text-primary hover:underline"
+              >
+                {showAllWeeks ? 'Últimas 8 sem' : 'Ver tudo'}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1.5">
