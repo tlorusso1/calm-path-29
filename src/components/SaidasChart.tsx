@@ -127,7 +127,10 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
     if (prev === 0) return null;
     const pctChange = ((last - prev) / prev) * 100;
     return { pctChange, direction: pctChange > 5 ? 'up' : pctChange < -5 ? 'down' : 'stable' as const };
-  }, [weeklyData]);
+
+  if (saidas.length === 0) return null;
+
+  const maxWeekTotal = Math.max(...weeklyData.map(w => w.total), 1);
 
   return (
     <div className={cn("space-y-5", className)}>
