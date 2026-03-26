@@ -1163,10 +1163,64 @@ export function SupplyChainMode({
               <span>Estoque Atual ({itensProcessados.length} itens)</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            {/* Filtros por tipo */}
+            <div className="flex flex-wrap gap-1.5">
+              <Button
+                variant={filtroTipo === 'todos' ? 'default' : 'outline'}
+                size="sm"
+                className="h-6 text-[10px] px-2"
+                onClick={() => setFiltroTipo('todos')}
+              >
+                Todos
+              </Button>
+              {(['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'insumo', 'materia_prima'] as TipoEstoque[])
+                .filter(t => itensProcessados.some(i => i.tipo === t))
+                .map(t => (
+                  <Button
+                    key={t}
+                    variant={filtroTipo === t ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() => setFiltroTipo(filtroTipo === t ? 'todos' : t)}
+                  >
+                    {TIPO_LABELS[t]} ({itensProcessados.filter(i => i.tipo === t).length})
+                  </Button>
+                ))}
+            </div>
+
+            {/* Filtro por localização */}
+            {localizacoes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                <span className="text-[10px] text-muted-foreground self-center mr-1">📍</span>
+                <Button
+                  variant={filtroLocal === 'todos' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-5 text-[10px] px-1.5"
+                  onClick={() => setFiltroLocal('todos')}
+                >
+                  Todos
+                </Button>
+                {localizacoes.map(loc => (
+                  <Button
+                    key={loc}
+                    variant={filtroLocal === loc ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-5 text-[10px] px-1.5"
+                    onClick={() => setFiltroLocal(filtroLocal === loc ? 'todos' : loc)}
+                  >
+                    {loc}
+                  </Button>
+                ))}
+              </div>
+            )}
+
             <ScrollArea className={cn(itensProcessados.length > 5 ? "h-[500px]" : "h-auto")}>
               <div className="space-y-2">
-                {[...itensProcessados].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map((item) => {
+                {[...itensProcessados]
+                  .filter(i => filtroTipo === 'todos' || i.tipo === filtroTipo)
+                  .filter(i => filtroLocal === 'todos' || i.localizacao === filtroLocal)
+                  .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map((item) => {
                   const diasVenc = calcularDiasAteVencimento(item.dataValidade);
                   const usandoGlobal = item.demandaSemanal === undefined;
                   
