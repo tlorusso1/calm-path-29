@@ -409,6 +409,7 @@ function cleanProductName(text: string): string {
     .replace(/^["']+|["']+$/g, '') // Remove quotes
     .replace(/^\[(B|EMB|MP|Food Service)\]\s*/i, '') // Remove common prefixes
     .replace(/^\[.*?\]\s*-?\s*/i, '') // Remove any remaining [X] prefix
+    .replace(/^\s*-\s*/, '') // Remove leading dash
     .trim();
 }
 
