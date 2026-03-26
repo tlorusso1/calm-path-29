@@ -129,7 +129,7 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
   }, [saidas, showAllWeeks]);
 
   const productMix = useMemo<ProductMix[]>(() => {
-    const corte = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const corte = Date.now() - mixDays * 24 * 60 * 60 * 1000;
     const map = new Map<string, { qty: number; fat: number }>();
 
     for (const s of saidas) {
