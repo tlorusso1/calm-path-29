@@ -485,6 +485,54 @@ export function SupplyChainMode({
             );
           })()}
 
+          {/* 🏭 Previsão de Produção */}
+          {(() => {
+            const itensParaProduzir = itensProcessados
+              .filter(i => i.demandaSemanal && i.demandaSemanal > 0)
+              .map(i => {
+                const regra = REGRAS_COBERTURA[i.tipo];
+                const metaDias = regra.ideal;
+                const demandaDiaria = (i.demandaSemanal ?? 0) / 7;
+                const qtdIdeal = Math.ceil(demandaDiaria * metaDias);
+                const precisaProduzir = Math.max(0, qtdIdeal - i.quantidade);
+                return {
+                  nome: i.nome,
+                  tipo: i.tipo,
+                  atual: i.quantidade,
+                  coberturaDias: i.coberturaDias,
+                  metaDias,
+                  qtdIdeal,
+                  precisaProduzir,
+                };
+              })
+              .filter(i => i.precisaProduzir > 0)
+              .sort((a, b) => b.precisaProduzir - a.precisaProduzir);
+
+            if (itensParaProduzir.length === 0) return null;
+
+            return (
+              <div className="pt-3 border-t border-border">
+                <p className="text-xs font-medium text-muted-foreground mb-2">🏭 Previsão de Produção (meta: cobertura ideal)</p>
+                <div className="space-y-1.5">
+                  {itensParaProduzir.map((item, idx) => (
+                    <div key={idx} className="text-xs">
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-foreground">{item.nome}</span>
+                        <span className="font-medium text-primary whitespace-nowrap ml-2">
+                          +{item.precisaProduzir} un
+                        </span>
+                      </div>
+                      <div className="flex gap-3 text-[10px] text-muted-foreground">
+                        <span>Atual: {item.atual} un ({item.coberturaDias ?? '?'}d)</span>
+                        <span>Meta: {item.qtdIdeal} un ({item.metaDias}d)</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Alertas */}
           {/* Alertas como Lista Estruturada */}
           {(itensProcessados.some(i => i.status === 'vermelho') || 
