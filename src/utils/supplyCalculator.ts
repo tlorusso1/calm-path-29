@@ -535,7 +535,7 @@ function detectarTipoPorNome(nome: string): TipoEstoque {
     return 'embalagem';
   }
   if (n.includes('açúcar') || n.includes('acucar') || n.includes('óleo') || n.includes('oleo') || n.includes('farinha') || n.includes('levedura')) {
-    return 'insumo';
+    return 'materia_prima';
   }
   return 'produto_acabado';
 }
