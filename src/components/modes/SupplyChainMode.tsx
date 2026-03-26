@@ -1349,6 +1349,45 @@ export function SupplyChainMode({
                           )}
                         </div>
 
+                        {/* Localização */}
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                            📍 Local:
+                          </Label>
+                          <Input
+                            placeholder="Depósito..."
+                            value={item.localizacao ?? ''}
+                            onChange={(e) => onUpdateItem(item.id, { 
+                              localizacao: e.target.value || undefined 
+                            })}
+                            className="h-7 w-28 sm:w-32 text-xs"
+                          />
+                        </div>
+
+                        {/* Custo Produção (só para produto acabado) */}
+                        {!['embalagem', 'insumo', 'materia_prima'].includes(item.tipo) && (
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                              C.Prod:
+                            </Label>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">R$</span>
+                              <Input
+                                type="number"
+                                placeholder="0,00"
+                                value={item.custoProducao ?? ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  onUpdateItem(item.id, { 
+                                    custoProducao: val ? parseFloat(val) : undefined 
+                                  });
+                                }}
+                                className="h-7 w-28 sm:w-32 text-xs pl-7"
+                              />
+                            </div>
+                          </div>
+                        )}
+
                         {/* Validade */}
                         <div className="flex items-center gap-2">
                           <Label className="text-xs text-muted-foreground whitespace-nowrap">
