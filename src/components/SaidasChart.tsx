@@ -304,8 +304,23 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-semibold text-muted-foreground">
-              📊 Mix de Produtos (últimos 30d)
+              📊 Mix de Produtos (últimos {mixDays}d)
             </h4>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center rounded border border-border overflow-hidden">
+                <button
+                  onClick={() => setMixDays(30)}
+                  className={cn("text-[10px] px-2 py-0.5", mixDays === 30 ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                >
+                  30d
+                </button>
+                <button
+                  onClick={() => setMixDays(90)}
+                  className={cn("text-[10px] px-2 py-0.5", mixDays === 90 ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                >
+                  90d
+                </button>
+              </div>
             {hasFaturamento && (
               <div className="flex items-center rounded border border-border overflow-hidden">
                 <button
