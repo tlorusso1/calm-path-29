@@ -974,7 +974,7 @@ export function SupplyChainMode({
                 size="sm"
                 variant="outline"
               >
-                <Upload className="h-4 w-4 mr-2" /> Importar Planilhas (.xlsx)
+                <Upload className="h-4 w-4 mr-2" /> Importar Planilhas (.xlsx, .csv)
               </Button>
             </TabsContent>
 
