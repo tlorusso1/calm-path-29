@@ -76,6 +76,7 @@ interface ProductMix {
 export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
   const [showAllWeeks, setShowAllWeeks] = useState(false);
   const [viewMode, setViewMode] = useState<'volume' | 'faturamento'>('volume');
+  const [mixViewMode, setMixViewMode] = useState<'volume' | 'faturamento'>('volume');
   const saidas = useMemo(() => movimentacoes.filter(m => m.tipo === 'saida'), [movimentacoes]);
 
   const hasFaturamento = useMemo(() => saidas.some(s => s.valorUnitarioVenda && s.valorUnitarioVenda > 0), [saidas]);
