@@ -154,7 +154,7 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
       }))
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 10);
-  }, [saidas]);
+  }, [saidas, mixDays]);
 
   const avg90d = useMemo(() => {
     const corte = Date.now() - 90 * 24 * 60 * 60 * 1000;
