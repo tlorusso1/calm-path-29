@@ -96,6 +96,7 @@ export function SupplyChainMode({
   const [filtroLocal, setFiltroLocal] = useState<string>('todos');
   const [mostrarRevisaoValidade, setMostrarRevisaoValidade] = useState(false);
   const [itensParaRevisar, setItensParaRevisar] = useState<ItemEstoque[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const data: SupplyChainStage = {
     ...DEFAULT_SUPPLYCHAIN_DATA,
