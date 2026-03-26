@@ -24,7 +24,6 @@ export const REGRAS_COBERTURA: Record<TipoEstoque, RegraCobertura> = {
   brinde: { critico: 15, atencao: 30, ideal: 45 },
   material_pdv: { critico: 15, atencao: 30, ideal: 45 },
   embalagem: { critico: 30, atencao: 60, ideal: 90 },
-  insumo: { critico: 20, atencao: 40, ideal: 60 },
   materia_prima: { critico: 20, atencao: 40, ideal: 60 },
 };
 
