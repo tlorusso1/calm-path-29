@@ -523,7 +523,7 @@ function detectarTipo(texto: string): TipoEstoque {
   if (t.includes('material') && t.includes('pdv')) return 'material_pdv';
   if (t.includes('prod') || t.includes('acab')) return 'produto_acabado';
   if (t.includes('embal') || t.includes('pote') || t.includes('tampa') || t.includes('caixa')) return 'embalagem';
-  if (t.includes('insum')) return 'insumo';
+  if (t.includes('insum')) return 'materia_prima';
   if (t.includes('mater') || t.includes('prima')) return 'materia_prima';
   return 'produto_acabado';
 }
