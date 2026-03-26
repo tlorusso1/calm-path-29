@@ -212,14 +212,21 @@ export function SupplyChainMode({
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    toast({ title: '📂 Lendo arquivo(s)...', description: `${files.length} arquivo(s) selecionado(s)` });
+
     let totalNovos = 0;
     let totalAtualizados = 0;
+    let totalLinhasLidas = 0;
     let filesProcessed = 0;
 
     const todosItens = [...data.itens];
 
     const processFile = (file: File) => {
       const reader = new FileReader();
+      reader.onerror = () => {
+        toast({ title: `Erro ao ler ${file.name}`, description: 'Não foi possível abrir o arquivo.', variant: 'destructive' });
+        filesProcessed++;
+      };
       reader.onload = (evt) => {
         try {
           const arrayBuffer = evt.target?.result;
@@ -229,8 +236,8 @@ export function SupplyChainMode({
             const ws = wb.Sheets[sheetName];
             const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
             if (rows.length < 2) continue;
+            totalLinhasLidas += rows.length;
 
-            // Convert rows to tab-separated text and use existing parser
             const texto = rows.map(r => r.join('\t')).join('\n');
             const itensImportados = parsearListaEstoque(texto);
 
@@ -267,7 +274,15 @@ export function SupplyChainMode({
 
         filesProcessed++;
         if (filesProcessed === files.length) {
-          // Recalculate demand if movimentacoes exist
+          if (totalNovos === 0 && totalAtualizados === 0) {
+            toast({
+              title: 'Nenhum item encontrado',
+              description: `${totalLinhasLidas} linhas lidas mas nenhum item reconhecido. Verifique se a planilha tem colunas de nome e quantidade.`,
+              variant: 'destructive',
+            });
+            return;
+          }
+
           const movs = data.movimentacoes ?? [];
           if (movs.length > 0) {
             const demandaMap = calcularDemandaSemanalPorItem(movs);
@@ -282,8 +297,8 @@ export function SupplyChainMode({
 
           onUpdateSupplyChainData({ itens: todosItens });
           toast({
-            title: 'Planilhas Importadas',
-            description: `${files.length} arquivo(s): ${totalAtualizados} atualizados, ${totalNovos} novos`,
+            title: '✅ Planilha Importada',
+            description: `${totalAtualizados} atualizados, ${totalNovos} novos (${totalLinhasLidas} linhas lidas)`,
           });
           flushSave?.();
         }
@@ -292,7 +307,6 @@ export function SupplyChainMode({
     };
 
     Array.from(files).forEach(processFile);
-    // Reset input so same file can be re-selected
     e.target.value = '';
   };
 
