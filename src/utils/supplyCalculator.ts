@@ -3,9 +3,12 @@ import {
   TipoEstoque, 
   SupplyChainStage, 
   SupplyResumo,
-  SupplyExports 
+  SupplyExports,
+  SupplyForecast,
+  ForecastItem,
 } from '@/types/focus-mode';
-import { calcularCMVPorSaidas, calcularReceitaBruta } from '@/utils/movimentacoesParser';
+import { calcularCMVPorSaidas, calcularReceitaBruta, calcularDemandaSemanalPorItem } from '@/utils/movimentacoesParser';
+import { normalizarNomeProduto } from '@/utils/movimentacoesParser';
 
 // ============= Réguas de Segurança por Tipo =============
 
