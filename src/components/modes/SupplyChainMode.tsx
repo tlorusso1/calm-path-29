@@ -1384,7 +1384,7 @@ export function SupplyChainMode({
               >
                 Todos
               </Button>
-              {(['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'insumo', 'materia_prima'] as TipoEstoque[])
+              {(['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'materia_prima'] as TipoEstoque[])
                 .filter(t => itensProcessados.some(i => i.tipo === t))
                 .map(t => (
                   <Button
