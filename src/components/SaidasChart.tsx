@@ -234,7 +234,8 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
                   </span>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
