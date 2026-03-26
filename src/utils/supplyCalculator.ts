@@ -55,7 +55,7 @@ export function calcularCoberturaDias(
  * Determina o status de um item baseado na sua cobertura e tipo
  */
 export const TIPOS_PRODUTO_FINAL: TipoEstoque[] = ['produto_acabado', 'acessorio', 'brinde', 'material_pdv'];
-export const TIPOS_INSUMO: TipoEstoque[] = ['embalagem', 'insumo', 'materia_prima'];
+export const TIPOS_INSUMO: TipoEstoque[] = ['embalagem', 'materia_prima'];
 
 export function getStatusPorCobertura(
   coberturaDias: number | null,
