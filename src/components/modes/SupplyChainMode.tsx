@@ -207,7 +207,95 @@ export function SupplyChainMode({
     setTextoColado('');
   };
 
-  const formatarDataValidade = (data: string | undefined) => {
+  const handleImportXlsx = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    let totalNovos = 0;
+    let totalAtualizados = 0;
+    let filesProcessed = 0;
+
+    const todosItens = [...data.itens];
+
+    const processFile = (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const arrayBuffer = evt.target?.result;
+          const wb = XLSX.read(arrayBuffer, { type: 'array' });
+
+          for (const sheetName of wb.SheetNames) {
+            const ws = wb.Sheets[sheetName];
+            const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+            if (rows.length < 2) continue;
+
+            // Convert rows to tab-separated text and use existing parser
+            const texto = rows.map(r => r.join('\t')).join('\n');
+            const itensImportados = parsearListaEstoque(texto);
+
+            itensImportados.forEach(itemImportado => {
+              if (!itemImportado.nome || !itemImportado.quantidade) return;
+              const nomeNormalizado = normalizarNomeProduto(itemImportado.nome);
+              const idxExistente = todosItens.findIndex(
+                i => normalizarNomeProduto(i.nome) === nomeNormalizado
+              );
+
+              if (idxExistente >= 0) {
+                todosItens[idxExistente] = {
+                  ...todosItens[idxExistente],
+                  quantidade: itemImportado.quantidade,
+                  ...(localizacaoImport.trim() ? { localizacao: localizacaoImport.trim() } : {}),
+                };
+                totalAtualizados++;
+              } else {
+                todosItens.push({
+                  id: crypto.randomUUID(),
+                  nome: itemImportado.nome,
+                  tipo: itemImportado.tipo || 'produto_acabado',
+                  quantidade: itemImportado.quantidade,
+                  unidade: itemImportado.unidade || 'un',
+                  ...(localizacaoImport.trim() ? { localizacao: localizacaoImport.trim() } : {}),
+                });
+                totalNovos++;
+              }
+            });
+          }
+        } catch (err) {
+          toast({ title: `Erro ao ler ${file.name}`, description: String(err), variant: 'destructive' });
+        }
+
+        filesProcessed++;
+        if (filesProcessed === files.length) {
+          // Recalculate demand if movimentacoes exist
+          const movs = data.movimentacoes ?? [];
+          if (movs.length > 0) {
+            const demandaMap = calcularDemandaSemanalPorItem(movs);
+            for (let i = 0; i < todosItens.length; i++) {
+              const key = normalizarNomeProduto(todosItens[i].nome);
+              const demanda = demandaMap.get(key);
+              if (demanda !== undefined) {
+                todosItens[i] = { ...todosItens[i], demandaSemanal: demanda };
+              }
+            }
+          }
+
+          onUpdateSupplyChainData({ itens: todosItens });
+          toast({
+            title: 'Planilhas Importadas',
+            description: `${files.length} arquivo(s): ${totalAtualizados} atualizados, ${totalNovos} novos`,
+          });
+          flushSave?.();
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    };
+
+    Array.from(files).forEach(processFile);
+    // Reset input so same file can be re-selected
+    e.target.value = '';
+  };
+
+
     if (!data) return '—';
     const d = new Date(data + 'T00:00:00');
     return d.toLocaleDateString('pt-BR');
