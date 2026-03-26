@@ -433,7 +433,7 @@ export function SupplyChainMode({
     val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   // Ordem dos tipos para agrupamento nos alertas
-  const TIPO_ORDER_ALERT: TipoEstoque[] = ['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'insumo', 'materia_prima'];
+  const TIPO_ORDER_ALERT: TipoEstoque[] = ['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'materia_prima'];
 
   // Helper: renderiza lista de itens agrupada por tipo
   function renderAlertGroupedByTipo<T extends { id: string; tipo: TipoEstoque }>(
