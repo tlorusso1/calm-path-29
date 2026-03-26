@@ -921,7 +921,33 @@ export function SupplyChainMode({
                 rows={5}
               />
               <Button onClick={handleColarLista} className="w-full" size="sm" disabled={!textoColado.trim()}>
-                <FileText className="h-4 w-4 mr-2" /> Importar Lista
+                <FileText className="h-4 w-4 mr-2" /> Importar Lista (Texto)
+              </Button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">ou</span>
+                </div>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                multiple
+                className="hidden"
+                onChange={handleImportXlsx}
+              />
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full"
+                size="sm"
+                variant="outline"
+              >
+                <Upload className="h-4 w-4 mr-2" /> Importar Planilhas (.xlsx)
               </Button>
             </TabsContent>
 
