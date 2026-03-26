@@ -77,6 +77,7 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
   const [showAllWeeks, setShowAllWeeks] = useState(false);
   const [viewMode, setViewMode] = useState<'volume' | 'faturamento'>('volume');
   const [mixViewMode, setMixViewMode] = useState<'volume' | 'faturamento'>('volume');
+  const [mixDays, setMixDays] = useState<30 | 90>(30);
   const saidas = useMemo(() => movimentacoes.filter(m => m.tipo === 'saida'), [movimentacoes]);
 
   const hasFaturamento = useMemo(() => saidas.some(s => s.valorUnitarioVenda && s.valorUnitarioVenda > 0), [saidas]);
@@ -128,7 +129,7 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
   }, [saidas, showAllWeeks]);
 
   const productMix = useMemo<ProductMix[]>(() => {
-    const corte = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const corte = Date.now() - mixDays * 24 * 60 * 60 * 1000;
     const map = new Map<string, { qty: number; fat: number }>();
 
     for (const s of saidas) {
@@ -153,7 +154,7 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
       }))
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 10);
-  }, [saidas]);
+  }, [saidas, mixDays]);
 
   const avg90d = useMemo(() => {
     const corte = Date.now() - 90 * 24 * 60 * 60 * 1000;
@@ -303,24 +304,40 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-semibold text-muted-foreground">
-              📊 Mix de Produtos (últimos 30d)
+              📊 Mix de Produtos (últimos {mixDays}d)
             </h4>
-            {hasFaturamento && (
+            <div className="flex items-center gap-2">
               <div className="flex items-center rounded border border-border overflow-hidden">
                 <button
-                  onClick={() => setMixViewMode('volume')}
-                  className={cn("text-[10px] px-2 py-0.5", mixViewMode === 'volume' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                  onClick={() => setMixDays(30)}
+                  className={cn("text-[10px] px-2 py-0.5", mixDays === 30 ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
                 >
-                  Volume
+                  30d
                 </button>
                 <button
-                  onClick={() => setMixViewMode('faturamento')}
-                  className={cn("text-[10px] px-2 py-0.5", mixViewMode === 'faturamento' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                  onClick={() => setMixDays(90)}
+                  className={cn("text-[10px] px-2 py-0.5", mixDays === 90 ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
                 >
-                  R$
+                  90d
                 </button>
               </div>
-            )}
+              {hasFaturamento && (
+                <div className="flex items-center rounded border border-border overflow-hidden">
+                  <button
+                    onClick={() => setMixViewMode('volume')}
+                    className={cn("text-[10px] px-2 py-0.5", mixViewMode === 'volume' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                  >
+                    Volume
+                  </button>
+                  <button
+                    onClick={() => setMixViewMode('faturamento')}
+                    className={cn("text-[10px] px-2 py-0.5", mixViewMode === 'faturamento' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                  >
+                    R$
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <div className="space-y-2">
             {productMix
