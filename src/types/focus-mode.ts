@@ -493,6 +493,8 @@ export interface ItemEstoque {
   demandaSemanal?: number;  // Consumo específico do item por semana
   dataValidade?: string;   // ISO date string
   precoCusto?: number;     // Preço de custo unitário (R$)
+  localizacao?: string;    // Depósito/fábrica onde o item está
+  custoProducao?: number;  // Custo para produzir 1 unidade do produto acabado (R$)
   // Calculados automaticamente
   coberturaDias?: number;
   status?: 'verde' | 'amarelo' | 'vermelho';

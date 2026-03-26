@@ -87,8 +87,11 @@ export function SupplyChainMode({
     precoCusto: '',
   });
   const [textoColado, setTextoColado] = useState('');
+  const [localizacaoImport, setLocalizacaoImport] = useState('');
   const [textoMovimentacoes, setTextoMovimentacoes] = useState('');
   const [tabAtiva, setTabAtiva] = useState('itens');
+  const [filtroTipo, setFiltroTipo] = useState<TipoEstoque | 'todos'>('todos');
+  const [filtroLocal, setFiltroLocal] = useState<string>('todos');
   const [mostrarRevisaoValidade, setMostrarRevisaoValidade] = useState(false);
   const [itensParaRevisar, setItensParaRevisar] = useState<ItemEstoque[]>([]);
 
@@ -143,10 +146,11 @@ export function SupplyChainMode({
       );
       
       if (idxExistente >= 0) {
-        // UPSERT: Atualizar APENAS quantidade - preserva demandaSemanal e dataValidade
+        // UPSERT: Atualizar quantidade e localização - preserva demandaSemanal e dataValidade
         todosItens[idxExistente] = {
           ...todosItens[idxExistente],
           quantidade: itemImportado.quantidade,
+          ...(localizacaoImport.trim() ? { localizacao: localizacaoImport.trim() } : {}),
         };
         itensAtualizados.push(todosItens[idxExistente].nome);
       } else {
@@ -158,6 +162,7 @@ export function SupplyChainMode({
           tipo: itemImportado.tipo || 'produto_acabado',
           quantidade: itemImportado.quantidade,
           unidade: itemImportado.unidade || 'un',
+          ...(localizacaoImport.trim() ? { localizacao: localizacaoImport.trim() } : {}),
         });
         novosItens++;
       }
@@ -240,24 +245,51 @@ export function SupplyChainMode({
     return { ...item, coberturaDias, status };
   });
 
-  // Calcular valor do estoque
+  // Calcular valor do estoque — separado por categoria
   const valorEstoque = useMemo(() => {
-    let custo = 0;
+    let custoProdutoAcabado = 0;
+    let custoInsumos = 0;
     let itensComPreco = 0;
+    const tiposInsumo: TipoEstoque[] = ['embalagem', 'insumo', 'materia_prima'];
     
     for (const item of data.itens) {
       if (item.precoCusto && item.precoCusto > 0) {
-        custo += item.quantidade * item.precoCusto;
+        const total = item.quantidade * item.precoCusto;
+        if (tiposInsumo.includes(item.tipo)) {
+          custoInsumos += total;
+        } else {
+          custoProdutoAcabado += total;
+        }
         itensComPreco++;
       }
     }
     
+    // Estimar investimento em produção: soma de custoProducao dos itens com esse campo
+    let investimentoProducao = 0;
+    for (const item of data.itens) {
+      if (item.custoProducao && item.custoProducao > 0 && !tiposInsumo.includes(item.tipo)) {
+        investimentoProducao += item.quantidade * item.custoProducao;
+      }
+    }
+    
     return {
-      custoProdutos: custo,
-      valorVendavel: custo * 3, // Margem 3x
+      custoProdutoAcabado,
+      custoInsumos,
+      custoTotal: custoProdutoAcabado + custoInsumos,
+      valorVendavel: custoProdutoAcabado * 3, // Margem 3x só para produto acabado
+      investimentoProducao,
       itensComPreco,
       totalItens: data.itens.length,
     };
+  }, [data.itens]);
+
+  // Localizações disponíveis para filtro
+  const localizacoes = useMemo(() => {
+    const locs = new Set<string>();
+    for (const item of data.itens) {
+      if (item.localizacao) locs.add(item.localizacao);
+    }
+    return Array.from(locs).sort();
   }, [data.itens]);
 
   const formatCurrency = (val: number) =>
@@ -398,24 +430,48 @@ export function SupplyChainMode({
           
           {/* 💰 Valor do Estoque */}
           {valorEstoque.itensComPreco > 0 && (
-            <div className="p-3 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-muted-foreground">💰 Valor do Estoque</span>
+            <div className="p-3 rounded-lg border bg-muted/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">💰 Valor em Estoque</span>
                 <span className="text-[10px] text-muted-foreground">
                   ({valorEstoque.itensComPreco}/{valorEstoque.totalItens} itens com preço)
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Custo Total</p>
-                  <p className="text-sm font-medium">{formatCurrency(valorEstoque.custoProdutos)}</p>
+              
+              {/* Produto Acabado */}
+              {valorEstoque.custoProdutoAcabado > 0 && (
+                <div className="p-2 rounded border border-green-500/20 bg-green-50/50 dark:bg-green-950/10">
+                  <p className="text-[10px] font-medium text-muted-foreground mb-1">📦 Produto Acabado</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Custo</p>
+                      <p className="text-sm font-medium">{formatCurrency(valorEstoque.custoProdutoAcabado)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Vendável (3x)</p>
+                      <p className="text-sm font-medium text-green-600 dark:text-green-500">
+                        {formatCurrency(valorEstoque.valorVendavel)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Valor Vendável (3x)</p>
-                  <p className="text-sm font-medium text-green-600 dark:text-green-500">
-                    {formatCurrency(valorEstoque.valorVendavel)}
-                  </p>
+              )}
+              
+              {/* Insumos / Matéria-Prima / Embalagem */}
+              {valorEstoque.custoInsumos > 0 && (
+                <div className="p-2 rounded border border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/10">
+                  <p className="text-[10px] font-medium text-muted-foreground mb-1">🧪 Insumos / Embalagens / MP</p>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Capital Investido</p>
+                    <p className="text-sm font-medium text-amber-600">{formatCurrency(valorEstoque.custoInsumos)}</p>
+                  </div>
                 </div>
+              )}
+              
+              {/* Total */}
+              <div className="flex justify-between items-center pt-1 border-t border-border">
+                <span className="text-xs text-muted-foreground">Total em estoque</span>
+                <span className="text-sm font-bold">{formatCurrency(valorEstoque.custoTotal)}</span>
               </div>
             </div>
           )}
@@ -746,6 +802,15 @@ export function SupplyChainMode({
             </TabsContent>
 
             <TabsContent value="colar" className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Depósito / Localização</Label>
+                <Input
+                  placeholder="Ex: Cross Do, WBM, JundCoco..."
+                  value={localizacaoImport}
+                  onChange={(e) => setLocalizacaoImport(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
               <Textarea
                 placeholder="Cole sua lista aqui...&#10;Formato: Nome | Tipo | Quantidade | Unidade&#10;Ou: Nome - 450un"
                 value={textoColado}
@@ -1098,10 +1163,64 @@ export function SupplyChainMode({
               <span>Estoque Atual ({itensProcessados.length} itens)</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            {/* Filtros por tipo */}
+            <div className="flex flex-wrap gap-1.5">
+              <Button
+                variant={filtroTipo === 'todos' ? 'default' : 'outline'}
+                size="sm"
+                className="h-6 text-[10px] px-2"
+                onClick={() => setFiltroTipo('todos')}
+              >
+                Todos
+              </Button>
+              {(['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'insumo', 'materia_prima'] as TipoEstoque[])
+                .filter(t => itensProcessados.some(i => i.tipo === t))
+                .map(t => (
+                  <Button
+                    key={t}
+                    variant={filtroTipo === t ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() => setFiltroTipo(filtroTipo === t ? 'todos' : t)}
+                  >
+                    {TIPO_LABELS[t]} ({itensProcessados.filter(i => i.tipo === t).length})
+                  </Button>
+                ))}
+            </div>
+
+            {/* Filtro por localização */}
+            {localizacoes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                <span className="text-[10px] text-muted-foreground self-center mr-1">📍</span>
+                <Button
+                  variant={filtroLocal === 'todos' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="h-5 text-[10px] px-1.5"
+                  onClick={() => setFiltroLocal('todos')}
+                >
+                  Todos
+                </Button>
+                {localizacoes.map(loc => (
+                  <Button
+                    key={loc}
+                    variant={filtroLocal === loc ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-5 text-[10px] px-1.5"
+                    onClick={() => setFiltroLocal(filtroLocal === loc ? 'todos' : loc)}
+                  >
+                    {loc}
+                  </Button>
+                ))}
+              </div>
+            )}
+
             <ScrollArea className={cn(itensProcessados.length > 5 ? "h-[500px]" : "h-auto")}>
               <div className="space-y-2">
-                {[...itensProcessados].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map((item) => {
+                {[...itensProcessados]
+                  .filter(i => filtroTipo === 'todos' || i.tipo === filtroTipo)
+                  .filter(i => filtroLocal === 'todos' || i.localizacao === filtroLocal)
+                  .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map((item) => {
                   const diasVenc = calcularDiasAteVencimento(item.dataValidade);
                   const usandoGlobal = item.demandaSemanal === undefined;
                   
@@ -1135,6 +1254,9 @@ export function SupplyChainMode({
                                 )}>
                                   • Vence em {diasVenc}d
                                 </span>
+                              )}
+                              {item.localizacao && (
+                                <span>• 📍{item.localizacao}</span>
                               )}
                             </div>
                           </div>
@@ -1226,6 +1348,45 @@ export function SupplyChainMode({
                             </span>
                           )}
                         </div>
+
+                        {/* Localização */}
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                            📍 Local:
+                          </Label>
+                          <Input
+                            placeholder="Depósito..."
+                            value={item.localizacao ?? ''}
+                            onChange={(e) => onUpdateItem(item.id, { 
+                              localizacao: e.target.value || undefined 
+                            })}
+                            className="h-7 w-28 sm:w-32 text-xs"
+                          />
+                        </div>
+
+                        {/* Custo Produção (só para produto acabado) */}
+                        {!['embalagem', 'insumo', 'materia_prima'].includes(item.tipo) && (
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                              C.Prod:
+                            </Label>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">R$</span>
+                              <Input
+                                type="number"
+                                placeholder="0,00"
+                                value={item.custoProducao ?? ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  onUpdateItem(item.id, { 
+                                    custoProducao: val ? parseFloat(val) : undefined 
+                                  });
+                                }}
+                                className="h-7 w-28 sm:w-32 text-xs pl-7"
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         {/* Validade */}
                         <div className="flex items-center gap-2">
