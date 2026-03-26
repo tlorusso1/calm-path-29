@@ -1077,6 +1077,7 @@ export function SupplyChainMode({
               {(() => {
                 const demandaGlobal = data.demandaSemanalMedia || 0;
                 const itensParaProduzir = itensProcessados
+                  .filter(i => TIPOS_PRODUTO_FINAL.includes(i.tipo))
                   .map(i => {
                     const regra = REGRAS_COBERTURA[i.tipo];
                     const metaDias = regra.ideal;
