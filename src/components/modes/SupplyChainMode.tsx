@@ -39,6 +39,7 @@ import {
   TrendingUp,
   RotateCcw,
   Share2,
+  Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CoberturaChart } from '@/components/CoberturaChart';
