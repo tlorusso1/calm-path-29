@@ -532,7 +532,8 @@ export function SupplyChainMode({
 
           {/* Alertas */}
           {/* Alertas como Lista Estruturada */}
-          {(itensProcessados.some(i => i.status === 'vermelho') || 
+          {(itensProcessados.some(i => i.status === 'vermelho' && ['produto_acabado', 'acessorio', 'brinde', 'material_pdv'].includes(i.tipo)) || 
+            itensProcessados.some(i => i.status === 'amarelo' && ['produto_acabado', 'acessorio', 'brinde', 'material_pdv'].includes(i.tipo)) ||
             itensProcessados.some(i => {
               const dias = calcularDiasAteVencimento(i.dataValidade);
               return dias !== null && dias < 90;
