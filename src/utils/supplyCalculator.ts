@@ -341,11 +341,15 @@ function splitByDelimiter(line: string): string[] {
 interface ColumnMap {
   nome: number;
   quantidade: number;
+  tipo?: number;
+  custoUn?: number;
 }
 
 function buildColumnMap(headers: string[]): ColumnMap | null {
   let nomeIdx = -1;
   let qtdIdx = -1;
+  let tipoIdx = -1;
+  let custoIdx = -1;
   
   headers.forEach((header, index) => {
     const normalized = normalizeHeader(header);
@@ -360,18 +364,38 @@ function buildColumnMap(headers: string[]): ColumnMap | null {
     )) {
       qtdIdx = index;
     }
-    // Nome/Descrição - check for specific description column
+    // Custo unitário / Valor un
+    else if (custoIdx === -1 && (
+      normalized.includes('valorun') ||
+      normalized.includes('precoun') ||
+      normalized.includes('custounit') ||
+      normalized.includes('custounitario') ||
+      normalized.includes('vlrun') ||
+      (normalized.includes('valor') && normalized.includes('un'))
+    )) {
+      custoIdx = index;
+    }
+    // Tipo
+    else if (tipoIdx === -1 && normalized === 'tipo') {
+      tipoIdx = index;
+    }
+    // Nome/Descrição/Item
     else if (nomeIdx === -1 && (
       normalized.includes('descricao') || 
+      normalized === 'item' ||
+      normalized === 'nome' ||
       (normalized.includes('produto') && !normalized.includes('cod'))
     )) {
       nomeIdx = index;
     }
   });
   
-  // Must have both
+  // Must have both nome and quantidade
   if (nomeIdx >= 0 && qtdIdx >= 0) {
-    return { nome: nomeIdx, quantidade: qtdIdx };
+    const map: ColumnMap = { nome: nomeIdx, quantidade: qtdIdx };
+    if (tipoIdx >= 0) map.tipo = tipoIdx;
+    if (custoIdx >= 0) map.custoUn = custoIdx;
+    return map;
   }
   
   return null;
