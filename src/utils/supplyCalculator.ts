@@ -524,6 +524,11 @@ export function parsearListaEstoque(texto: string): Partial<ItemEstoque>[] {
       continue;
     }
     
+    // Skip summary/total lines (e.g. "Produto final\tR$ 75,849.25")
+    if (/^(produto final|mat[eé]ria prima|embalagem|acess[oó]rios?|cross do|wbm|jundcoco|super vegan|hiper massas?)\b/i.test(linha.trim())) {
+      continue;
+    }
+    
     // Try pipe format: "Nome | Tipo | Quantidade | Unidade"
     if (linha.includes('|')) {
       const partes = linha.split('|').map(p => p.trim());
