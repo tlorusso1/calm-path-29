@@ -268,13 +268,44 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
       }
     }
 
-    // Projeção 30 dias baseada na velocidade atual
-    const receitaSemanal = (receitaBrutaSupply ?? 0) / 4; // simplificado
-    const cmvSemanal = (cmvMensal ?? 0) / 4;
+    // Projeção 30 dias baseada na média semanal dos últimos 90 dias — SOMENTE produtos acabados
+    const TIPOS_VENDA: TipoEstoque[] = ['produto_acabado', 'acessorio', 'brinde'];
+    const nomesPA = new Set(
+      data.itens.filter(i => TIPOS_VENDA.includes(i.tipo)).map(i => normalizarNomeProduto(i.nome))
+    );
+    const corte90d = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    const saidasPA = (data.movimentacoes ?? []).filter(m => {
+      if (m.tipo !== 'saida') return false;
+      const key = normalizarNomeProduto(m.produto);
+      if (!nomesPA.has(key)) return false;
+      const ts = new Date(m.data.includes('T') ? m.data : m.data + 'T00:00:00').getTime();
+      return !isNaN(ts) && ts >= corte90d;
+    });
+
+    // Calcular janela real em semanas
+    const datasMs = saidasPA.map(m => new Date(m.data.includes('T') ? m.data : m.data + 'T00:00:00').getTime()).filter(t => !isNaN(t));
+    const semanas90d = datasMs.length > 0
+      ? Math.max(1, (Date.now() - Math.min(...datasMs)) / (7 * 24 * 60 * 60 * 1000))
+      : 1;
+
+    let receitaTotal90d = 0;
+    let cmvTotal90d = 0;
+    for (const saida of saidasPA) {
+      if (saida.valorUnitarioVenda && saida.valorUnitarioVenda > 0) {
+        receitaTotal90d += saida.quantidade * saida.valorUnitarioVenda;
+      }
+      const pc = encontrarPrecoCustoPadrao(saida.produto);
+      if (pc && pc > 0) {
+        cmvTotal90d += saida.quantidade * pc;
+      }
+    }
+
+    const receitaSemanal = receitaTotal90d / semanas90d;
+    const cmvSemanal = cmvTotal90d / semanas90d;
 
     forecast = {
-      receitaProjetada30d: receitaSemanal * 4.3,
-      cmvProjetado30d: cmvSemanal * 4.3,
+      receitaProjetada30d: receitaSemanal * (30 / 7),
+      cmvProjetado30d: cmvSemanal * (30 / 7),
       margemProjetada: receitaSemanal > 0 ? ((receitaSemanal - cmvSemanal) / receitaSemanal) * 100 : 0,
       investimentoProducao: investimentoTotal,
       itens: forecastItens.sort((a, b) => (b.investimentoNecessario ?? 0) - (a.investimentoNecessario ?? 0)),
