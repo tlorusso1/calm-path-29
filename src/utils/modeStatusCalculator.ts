@@ -818,7 +818,6 @@ export function calculateSupplyChainStatus(data?: SupplyChainStage): ModeStatus 
         const regras: Record<string, { critico: number }> = {
           produto_acabado: { critico: 15 },
           embalagem: { critico: 30 },
-          insumo: { critico: 20 },
           materia_prima: { critico: 20 },
         };
         return cobertura < (regras[item.tipo]?.critico ?? 15);

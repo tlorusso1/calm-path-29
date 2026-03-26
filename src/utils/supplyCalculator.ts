@@ -24,7 +24,6 @@ export const REGRAS_COBERTURA: Record<TipoEstoque, RegraCobertura> = {
   brinde: { critico: 15, atencao: 30, ideal: 45 },
   material_pdv: { critico: 15, atencao: 30, ideal: 45 },
   embalagem: { critico: 30, atencao: 60, ideal: 90 },
-  insumo: { critico: 20, atencao: 40, ideal: 60 },
   materia_prima: { critico: 20, atencao: 40, ideal: 60 },
 };
 
@@ -34,7 +33,6 @@ export const TIPO_LABELS: Record<TipoEstoque, string> = {
   brinde: 'Brinde',
   material_pdv: 'Material PDV',
   embalagem: 'Embalagem',
-  insumo: 'Insumo',
   materia_prima: 'Matéria-Prima',
 };
 
@@ -57,7 +55,7 @@ export function calcularCoberturaDias(
  * Determina o status de um item baseado na sua cobertura e tipo
  */
 export const TIPOS_PRODUTO_FINAL: TipoEstoque[] = ['produto_acabado', 'acessorio', 'brinde', 'material_pdv'];
-export const TIPOS_INSUMO: TipoEstoque[] = ['embalagem', 'insumo', 'materia_prima'];
+export const TIPOS_INSUMO: TipoEstoque[] = ['embalagem', 'materia_prima'];
 
 export function getStatusPorCobertura(
   coberturaDias: number | null,
@@ -137,7 +135,7 @@ export function processarSupply(data: SupplyChainStage): SupplyResumo {
   const porTipo = {
     produto_acabado: itensProcessados.filter(i => i.tipo === 'produto_acabado' || i.tipo === 'acessorio' || i.tipo === 'brinde' || i.tipo === 'material_pdv'),
     embalagem: itensProcessados.filter(i => i.tipo === 'embalagem'),
-    insumo: itensProcessados.filter(i => i.tipo === 'insumo' || i.tipo === 'materia_prima'),
+    insumo: itensProcessados.filter(i => i.tipo === 'materia_prima'),
   };
   
   // Calcular coberturas médias por tipo
@@ -525,7 +523,7 @@ function detectarTipo(texto: string): TipoEstoque {
   if (t.includes('material') && t.includes('pdv')) return 'material_pdv';
   if (t.includes('prod') || t.includes('acab')) return 'produto_acabado';
   if (t.includes('embal') || t.includes('pote') || t.includes('tampa') || t.includes('caixa')) return 'embalagem';
-  if (t.includes('insum')) return 'insumo';
+  if (t.includes('insum')) return 'materia_prima';
   if (t.includes('mater') || t.includes('prima')) return 'materia_prima';
   return 'produto_acabado';
 }
@@ -537,7 +535,7 @@ function detectarTipoPorNome(nome: string): TipoEstoque {
     return 'embalagem';
   }
   if (n.includes('açúcar') || n.includes('acucar') || n.includes('óleo') || n.includes('oleo') || n.includes('farinha') || n.includes('levedura')) {
-    return 'insumo';
+    return 'materia_prima';
   }
   return 'produto_acabado';
 }

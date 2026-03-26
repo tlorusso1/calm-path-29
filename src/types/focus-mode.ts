@@ -480,7 +480,6 @@ export type TipoEstoque =
   | 'brinde'
   | 'material_pdv'
   | 'embalagem' 
-  | 'insumo' 
   | 'materia_prima';
 
 // Item individual de estoque

@@ -100,10 +100,16 @@ export function SupplyChainMode({
   const [importFeedback, setImportFeedback] = useState<{ type: 'idle' | 'loading' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const data: SupplyChainStage = {
-    ...DEFAULT_SUPPLYCHAIN_DATA,
-    ...mode.supplyChainData,
-  };
+  const data: SupplyChainStage = useMemo(() => {
+    const raw = { ...DEFAULT_SUPPLYCHAIN_DATA, ...mode.supplyChainData };
+    // Migrar itens com tipo 'insumo' → 'materia_prima'
+    const migrated = raw.itens.some((i: any) => i.tipo === 'insumo');
+    if (migrated) {
+      raw.itens = raw.itens.map((i: any) => i.tipo === 'insumo' ? { ...i, tipo: 'materia_prima' as TipoEstoque } : i);
+      onUpdateSupplyChainData({ itens: raw.itens });
+    }
+    return raw;
+  }, [mode.supplyChainData]);
 
   // Processar resumo
   const resumo = processarSupply(data);
@@ -387,7 +393,7 @@ export function SupplyChainMode({
     let custoProdutoAcabado = 0;
     let custoInsumos = 0;
     let itensComPreco = 0;
-    const tiposInsumo: TipoEstoque[] = ['embalagem', 'insumo', 'materia_prima'];
+    const tiposInsumo: TipoEstoque[] = ['embalagem', 'materia_prima'];
     
     for (const item of data.itens) {
       if (item.precoCusto && item.precoCusto > 0) {
@@ -433,7 +439,7 @@ export function SupplyChainMode({
     val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   // Ordem dos tipos para agrupamento nos alertas
-  const TIPO_ORDER_ALERT: TipoEstoque[] = ['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'insumo', 'materia_prima'];
+  const TIPO_ORDER_ALERT: TipoEstoque[] = ['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'materia_prima'];
 
   // Helper: renderiza lista de itens agrupada por tipo
   function renderAlertGroupedByTipo<T extends { id: string; tipo: TipoEstoque }>(
@@ -682,7 +688,7 @@ export function SupplyChainMode({
                   i => i.status === 'vermelho' && TIPOS_PRODUTO_FINAL.includes(i.tipo)
                 );
                 const insumosRuptura = itensProcessados.filter(
-                  i => i.status === 'vermelho' && ['insumo', 'materia_prima', 'embalagem'].includes(i.tipo)
+                  i => i.status === 'vermelho' && ['materia_prima', 'embalagem'].includes(i.tipo)
                 );
                 if (produtosRuptura.length === 0 && insumosRuptura.length === 0) return null;
                 return (
@@ -930,7 +936,6 @@ export function SupplyChainMode({
                     <SelectItem value="brinde">Brinde</SelectItem>
                     <SelectItem value="material_pdv">Material PDV</SelectItem>
                     <SelectItem value="embalagem">Embalagem</SelectItem>
-                    <SelectItem value="insumo">Insumo</SelectItem>
                     <SelectItem value="materia_prima">Matéria-Prima</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1385,7 +1390,7 @@ export function SupplyChainMode({
               >
                 Todos
               </Button>
-              {(['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'insumo', 'materia_prima'] as TipoEstoque[])
+              {(['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'materia_prima'] as TipoEstoque[])
                 .filter(t => itensProcessados.some(i => i.tipo === t))
                 .map(t => (
                   <Button
@@ -1502,7 +1507,6 @@ export function SupplyChainMode({
                               <SelectItem value="brinde">Brinde</SelectItem>
                               <SelectItem value="material_pdv">Material PDV</SelectItem>
                               <SelectItem value="embalagem">Embalagem</SelectItem>
-                              <SelectItem value="insumo">Insumo</SelectItem>
                               <SelectItem value="materia_prima">Matéria-Prima</SelectItem>
                             </SelectContent>
                           </Select>
@@ -1576,7 +1580,7 @@ export function SupplyChainMode({
                         </div>
 
                         {/* Custo Produção (só para produto acabado) */}
-                        {!['embalagem', 'insumo', 'materia_prima'].includes(item.tipo) && (
+                        {!['embalagem', 'materia_prima'].includes(item.tipo) && (
                           <div className="flex items-center gap-2">
                             <Label className="text-xs text-muted-foreground whitespace-nowrap">
                               C.Prod:
@@ -1599,7 +1603,8 @@ export function SupplyChainMode({
                           </div>
                         )}
 
-                        {/* Validade */}
+                        {/* Validade - só para produto acabado e matéria-prima */}
+                        {['produto_acabado', 'materia_prima'].includes(item.tipo) && (
                         <div className="flex items-center gap-2">
                           <Label className="text-xs text-muted-foreground whitespace-nowrap">
                             Validade:
@@ -1626,6 +1631,7 @@ export function SupplyChainMode({
                             </Badge>
                           )}
                         </div>
+                        )}
                       </div>
                     </div>
                   );
