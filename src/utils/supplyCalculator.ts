@@ -491,9 +491,25 @@ export function parsearListaEstoque(texto: string): Partial<ItemEstoque>[] {
       // Skip invalid rows
       if (!nome || nome.length < 2) continue;
       
-      const tipo = detectarTipoPorNome(nome);
+      // Detect tipo from column or name
+      let tipo: TipoEstoque;
+      if (columnMap.tipo !== undefined && row[columnMap.tipo]) {
+        tipo = detectarTipo(row[columnMap.tipo]);
+      } else {
+        tipo = detectarTipoPorNome(nome);
+      }
       
-      itens.push({ nome, tipo, quantidade, unidade: 'un' });
+      // Extract unit cost if available
+      let precoCusto: number | undefined;
+      if (columnMap.custoUn !== undefined && row[columnMap.custoUn]) {
+        const custoVal = parseQuantity(row[columnMap.custoUn]);
+        if (custoVal > 0) precoCusto = custoVal;
+      }
+      
+      const item: Partial<ItemEstoque> = { nome, tipo, quantidade, unidade: 'un' };
+      if (precoCusto !== undefined) item.precoCusto = precoCusto;
+      
+      itens.push(item);
     }
     
     return itens;
