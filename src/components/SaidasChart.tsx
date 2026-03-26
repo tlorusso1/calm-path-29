@@ -253,6 +253,21 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
                   <span className="text-[10px] font-medium text-muted-foreground w-[60px] text-right shrink-0">
                     {formatVal(weekVal)}
                   </span>
+                  {(() => {
+                    const avgVal = isFat ? avg90d.fat : avg90d.vol;
+                    if (avgVal <= 0) return null;
+                    const delta = ((weekVal - avgVal) / avgVal) * 100;
+                    return (
+                      <span className={cn(
+                        "text-[9px] font-medium w-[38px] text-right shrink-0",
+                        delta > 5 ? "text-emerald-600 dark:text-emerald-400" :
+                        delta < -5 ? "text-rose-600 dark:text-rose-400" :
+                        "text-muted-foreground"
+                      )}>
+                        {delta > 0 ? '+' : ''}{delta.toFixed(0)}%
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
               );
