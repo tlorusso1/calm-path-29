@@ -1154,7 +1154,29 @@ export function SupplyChainMode({
                 if (itensComCobertura.length === 0) {
                   return <p className="text-sm text-muted-foreground text-center py-6">Nenhum item com dados de cobertura. Importe movimentações para calcular.</p>;
                 }
-                return <CoberturaChart itens={itensComCobertura} />;
+
+                const allTipos: TipoEstoque[] = ['produto_acabado', 'acessorio', 'brinde', 'material_pdv', 'embalagem', 'materia_prima'];
+                const gruposPorTipo = allTipos
+                  .map(tipo => ({
+                    tipo,
+                    itens: itensComCobertura.filter(i => i.tipo === tipo),
+                  }))
+                  .filter(g => g.itens.length > 0);
+
+                return (
+                  <Accordion type="multiple" defaultValue={['produto_acabado']} className="space-y-2">
+                    {gruposPorTipo.map(({ tipo, itens: grupoItens }) => (
+                      <AccordionItem key={tipo} value={tipo} className="border rounded-lg overflow-hidden">
+                        <AccordionTrigger className="px-3 py-2 text-xs font-semibold hover:no-underline">
+                          {TIPO_LABELS[tipo]} ({grupoItens.length})
+                        </AccordionTrigger>
+                        <AccordionContent className="px-3 pb-3">
+                          <CoberturaChart itens={grupoItens} />
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                );
               })()}
             </TabsContent>
 
