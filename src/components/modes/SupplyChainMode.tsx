@@ -87,8 +87,11 @@ export function SupplyChainMode({
     precoCusto: '',
   });
   const [textoColado, setTextoColado] = useState('');
+  const [localizacaoImport, setLocalizacaoImport] = useState('');
   const [textoMovimentacoes, setTextoMovimentacoes] = useState('');
   const [tabAtiva, setTabAtiva] = useState('itens');
+  const [filtroTipo, setFiltroTipo] = useState<TipoEstoque | 'todos'>('todos');
+  const [filtroLocal, setFiltroLocal] = useState<string>('todos');
   const [mostrarRevisaoValidade, setMostrarRevisaoValidade] = useState(false);
   const [itensParaRevisar, setItensParaRevisar] = useState<ItemEstoque[]>([]);
 
