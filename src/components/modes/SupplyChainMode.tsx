@@ -682,7 +682,7 @@ export function SupplyChainMode({
                   i => i.status === 'vermelho' && TIPOS_PRODUTO_FINAL.includes(i.tipo)
                 );
                 const insumosRuptura = itensProcessados.filter(
-                  i => i.status === 'vermelho' && ['insumo', 'materia_prima', 'embalagem'].includes(i.tipo)
+                  i => i.status === 'vermelho' && ['materia_prima', 'embalagem'].includes(i.tipo)
                 );
                 if (produtosRuptura.length === 0 && insumosRuptura.length === 0) return null;
                 return (
