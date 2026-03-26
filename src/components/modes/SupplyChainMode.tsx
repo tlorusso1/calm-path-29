@@ -865,6 +865,122 @@ export function SupplyChainMode({
               )}
             </TabsContent>
 
+            {/* ========== ABA COBERTURA ========== */}
+            <TabsContent value="cobertura" className="space-y-3">
+              {(() => {
+                const itensComCobertura = itensProcessados
+                  .filter(i => i.coberturaDias !== undefined && i.coberturaDias !== null)
+                  .map(i => ({ nome: i.nome, coberturaDias: i.coberturaDias!, tipo: i.tipo }));
+                if (itensComCobertura.length === 0) {
+                  return <p className="text-sm text-muted-foreground text-center py-6">Nenhum item com dados de cobertura. Importe movimentações para calcular.</p>;
+                }
+                return <CoberturaChart itens={itensComCobertura} />;
+              })()}
+            </TabsContent>
+
+            {/* ========== ABA PRODUÇÃO ========== */}
+            <TabsContent value="producao" className="space-y-3">
+              {(() => {
+                const demandaGlobal = data.demandaSemanalMedia || 0;
+                const itensParaProduzir = itensProcessados
+                  .map(i => {
+                    const regra = REGRAS_COBERTURA[i.tipo];
+                    const metaDias = regra.ideal;
+                    const demanda = i.demandaSemanal ?? demandaGlobal;
+                    if (demanda <= 0) {
+                      return {
+                        nome: i.nome,
+                        tipo: i.tipo,
+                        atual: i.quantidade,
+                        coberturaDias: i.coberturaDias,
+                        metaDias,
+                        qtdIdeal: null as number | null,
+                        precisaProduzir: null as number | null,
+                        semDemanda: true,
+                      };
+                    }
+                    const demandaDiaria = demanda / 7;
+                    const qtdIdeal = Math.ceil(demandaDiaria * metaDias);
+                    const precisaProduzir = Math.max(0, qtdIdeal - i.quantidade);
+                    return {
+                      nome: i.nome,
+                      tipo: i.tipo,
+                      atual: i.quantidade,
+                      coberturaDias: i.coberturaDias,
+                      metaDias,
+                      qtdIdeal,
+                      precisaProduzir,
+                      semDemanda: false,
+                    };
+                  })
+                  .sort((a, b) => {
+                    if (a.semDemanda && !b.semDemanda) return 1;
+                    if (!a.semDemanda && b.semDemanda) return -1;
+                    return (b.precisaProduzir ?? 0) - (a.precisaProduzir ?? 0);
+                  });
+
+                if (itensParaProduzir.length === 0) {
+                  return <p className="text-sm text-muted-foreground text-center py-6">Nenhum item cadastrado.</p>;
+                }
+
+                const precisam = itensParaProduzir.filter(i => !i.semDemanda && i.precisaProduzir && i.precisaProduzir > 0);
+                const suficientes = itensParaProduzir.filter(i => !i.semDemanda && (i.precisaProduzir === 0 || i.precisaProduzir === null));
+                const semDados = itensParaProduzir.filter(i => i.semDemanda);
+
+                return (
+                  <div className="space-y-4">
+                    <p className="text-[11px] text-muted-foreground">
+                      Quantidade necessária para atingir a cobertura ideal por tipo de item.
+                    </p>
+
+                    {precisam.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-destructive">🔴 Precisam produzir ({precisam.length})</p>
+                        {precisam.map((item, idx) => (
+                          <div key={idx} className="p-2 rounded border border-destructive/20 bg-destructive/5 text-xs">
+                            <div className="flex justify-between items-baseline">
+                              <span className="text-foreground font-medium">{item.nome}</span>
+                              <span className="font-bold text-destructive whitespace-nowrap ml-2">
+                                +{item.precisaProduzir} un
+                              </span>
+                            </div>
+                            <div className="flex gap-3 text-[10px] text-muted-foreground mt-0.5">
+                              <span>Atual: {item.atual} un ({item.coberturaDias ?? '?'}d)</span>
+                              <span>Meta: {item.qtdIdeal} un ({item.metaDias}d)</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {suficientes.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-green-600">✅ Estoque suficiente ({suficientes.length})</p>
+                        {suficientes.map((item, idx) => (
+                          <div key={idx} className="flex justify-between text-xs text-muted-foreground py-0.5">
+                            <span>{item.nome}</span>
+                            <span>{item.coberturaDias ?? '?'}d / meta {item.metaDias}d</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {semDados.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground">⚠️ Sem dados de demanda ({semDados.length})</p>
+                        {semDados.map((item, idx) => (
+                          <div key={idx} className="flex justify-between text-xs text-muted-foreground/60 py-0.5">
+                            <span>{item.nome}</span>
+                            <span>{item.atual} un</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </TabsContent>
+
             {/* ========== ABA ANÁLISE: Saídas por Produto ========== */}
             <TabsContent value="analise" className="space-y-3">
               {/* Gráficos de tendência de saídas */}
