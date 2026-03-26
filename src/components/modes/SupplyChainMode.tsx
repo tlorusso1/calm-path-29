@@ -48,6 +48,7 @@ import {
   processarSupply, 
   TIPO_LABELS, 
   REGRAS_COBERTURA,
+  TIPOS_PRODUTO_FINAL,
   calcularDiasAteVencimento,
   parsearListaEstoque 
 } from '@/utils/supplyCalculator';
