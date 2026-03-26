@@ -97,6 +97,7 @@ export function SupplyChainMode({
   const [filtroLocal, setFiltroLocal] = useState<string>('todos');
   const [mostrarRevisaoValidade, setMostrarRevisaoValidade] = useState(false);
   const [itensParaRevisar, setItensParaRevisar] = useState<ItemEstoque[]>([]);
+  const [importFeedback, setImportFeedback] = useState<{ type: 'idle' | 'loading' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const data: SupplyChainStage = {
@@ -212,101 +213,131 @@ export function SupplyChainMode({
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    toast({ title: '📂 Lendo arquivo(s)...', description: `${files.length} arquivo(s) selecionado(s)` });
+    const selectedFiles = Array.from(files);
+    setImportFeedback({ type: 'loading', message: `Lendo ${selectedFiles.length} arquivo(s)...` });
+    toast({ title: '📂 Lendo arquivo(s)...', description: `${selectedFiles.length} arquivo(s) selecionado(s)` });
 
     let totalNovos = 0;
     let totalAtualizados = 0;
     let totalLinhasLidas = 0;
     let filesProcessed = 0;
+    let aparentaSerMovimentacoes = false;
 
     const todosItens = [...data.itens];
 
-    const processFile = (file: File) => {
-      const reader = new FileReader();
-      reader.onerror = () => {
-        toast({ title: `Erro ao ler ${file.name}`, description: 'Não foi possível abrir o arquivo.', variant: 'destructive' });
-        filesProcessed++;
-      };
-      reader.onload = (evt) => {
-        try {
-          const arrayBuffer = evt.target?.result;
-          const wb = XLSX.read(arrayBuffer, { type: 'array' });
+    const aplicarItensImportados = (itensImportados: Partial<ItemEstoque>[]) => {
+      itensImportados.forEach(itemImportado => {
+        if (!itemImportado.nome || !itemImportado.quantidade) return;
+        const nomeNormalizado = normalizarNomeProduto(itemImportado.nome);
+        const idxExistente = todosItens.findIndex(i => normalizarNomeProduto(i.nome) === nomeNormalizado);
 
-          for (const sheetName of wb.SheetNames) {
-            const ws = wb.Sheets[sheetName];
-            const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-            if (rows.length < 2) continue;
-            totalLinhasLidas += rows.length;
-            console.log(`[Import] Sheet "${sheetName}": ${rows.length} rows. Header:`, rows[0], 'Row1:', rows[1]);
-            const texto = rows.map(r => r.join('\t')).join('\n');
-            const itensImportados = parsearListaEstoque(texto);
-
-            itensImportados.forEach(itemImportado => {
-              if (!itemImportado.nome || !itemImportado.quantidade) return;
-              const nomeNormalizado = normalizarNomeProduto(itemImportado.nome);
-              const idxExistente = todosItens.findIndex(
-                i => normalizarNomeProduto(i.nome) === nomeNormalizado
-              );
-
-              if (idxExistente >= 0) {
-                todosItens[idxExistente] = {
-                  ...todosItens[idxExistente],
-                  quantidade: itemImportado.quantidade,
-                  ...(localizacaoImport.trim() ? { localizacao: localizacaoImport.trim() } : {}),
-                };
-                totalAtualizados++;
-              } else {
-                todosItens.push({
-                  id: crypto.randomUUID(),
-                  nome: itemImportado.nome,
-                  tipo: itemImportado.tipo || 'produto_acabado',
-                  quantidade: itemImportado.quantidade,
-                  unidade: itemImportado.unidade || 'un',
-                  ...(localizacaoImport.trim() ? { localizacao: localizacaoImport.trim() } : {}),
-                });
-                totalNovos++;
-              }
-            });
-          }
-        } catch (err) {
-          toast({ title: `Erro ao ler ${file.name}`, description: String(err), variant: 'destructive' });
-        }
-
-        filesProcessed++;
-        if (filesProcessed === files.length) {
-          if (totalNovos === 0 && totalAtualizados === 0) {
-            toast({
-              title: 'Nenhum item encontrado',
-              description: `${totalLinhasLidas} linhas lidas mas nenhum item reconhecido. Verifique se a planilha tem colunas de nome e quantidade.`,
-              variant: 'destructive',
-            });
-            return;
-          }
-
-          const movs = data.movimentacoes ?? [];
-          if (movs.length > 0) {
-            const demandaMap = calcularDemandaSemanalPorItem(movs);
-            for (let i = 0; i < todosItens.length; i++) {
-              const key = normalizarNomeProduto(todosItens[i].nome);
-              const demanda = demandaMap.get(key);
-              if (demanda !== undefined) {
-                todosItens[i] = { ...todosItens[i], demandaSemanal: demanda };
-              }
-            }
-          }
-
-          onUpdateSupplyChainData({ itens: todosItens });
-          toast({
-            title: '✅ Planilha Importada',
-            description: `${totalAtualizados} atualizados, ${totalNovos} novos (${totalLinhasLidas} linhas lidas)`,
+        if (idxExistente >= 0) {
+          todosItens[idxExistente] = {
+            ...todosItens[idxExistente],
+            quantidade: itemImportado.quantidade,
+            ...(localizacaoImport.trim() ? { localizacao: localizacaoImport.trim() } : {}),
+          };
+          totalAtualizados++;
+        } else {
+          todosItens.push({
+            id: crypto.randomUUID(),
+            nome: itemImportado.nome,
+            tipo: itemImportado.tipo || 'produto_acabado',
+            quantidade: itemImportado.quantidade,
+            unidade: itemImportado.unidade || 'un',
+            ...(localizacaoImport.trim() ? { localizacao: localizacaoImport.trim() } : {}),
           });
-          flushSave?.();
+          totalNovos++;
         }
-      };
-      reader.readAsArrayBuffer(file);
+      });
     };
 
-    Array.from(files).forEach(processFile);
+    const pareceArquivoMovimentacoes = (linhas: string[]) => {
+      const top = linhas.slice(0, 3).join(' ').toLowerCase();
+      return top.includes('produto') && top.includes('data') && (top.includes('movimenta') || top.includes('saida') || top.includes('entrada') || top.includes('tipo'));
+    };
+
+    const finalizarSeConcluido = () => {
+      filesProcessed++;
+      if (filesProcessed !== selectedFiles.length) return;
+
+      if (totalNovos === 0 && totalAtualizados === 0) {
+        const msg = aparentaSerMovimentacoes
+          ? 'Esse arquivo parece ser de Movimentações. Use a aba "Mov." para importar saídas/entradas.'
+          : `${totalLinhasLidas} linhas lidas mas nenhum item reconhecido. Verifique se a planilha tem colunas de nome e quantidade.`;
+
+        setImportFeedback({ type: 'error', message: msg });
+        toast({ title: 'Nenhum item encontrado', description: msg, variant: 'destructive' });
+        return;
+      }
+
+      const movs = data.movimentacoes ?? [];
+      if (movs.length > 0) {
+        const demandaMap = calcularDemandaSemanalPorItem(movs);
+        for (let i = 0; i < todosItens.length; i++) {
+          const key = normalizarNomeProduto(todosItens[i].nome);
+          const demanda = demandaMap.get(key);
+          if (demanda !== undefined) {
+            todosItens[i] = { ...todosItens[i], demandaSemanal: demanda };
+          }
+        }
+      }
+
+      onUpdateSupplyChainData({ itens: todosItens });
+      const sucessoMsg = `${totalAtualizados} atualizados, ${totalNovos} novos (${totalLinhasLidas} linhas lidas)`;
+      setImportFeedback({ type: 'success', message: sucessoMsg });
+      toast({ title: '✅ Planilha Importada', description: sucessoMsg });
+      flushSave?.();
+    };
+
+    selectedFiles.forEach((file) => {
+      const isCsv = file.name.toLowerCase().endsWith('.csv');
+      const reader = new FileReader();
+
+      reader.onerror = () => {
+        const msg = `Não foi possível abrir ${file.name}.`;
+        setImportFeedback({ type: 'error', message: msg });
+        toast({ title: `Erro ao ler ${file.name}`, description: msg, variant: 'destructive' });
+        finalizarSeConcluido();
+      };
+
+      reader.onload = (evt) => {
+        try {
+          if (isCsv) {
+            const textoCsv = String(evt.target?.result ?? '');
+            const linhasCsv = textoCsv.split(/\r?\n/).filter(Boolean);
+            totalLinhasLidas += linhasCsv.length;
+            if (pareceArquivoMovimentacoes(linhasCsv)) aparentaSerMovimentacoes = true;
+            aplicarItensImportados(parsearListaEstoque(textoCsv));
+          } else {
+            const arrayBuffer = evt.target?.result;
+            const wb = XLSX.read(arrayBuffer, { type: 'array' });
+
+            for (const sheetName of wb.SheetNames) {
+              const ws = wb.Sheets[sheetName];
+              const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+              if (rows.length < 2) continue;
+
+              totalLinhasLidas += rows.length;
+              const linhas = rows.map(r => r.join('\t'));
+              if (pareceArquivoMovimentacoes(linhas)) aparentaSerMovimentacoes = true;
+              const texto = linhas.join('\n');
+              aplicarItensImportados(parsearListaEstoque(texto));
+            }
+          }
+        } catch (err) {
+          const msg = String(err);
+          setImportFeedback({ type: 'error', message: msg });
+          toast({ title: `Erro ao ler ${file.name}`, description: msg, variant: 'destructive' });
+        }
+
+        finalizarSeConcluido();
+      };
+
+      if (isCsv) reader.readAsText(file, 'utf-8');
+      else reader.readAsArrayBuffer(file);
+    });
+
     e.target.value = '';
   };
 
@@ -990,6 +1021,15 @@ export function SupplyChainMode({
               >
                 <Upload className="h-4 w-4 mr-2" /> Importar Planilhas (.xlsx, .csv)
               </Button>
+              {importFeedback.type !== 'idle' && (
+                <p className={cn(
+                  "text-[11px]",
+                  importFeedback.type === 'error' ? "text-destructive" : "text-muted-foreground"
+                )}>
+                  {importFeedback.type === 'loading' ? '⏳ ' : importFeedback.type === 'success' ? '✅ ' : '⚠️ '}
+                  {importFeedback.message}
+                </p>
+              )}
             </TabsContent>
 
             <TabsContent value="movimentacoes" className="space-y-3">
