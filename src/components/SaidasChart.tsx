@@ -129,20 +129,28 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
 
   const productMix = useMemo<ProductMix[]>(() => {
     const corte = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const map = new Map<string, number>();
+    const map = new Map<string, { qty: number; fat: number }>();
 
     for (const s of saidas) {
       const dataStr = s.data.includes('T') ? s.data : s.data + 'T00:00:00';
       const ts = new Date(dataStr).getTime();
       if (isNaN(ts) || ts < corte) continue;
-      map.set(s.produto, (map.get(s.produto) || 0) + s.quantidade);
+      const e = map.get(s.produto) || { qty: 0, fat: 0 };
+      e.qty += s.quantidade;
+      if (s.valorUnitarioVenda) e.fat += s.quantidade * s.valorUnitarioVenda;
+      map.set(s.produto, e);
     }
 
-    const total = Array.from(map.values()).reduce((a, b) => a + b, 0);
-    if (total === 0) return [];
+    const totalQty = Array.from(map.values()).reduce((a, b) => a + b.qty, 0);
+    const totalFat = Array.from(map.values()).reduce((a, b) => a + b.fat, 0);
+    if (totalQty === 0) return [];
 
     return Array.from(map.entries())
-      .map(([name, qty]) => ({ name, qty, pct: (qty / total) * 100 }))
+      .map(([name, { qty, fat }]) => ({
+        name, qty, fat,
+        pct: (qty / totalQty) * 100,
+        pctFat: totalFat > 0 ? (fat / totalFat) * 100 : 0,
+      }))
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 10);
   }, [saidas]);
