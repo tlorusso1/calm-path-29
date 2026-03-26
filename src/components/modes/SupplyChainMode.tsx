@@ -538,30 +538,37 @@ export function SupplyChainMode({
               return dias !== null && dias < 90;
             })) && (
             <div className="pt-3 border-t border-border space-y-3">
-              {/* Ruptura Iminente */}
-              {itensProcessados.some(i => i.status === 'vermelho') && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                    <span className="font-medium text-destructive text-sm">
-                      Ruptura Iminente
-                    </span>
+              {/* Ruptura Iminente - apenas produtos acabados */}
+              {(() => {
+                const produtosRuptura = itensProcessados.filter(i => 
+                  i.status === 'vermelho' && 
+                  ['produto_acabado', 'acessorio', 'brinde', 'material_pdv'].includes(i.tipo)
+                );
+                if (produtosRuptura.length === 0) return null;
+                return (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
+                      <span className="font-medium text-destructive text-sm">
+                        Ruptura Iminente
+                      </span>
+                    </div>
+                    {renderAlertGroupedByTipo(
+                      produtosRuptura,
+                      (item) => (
+                        <>
+                          <span>{item.nome}</span>
+                          {item.coberturaDias !== undefined && (
+                            <span className="text-destructive font-medium">
+                              ({item.coberturaDias}d)
+                            </span>
+                          )}
+                        </>
+                      )
+                    )}
                   </div>
-                  {renderAlertGroupedByTipo(
-                    itensProcessados.filter(i => i.status === 'vermelho'),
-                    (item) => (
-                      <>
-                        <span>{item.nome}</span>
-                        {item.coberturaDias !== undefined && (
-                          <span className="text-destructive font-medium">
-                            ({item.coberturaDias}d)
-                          </span>
-                        )}
-                      </>
-                    )
-                  )}
-                </div>
-              )}
+                );
+              })()}
 
               {/* Cobertura Baixa (Amarelos) */}
               {itensProcessados.some(i => i.status === 'amarelo') && (
