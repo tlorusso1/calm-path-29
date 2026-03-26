@@ -61,7 +61,8 @@ interface WeekData {
   weekKey: string;
   label: string;
   total: number;
-  products: { name: string; qty: number }[];
+  totalFat: number;
+  products: { name: string; qty: number; fat: number }[];
 }
 
 interface ProductMix {
