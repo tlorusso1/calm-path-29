@@ -164,11 +164,27 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
     <div className={cn("space-y-5", className)}>
       {weeklyData.length > 0 && (
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-1">
             <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
               📈 Saídas por Semana
             </h4>
             <div className="flex items-center gap-2">
+              {hasFaturamento && (
+                <div className="flex items-center rounded border border-border overflow-hidden">
+                  <button
+                    onClick={() => setViewMode('volume')}
+                    className={cn("text-[10px] px-2 py-0.5", viewMode === 'volume' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                  >
+                    Volume
+                  </button>
+                  <button
+                    onClick={() => setViewMode('faturamento')}
+                    className={cn("text-[10px] px-2 py-0.5", viewMode === 'faturamento' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                  >
+                    R$
+                  </button>
+                </div>
+              )}
               {trend && (
                 <span className={cn(
                   "text-[10px] font-medium",
@@ -177,41 +193,44 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
                   "text-muted-foreground"
                 )}>
                   {trend.direction === 'up' ? '↑' : trend.direction === 'down' ? '↓' : '→'}
-                  {' '}{Math.abs(trend.pctChange).toFixed(0)}% vs semana anterior
+                  {' '}{Math.abs(trend.pctChange).toFixed(0)}%
                 </span>
               )}
               <button
                 onClick={() => setShowAllWeeks(!showAllWeeks)}
                 className="text-[10px] font-medium text-primary hover:underline"
               >
-                {showAllWeeks ? 'Últimas 8 sem' : 'Ver tudo'}
+                {showAllWeeks ? '8 sem' : 'Tudo'}
               </button>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            {weeklyData.map((week) => (
+            {weeklyData.map((week) => {
+              const weekVal = isFat ? week.totalFat : week.total;
+              return (
               <div key={week.weekKey} className="space-y-0.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground w-[48px] shrink-0 text-right">
+                  <span className="text-[10px] text-muted-foreground w-[72px] shrink-0 text-right">
                     {week.label}
                   </span>
                   <div className="flex-1 h-5 bg-muted/40 rounded-sm overflow-hidden flex">
                     {week.products.map((product, pi) => {
-                      const pct = (product.qty / maxWeekTotal) * 100;
+                      const val = isFat ? product.fat : product.qty;
+                      const pct = (val / maxWeekTotal) * 100;
                       if (pct < 0.5) return null;
                       return (
                         <div
                           key={pi}
                           className={cn("h-full transition-all", getProductColor(product.name))}
                           style={{ width: `${pct}%` }}
-                          title={`${product.name}: ${product.qty} un`}
+                          title={`${product.name}: ${isFat ? `R$ ${product.fat.toFixed(0)}` : `${product.qty} un`}`}
                         />
                       );
                     })}
                   </div>
-                  <span className="text-xs font-medium text-muted-foreground w-[50px] text-right shrink-0">
-                    {week.total} un
+                  <span className="text-[10px] font-medium text-muted-foreground w-[60px] text-right shrink-0">
+                    {formatVal(weekVal)}
                   </span>
                 </div>
               </div>
