@@ -319,6 +319,11 @@ function splitByDelimiter(line: string): string[] {
   if (line.includes('\t')) {
     return line.split('\t').map(c => c.trim());
   }
+  // Try semicolon (common in Brazilian CSVs)
+  if (line.includes(';')) {
+    const parts = line.split(';').map(c => c.trim());
+    if (parts.length >= 2) return parts;
+  }
   // Try pipe
   if (line.includes('|')) {
     return line.split('|').map(c => c.trim());
