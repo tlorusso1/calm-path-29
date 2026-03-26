@@ -1597,7 +1597,8 @@ export function SupplyChainMode({
                           </div>
                         )}
 
-                        {/* Validade */}
+                        {/* Validade - só para produto acabado e matéria-prima */}
+                        {['produto_acabado', 'materia_prima'].includes(item.tipo) && (
                         <div className="flex items-center gap-2">
                           <Label className="text-xs text-muted-foreground whitespace-nowrap">
                             Validade:
@@ -1624,6 +1625,7 @@ export function SupplyChainMode({
                             </Badge>
                           )}
                         </div>
+                        )}
                       </div>
                     </div>
                   );
