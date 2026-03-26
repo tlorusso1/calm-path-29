@@ -146,10 +146,11 @@ export function SupplyChainMode({
       );
       
       if (idxExistente >= 0) {
-        // UPSERT: Atualizar APENAS quantidade - preserva demandaSemanal e dataValidade
+        // UPSERT: Atualizar quantidade e localização - preserva demandaSemanal e dataValidade
         todosItens[idxExistente] = {
           ...todosItens[idxExistente],
           quantidade: itemImportado.quantidade,
+          ...(localizacaoImport.trim() ? { localizacao: localizacaoImport.trim() } : {}),
         };
         itensAtualizados.push(todosItens[idxExistente].nome);
       } else {
@@ -161,6 +162,7 @@ export function SupplyChainMode({
           tipo: itemImportado.tipo || 'produto_acabado',
           quantidade: itemImportado.quantidade,
           unidade: itemImportado.unidade || 'un',
+          ...(localizacaoImport.trim() ? { localizacao: localizacaoImport.trim() } : {}),
         });
         novosItens++;
       }
