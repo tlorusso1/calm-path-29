@@ -7,8 +7,8 @@ import {
   SupplyForecast,
   ForecastItem,
 } from '@/types/focus-mode';
-import { calcularCMVPorSaidas, calcularReceitaBruta, calcularDemandaSemanalPorItem } from '@/utils/movimentacoesParser';
-import { normalizarNomeProduto } from '@/utils/movimentacoesParser';
+import { calcularCMVPorSaidas, calcularReceitaBruta, calcularDemandaSemanalPorItem, normalizarNomeProduto } from '@/utils/movimentacoesParser';
+import { encontrarPrecoCustoPadrao } from '@/data/precos-custo-default';
 
 // ============= Réguas de Segurança por Tipo =============
 
