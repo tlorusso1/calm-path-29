@@ -417,9 +417,68 @@ function cleanProductName(text: string): string {
  * Extrai número de uma string de quantidade
  */
 function parseQuantity(text: string): number {
-  // Remove tudo exceto dígitos, vírgula e ponto
-  const cleaned = text.replace(/[^\d.,]/g, '').replace(',', '.');
-  return parseFloat(cleaned) || 0;
+  // Remove tudo exceto dígitos, vírgula, ponto e sinal
+  const cleaned = text.replace(/[^\d.,-]/g, '').trim();
+  if (!cleaned) return 0;
+
+  let normalized = cleaned;
+
+  // Se tem vírgula e ponto, inferir qual é separador decimal pelo último símbolo
+  if (cleaned.includes(',') && cleaned.includes('.')) {
+    const lastComma = cleaned.lastIndexOf(',');
+    const lastDot = cleaned.lastIndexOf('.');
+    if (lastComma > lastDot) {
+      // pt-BR: 28.525,00
+      normalized = cleaned.replace(/\./g, '').replace(',', '.');
+    } else {
+      // en-US: 28,525.00
+      normalized = cleaned.replace(/,/g, '');
+    }
+  } else if (cleaned.includes(',')) {
+    const parts = cleaned.split(',');
+    if (parts.length === 2 && parts[1].length <= 2) {
+      // decimal com vírgula: 0,66
+      normalized = `${parts[0].replace(/\./g, '')}.${parts[1]}`;
+    } else {
+      // separador de milhar
+      normalized = cleaned.replace(/,/g, '');
+    }
+  } else if (cleaned.includes('.')) {
+    const parts = cleaned.split('.');
+    if (parts.length > 2) {
+      // múltiplos pontos = milhar
+      normalized = parts.join('');
+    } else if (parts.length === 2 && parts[1].length === 3) {
+      // provável milhar: 6.825
+      normalized = parts.join('');
+    }
+  }
+
+  return parseFloat(normalized) || 0;
+}
+
+function tryParseLinhaTabelaCompacta(linha: string): Partial<ItemEstoque> | null {
+  const tipoMatch = linha.match(/\b(produto\s*final|mat[eé]ria\s*prima|embalag(?:em|ens)|acess[oó]rios?|brinde|material\s*pdv)\b/i);
+  if (!tipoMatch || tipoMatch.index === undefined) return null;
+
+  const nomeRaw = linha.slice(0, tipoMatch.index).trim();
+  const resto = linha.slice(tipoMatch.index + tipoMatch[0].length).trim();
+
+  if (!nomeRaw || !resto) return null;
+
+  const numeros = resto.match(/-?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?|-?\d+(?:[.,]\d+)?/g) ?? [];
+  if (numeros.length === 0) return null;
+
+  const nome = cleanProductName(nomeRaw);
+  if (!nome || nome.length < 2) return null;
+
+  const quantidade = parseQuantity(numeros[0]);
+  const precoCusto = numeros.length > 1 ? parseQuantity(numeros[1]) : undefined;
+  const tipo = detectarTipo(tipoMatch[0]);
+
+  const item: Partial<ItemEstoque> = { nome, tipo, quantidade, unidade: 'un' };
+  if (precoCusto !== undefined && precoCusto > 0) item.precoCusto = precoCusto;
+  return item;
 }
 
 /**
@@ -527,6 +586,13 @@ export function parsearListaEstoque(texto: string): Partial<ItemEstoque>[] {
     
     // Skip summary/total lines (e.g. "Produto final\tR$ 75,849.25")
     if (/^(produto final|mat[eé]ria prima|embalagem|acess[oó]rios?|cross do|wbm|jundcoco|super vegan|hiper massas?)\b/i.test(linha.trim())) {
+      continue;
+    }
+
+    // Try compact table row: "Nome Matéria Prima 0,66 R$ 35,44 R$ 23,39"
+    const itemCompacto = tryParseLinhaTabelaCompacta(linha);
+    if (itemCompacto) {
+      itens.push(itemCompacto);
       continue;
     }
     
