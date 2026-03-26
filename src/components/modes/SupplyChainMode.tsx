@@ -295,7 +295,7 @@ export function SupplyChainMode({
     e.target.value = '';
   };
 
-
+  const formatarDataValidade = (data: string | undefined) => {
     if (!data) return '—';
     const d = new Date(data + 'T00:00:00');
     return d.toLocaleDateString('pt-BR');
