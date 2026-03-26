@@ -341,11 +341,15 @@ function splitByDelimiter(line: string): string[] {
 interface ColumnMap {
   nome: number;
   quantidade: number;
+  tipo?: number;
+  custoUn?: number;
 }
 
 function buildColumnMap(headers: string[]): ColumnMap | null {
   let nomeIdx = -1;
   let qtdIdx = -1;
+  let tipoIdx = -1;
+  let custoIdx = -1;
   
   headers.forEach((header, index) => {
     const normalized = normalizeHeader(header);
@@ -360,18 +364,38 @@ function buildColumnMap(headers: string[]): ColumnMap | null {
     )) {
       qtdIdx = index;
     }
-    // Nome/Descrição - check for specific description column
+    // Custo unitário / Valor un
+    else if (custoIdx === -1 && (
+      normalized.includes('valorun') ||
+      normalized.includes('precoun') ||
+      normalized.includes('custounit') ||
+      normalized.includes('custounitario') ||
+      normalized.includes('vlrun') ||
+      (normalized.includes('valor') && normalized.includes('un'))
+    )) {
+      custoIdx = index;
+    }
+    // Tipo
+    else if (tipoIdx === -1 && normalized === 'tipo') {
+      tipoIdx = index;
+    }
+    // Nome/Descrição/Item
     else if (nomeIdx === -1 && (
       normalized.includes('descricao') || 
+      normalized === 'item' ||
+      normalized === 'nome' ||
       (normalized.includes('produto') && !normalized.includes('cod'))
     )) {
       nomeIdx = index;
     }
   });
   
-  // Must have both
+  // Must have both nome and quantidade
   if (nomeIdx >= 0 && qtdIdx >= 0) {
-    return { nome: nomeIdx, quantidade: qtdIdx };
+    const map: ColumnMap = { nome: nomeIdx, quantidade: qtdIdx };
+    if (tipoIdx >= 0) map.tipo = tipoIdx;
+    if (custoIdx >= 0) map.custoUn = custoIdx;
+    return map;
   }
   
   return null;
@@ -401,7 +425,7 @@ function parseQuantity(text: string): number {
  */
 function isHeaderRow(cells: string[]): boolean {
   const normalized = cells.map(normalizeHeader);
-  const headerKeywords = ['descricao', 'produto', 'disponivel', 'quantidade', 'codigo', 'cod', 'item', 'gtin', 'sku', 'estoque'];
+  const headerKeywords = ['descricao', 'produto', 'disponivel', 'quantidade', 'codigo', 'cod', 'item', 'gtin', 'sku', 'estoque', 'tipo', 'valorun', 'total'];
   
   // Se mais de 1 célula contém keywords de header, é header
   let headerMatches = 0;
@@ -467,9 +491,25 @@ export function parsearListaEstoque(texto: string): Partial<ItemEstoque>[] {
       // Skip invalid rows
       if (!nome || nome.length < 2) continue;
       
-      const tipo = detectarTipoPorNome(nome);
+      // Detect tipo from column or name
+      let tipo: TipoEstoque;
+      if (columnMap.tipo !== undefined && row[columnMap.tipo]) {
+        tipo = detectarTipo(row[columnMap.tipo]);
+      } else {
+        tipo = detectarTipoPorNome(nome);
+      }
       
-      itens.push({ nome, tipo, quantidade, unidade: 'un' });
+      // Extract unit cost if available
+      let precoCusto: number | undefined;
+      if (columnMap.custoUn !== undefined && row[columnMap.custoUn]) {
+        const custoVal = parseQuantity(row[columnMap.custoUn]);
+        if (custoVal > 0) precoCusto = custoVal;
+      }
+      
+      const item: Partial<ItemEstoque> = { nome, tipo, quantidade, unidade: 'un' };
+      if (precoCusto !== undefined) item.precoCusto = precoCusto;
+      
+      itens.push(item);
     }
     
     return itens;
