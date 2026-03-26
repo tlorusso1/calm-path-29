@@ -726,17 +726,13 @@ export function SupplyChainMode({
         </CardHeader>
         <CardContent>
           <Tabs value={tabAtiva} onValueChange={setTabAtiva}>
-            <TabsList className="grid w-full grid-cols-4 mb-4">
-              <TabsTrigger value="itens">Adicionar</TabsTrigger>
-              <TabsTrigger value="colar">Estoques</TabsTrigger>
-              <TabsTrigger value="movimentacoes" className="flex items-center gap-1">
-                <ArrowDownUp className="h-3 w-3" />
-                Mov.
-              </TabsTrigger>
-              <TabsTrigger value="analise" className="flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" />
-                Análise
-              </TabsTrigger>
+            <TabsList className="grid w-full grid-cols-6 mb-4">
+              <TabsTrigger value="itens" className="text-[11px] px-1">Adicionar</TabsTrigger>
+              <TabsTrigger value="colar" className="text-[11px] px-1">Estoques</TabsTrigger>
+              <TabsTrigger value="movimentacoes" className="text-[11px] px-1">Mov.</TabsTrigger>
+              <TabsTrigger value="cobertura" className="text-[11px] px-1">Cobertura</TabsTrigger>
+              <TabsTrigger value="producao" className="text-[11px] px-1">Produção</TabsTrigger>
+              <TabsTrigger value="analise" className="text-[11px] px-1">Análise</TabsTrigger>
             </TabsList>
 
             <TabsContent value="itens" className="space-y-4">
