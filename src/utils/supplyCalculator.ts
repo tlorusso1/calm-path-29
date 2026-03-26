@@ -407,7 +407,9 @@ function buildColumnMap(headers: string[]): ColumnMap | null {
 function cleanProductName(text: string): string {
   return text
     .replace(/^["']+|["']+$/g, '') // Remove quotes
-    .replace(/^\[B\]\s*/i, '') // Remove [B] prefix
+    .replace(/^\[(B|EMB|MP|Food Service)\]\s*/i, '') // Remove common prefixes
+    .replace(/^\[.*?\]\s*-?\s*/i, '') // Remove any remaining [X] prefix
+    .replace(/^\s*-\s*/, '') // Remove leading dash
     .trim();
 }
 
@@ -519,7 +521,12 @@ export function parsearListaEstoque(texto: string): Partial<ItemEstoque>[] {
   for (const linha of linhas) {
     // Skip likely header rows
     const normalized = normalizeHeader(linha);
-    if (normalized.includes('descricao') || normalized.includes('coditem') || normalized.includes('disponivel')) {
+    if (normalized.includes('descricao') || normalized.includes('coditem') || normalized.includes('disponivel') || normalized.includes('saldoemestoque') || normalized.includes('mesanterior') || normalized.includes('pordeposito')) {
+      continue;
+    }
+    
+    // Skip summary/total lines (e.g. "Produto final\tR$ 75,849.25")
+    if (/^(produto final|mat[eé]ria prima|embalagem|acess[oó]rios?|cross do|wbm|jundcoco|super vegan|hiper massas?)\b/i.test(linha.trim())) {
       continue;
     }
     
