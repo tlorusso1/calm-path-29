@@ -237,7 +237,7 @@ export function SupplyChainMode({
             const rows: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
             if (rows.length < 2) continue;
             totalLinhasLidas += rows.length;
-
+            console.log(`[Import] Sheet "${sheetName}": ${rows.length} rows. Header:`, rows[0], 'Row1:', rows[1]);
             const texto = rows.map(r => r.join('\t')).join('\n');
             const itensImportados = parsearListaEstoque(texto);
 
