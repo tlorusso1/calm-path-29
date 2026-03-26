@@ -1255,6 +1255,9 @@ export function SupplyChainMode({
                                   • Vence em {diasVenc}d
                                 </span>
                               )}
+                              {item.localizacao && (
+                                <span>• 📍{item.localizacao}</span>
+                              )}
                             </div>
                           </div>
                         </div>
