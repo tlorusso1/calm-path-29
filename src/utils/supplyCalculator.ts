@@ -33,7 +33,6 @@ export const TIPO_LABELS: Record<TipoEstoque, string> = {
   brinde: 'Brinde',
   material_pdv: 'Material PDV',
   embalagem: 'Embalagem',
-  insumo: 'Insumo',
   materia_prima: 'Matéria-Prima',
 };
 
