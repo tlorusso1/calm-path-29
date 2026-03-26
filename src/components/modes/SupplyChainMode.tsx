@@ -245,24 +245,51 @@ export function SupplyChainMode({
     return { ...item, coberturaDias, status };
   });
 
-  // Calcular valor do estoque
+  // Calcular valor do estoque — separado por categoria
   const valorEstoque = useMemo(() => {
-    let custo = 0;
+    let custoProdutoAcabado = 0;
+    let custoInsumos = 0;
     let itensComPreco = 0;
+    const tiposInsumo: TipoEstoque[] = ['embalagem', 'insumo', 'materia_prima'];
     
     for (const item of data.itens) {
       if (item.precoCusto && item.precoCusto > 0) {
-        custo += item.quantidade * item.precoCusto;
+        const total = item.quantidade * item.precoCusto;
+        if (tiposInsumo.includes(item.tipo)) {
+          custoInsumos += total;
+        } else {
+          custoProdutoAcabado += total;
+        }
         itensComPreco++;
       }
     }
     
+    // Estimar investimento em produção: soma de custoProducao dos itens com esse campo
+    let investimentoProducao = 0;
+    for (const item of data.itens) {
+      if (item.custoProducao && item.custoProducao > 0 && !tiposInsumo.includes(item.tipo)) {
+        investimentoProducao += item.quantidade * item.custoProducao;
+      }
+    }
+    
     return {
-      custoProdutos: custo,
-      valorVendavel: custo * 3, // Margem 3x
+      custoProdutoAcabado,
+      custoInsumos,
+      custoTotal: custoProdutoAcabado + custoInsumos,
+      valorVendavel: custoProdutoAcabado * 3, // Margem 3x só para produto acabado
+      investimentoProducao,
       itensComPreco,
       totalItens: data.itens.length,
     };
+  }, [data.itens]);
+
+  // Localizações disponíveis para filtro
+  const localizacoes = useMemo(() => {
+    const locs = new Set<string>();
+    for (const item of data.itens) {
+      if (item.localizacao) locs.add(item.localizacao);
+    }
+    return Array.from(locs).sort();
   }, [data.itens]);
 
   const formatCurrency = (val: number) =>
