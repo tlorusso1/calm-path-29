@@ -751,6 +751,15 @@ export function SupplyChainMode({
             </TabsContent>
 
             <TabsContent value="colar" className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Depósito / Localização</Label>
+                <Input
+                  placeholder="Ex: Cross Do, WBM, JundCoco..."
+                  value={localizacaoImport}
+                  onChange={(e) => setLocalizacaoImport(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
               <Textarea
                 placeholder="Cole sua lista aqui...&#10;Formato: Nome | Tipo | Quantidade | Unidade&#10;Ou: Nome - 450un"
                 value={textoColado}
