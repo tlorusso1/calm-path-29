@@ -387,7 +387,7 @@ export function SupplyChainMode({
     let custoProdutoAcabado = 0;
     let custoInsumos = 0;
     let itensComPreco = 0;
-    const tiposInsumo: TipoEstoque[] = ['embalagem', 'insumo', 'materia_prima'];
+    const tiposInsumo: TipoEstoque[] = ['embalagem', 'materia_prima'];
     
     for (const item of data.itens) {
       if (item.precoCusto && item.precoCusto > 0) {
