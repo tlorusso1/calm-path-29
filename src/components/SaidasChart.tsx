@@ -321,23 +321,23 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
                   90d
                 </button>
               </div>
-            {hasFaturamento && (
-              <div className="flex items-center rounded border border-border overflow-hidden">
-                <button
-                  onClick={() => setMixViewMode('volume')}
-                  className={cn("text-[10px] px-2 py-0.5", mixViewMode === 'volume' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
-                >
-                  Volume
-                </button>
-                <button
-                  onClick={() => setMixViewMode('faturamento')}
-                  className={cn("text-[10px] px-2 py-0.5", mixViewMode === 'faturamento' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
-                >
-                  R$
-                </button>
-              </div>
-            )}
-          </div>
+              {hasFaturamento && (
+                <div className="flex items-center rounded border border-border overflow-hidden">
+                  <button
+                    onClick={() => setMixViewMode('volume')}
+                    className={cn("text-[10px] px-2 py-0.5", mixViewMode === 'volume' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                  >
+                    Volume
+                  </button>
+                  <button
+                    onClick={() => setMixViewMode('faturamento')}
+                    className={cn("text-[10px] px-2 py-0.5", mixViewMode === 'faturamento' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                  >
+                    R$
+                  </button>
+                </div>
+              )}
+            </div>
           <div className="space-y-2">
             {productMix
               .slice()
