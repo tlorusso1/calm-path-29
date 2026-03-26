@@ -525,6 +525,25 @@ export interface MovimentacaoEstoque {
 }
 
 // Exports para outros módulos (Pre-Reunião Geral, Score)
+export interface ForecastItem {
+  nome: string;
+  tipo: TipoEstoque;
+  saidaSemanal: number;
+  estoqueAtual: number;
+  coberturaDias: number;
+  precisaProduzir: number;   // para atingir meta de cobertura
+  custoProducaoUnit?: number; // custo para produzir 1 un
+  investimentoNecessario?: number; // precisaProduzir * custoProducao
+}
+
+export interface SupplyForecast {
+  receitaProjetada30d: number;   // receita bruta projetada (30 dias)
+  cmvProjetado30d: number;       // CMV projetado (30 dias)
+  margemProjetada: number;       // % margem
+  investimentoProducao: number;  // total R$ necessário para produzir
+  itens: ForecastItem[];         // detalhe por produto
+}
+
 export interface SupplyExports {
   statusEstoque: 'verde' | 'amarelo' | 'vermelho';
   coberturaProdutosDias: number | null;
@@ -534,6 +553,7 @@ export interface SupplyExports {
   scorePilar: number;  // 0-30 para Score Negócio
   cmvMensal?: number;  // CMV calculado por saídas x custo unitário
   receitaBrutaSupply?: number;  // Receita bruta (soma ValorSaída)
+  forecast?: SupplyForecast;
 }
 
 // Estado do módulo Supply Chain

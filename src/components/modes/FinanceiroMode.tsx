@@ -30,6 +30,7 @@ import { FornecedoresManager } from '@/components/financeiro/FornecedoresManager
 import { GerarContasFixasButton } from '@/components/financeiro/GerarContasFixasButton';
 import { AlertaCaixaInsuficiente } from '@/components/financeiro/AlertaCaixaInsuficiente';
 import { CaixaVsAPagar5d } from '@/components/financeiro/CaixaVsAPagar5d';
+import { ForecastSupplyCard } from '@/components/financeiro/ForecastSupplyCard';
 import { OrcadoRealizadoSection } from '@/components/financeiro/OrcadoRealizadoSection';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { CMVGerencialCard } from '@/components/financeiro/CMVGerencialCard';
@@ -326,6 +327,15 @@ export function FinanceiroMode({
       
       {/* ========== 1. EXECUTIVE RESUME ========== */}
       <ExecutiveResume exports={exports} caixaContratado={totaisContas.aReceber} />
+      
+      {/* ========== FORECAST SUPPLY ========== */}
+      {supplyExports?.forecast && (
+        <ForecastSupplyCard 
+          forecast={supplyExports.forecast}
+          receitaBruta={supplyExports.receitaBrutaSupply}
+          cmvMensal={supplyExports.cmvMensal}
+        />
+      )}
       
       {/* ========== CAIXA vs A PAGAR 5 DIAS ========== */}
       <CaixaVsAPagar5d contasFluxo={data.contasFluxo || []} contasBancarias={data.contas} />
