@@ -36,18 +36,25 @@ function getProductColor(name: string): string {
   return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length];
 }
 
-function getISOWeek(date: Date): string {
+const MONTH_ABBR = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+
+function getISOWeek(date: Date): { key: string; weekNo: number; month: number } {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
+  return {
+    key: `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`,
+    weekNo,
+    month: date.getMonth(),
+  };
 }
 
-function getWeekLabel(weekKey: string): string {
+function getWeekLabel(weekKey: string, month: number): string {
   const match = weekKey.match(/\d{4}-W(\d{2})/);
-  return match ? `Sem ${parseInt(match[1])}` : weekKey;
+  const monthLabel = MONTH_ABBR[month] || '';
+  return match ? `S${parseInt(match[1])} (${monthLabel})` : weekKey;
 }
 
 interface WeekData {
