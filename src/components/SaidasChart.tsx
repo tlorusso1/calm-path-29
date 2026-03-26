@@ -144,6 +144,27 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
       .slice(0, 10);
   }, [saidas]);
 
+  const avg90d = useMemo(() => {
+    const corte = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    const weekMap = new Map<string, { vol: number; fat: number }>();
+    for (const s of saidas) {
+      const dataStr = s.data.includes('T') ? s.data : s.data + 'T00:00:00';
+      const d = new Date(dataStr);
+      if (isNaN(d.getTime()) || d.getTime() < corte) continue;
+      const wk = getISOWeek(d).key;
+      const e = weekMap.get(wk) || { vol: 0, fat: 0 };
+      e.vol += s.quantidade;
+      if (s.valorUnitarioVenda) e.fat += s.quantidade * s.valorUnitarioVenda;
+      weekMap.set(wk, e);
+    }
+    const weeks = Array.from(weekMap.values());
+    if (weeks.length === 0) return { vol: 0, fat: 0 };
+    return {
+      vol: weeks.reduce((a, w) => a + w.vol, 0) / weeks.length,
+      fat: weeks.reduce((a, w) => a + w.fat, 0) / weeks.length,
+    };
+  }, [saidas]);
+
   const trend = useMemo(() => {
     if (weeklyData.length < 2) return null;
     const isFat = viewMode === 'faturamento';
