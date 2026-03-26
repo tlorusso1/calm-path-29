@@ -338,6 +338,7 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
                 </div>
               )}
             </div>
+          </div>
           <div className="space-y-2">
             {productMix
               .slice()
