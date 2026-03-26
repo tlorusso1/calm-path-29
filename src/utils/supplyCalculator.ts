@@ -56,11 +56,17 @@ export function calcularCoberturaDias(
 /**
  * Determina o status de um item baseado na sua cobertura e tipo
  */
+export const TIPOS_PRODUTO_FINAL: TipoEstoque[] = ['produto_acabado', 'acessorio', 'brinde', 'material_pdv'];
+export const TIPOS_INSUMO: TipoEstoque[] = ['embalagem', 'insumo', 'materia_prima'];
+
 export function getStatusPorCobertura(
   coberturaDias: number | null,
   tipo: TipoEstoque
 ): 'verde' | 'amarelo' | 'vermelho' {
-  if (coberturaDias === null) return 'amarelo'; // Sem dados = atenção
+  // Insumos/embalagens sem dados de demanda = verde (não gerar alerta)
+  if (coberturaDias === null) {
+    return TIPOS_INSUMO.includes(tipo) ? 'verde' : 'amarelo';
+  }
   
   const regra = REGRAS_COBERTURA[tipo];
   

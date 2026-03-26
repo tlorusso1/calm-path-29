@@ -570,32 +570,36 @@ export function SupplyChainMode({
                 );
               })()}
 
-              {/* Cobertura Baixa (Amarelos) */}
-              {itensProcessados.some(i => i.status === 'amarelo') && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-yellow-500" />
-                    <span className="font-medium text-yellow-600 text-sm">
-                      Cobertura Baixa (Atenção)
-                    </span>
+              {/* Cobertura Baixa - apenas produtos acabados */}
+              {(() => {
+                const produtosBaixa = itensProcessados
+                  .filter(i => i.status === 'amarelo' && ['produto_acabado', 'acessorio', 'brinde', 'material_pdv'].includes(i.tipo))
+                  .sort((a, b) => (a.coberturaDias ?? 999) - (b.coberturaDias ?? 999));
+                if (produtosBaixa.length === 0) return null;
+                return (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-yellow-500" />
+                      <span className="font-medium text-yellow-600 text-sm">
+                        Cobertura Baixa (Atenção)
+                      </span>
+                    </div>
+                    {renderAlertGroupedByTipo(
+                      produtosBaixa,
+                      (item) => (
+                        <>
+                          <span>{item.nome}</span>
+                          {item.coberturaDias !== undefined && (
+                            <span className="text-yellow-600 font-medium">
+                              ({item.coberturaDias}d)
+                            </span>
+                          )}
+                        </>
+                      )
+                    )}
                   </div>
-                  {renderAlertGroupedByTipo(
-                    itensProcessados
-                      .filter(i => i.status === 'amarelo')
-                      .sort((a, b) => (a.coberturaDias ?? 999) - (b.coberturaDias ?? 999)),
-                    (item) => (
-                      <>
-                        <span>{item.nome}</span>
-                        {item.coberturaDias !== undefined && (
-                          <span className="text-yellow-600 font-medium">
-                            ({item.coberturaDias}d)
-                          </span>
-                        )}
-                      </>
-                    )
-                  )}
-                </div>
-              )}
+                );
+              })()}
 
               {/* Acelerar Vendas - validade < cobertura */}
               {(() => {
