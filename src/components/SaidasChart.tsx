@@ -301,33 +301,59 @@ export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
 
       {productMix.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-muted-foreground">
-            📊 Mix de Produtos (últimos 30d)
-          </h4>
-          <div className="space-y-2">
-            {productMix.map((item) => (
-              <div key={item.name} className="space-y-0.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground leading-tight">
-                    {item.name}
-                  </span>
-                  <span className="text-xs font-medium text-muted-foreground shrink-0 ml-2">
-                    {item.qty} un
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-3.5 bg-muted/40 rounded-sm overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-sm transition-all", getProductColor(item.name))}
-                      style={{ width: `${item.pct}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] font-semibold w-[36px] text-right shrink-0 text-muted-foreground">
-                    {item.pct.toFixed(0)}%
-                  </span>
-                </div>
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-semibold text-muted-foreground">
+              📊 Mix de Produtos (últimos 30d)
+            </h4>
+            {hasFaturamento && (
+              <div className="flex items-center rounded border border-border overflow-hidden">
+                <button
+                  onClick={() => setMixViewMode('volume')}
+                  className={cn("text-[10px] px-2 py-0.5", mixViewMode === 'volume' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                >
+                  Volume
+                </button>
+                <button
+                  onClick={() => setMixViewMode('faturamento')}
+                  className={cn("text-[10px] px-2 py-0.5", mixViewMode === 'faturamento' ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+                >
+                  R$
+                </button>
               </div>
-            ))}
+            )}
+          </div>
+          <div className="space-y-2">
+            {productMix
+              .slice()
+              .sort((a, b) => mixViewMode === 'faturamento' ? b.fat - a.fat : b.qty - a.qty)
+              .map((item) => {
+                const isMixFat = mixViewMode === 'faturamento';
+                const val = isMixFat ? item.fat : item.qty;
+                const pct = isMixFat ? item.pctFat : item.pct;
+                return (
+                  <div key={item.name} className="space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground leading-tight">
+                        {item.name}
+                      </span>
+                      <span className="text-xs font-medium text-muted-foreground shrink-0 ml-2">
+                        {isMixFat ? `R$ ${val.toFixed(0)}` : `${val} un`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-3.5 bg-muted/40 rounded-sm overflow-hidden">
+                        <div
+                          className={cn("h-full rounded-sm transition-all", getProductColor(item.name))}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-semibold w-[36px] text-right shrink-0 text-muted-foreground">
+                        {pct.toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}
