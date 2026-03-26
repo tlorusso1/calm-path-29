@@ -1501,7 +1501,6 @@ export function SupplyChainMode({
                               <SelectItem value="brinde">Brinde</SelectItem>
                               <SelectItem value="material_pdv">Material PDV</SelectItem>
                               <SelectItem value="embalagem">Embalagem</SelectItem>
-                              <SelectItem value="insumo">Insumo</SelectItem>
                               <SelectItem value="materia_prima">Matéria-Prima</SelectItem>
                             </SelectContent>
                           </Select>
