@@ -97,6 +97,7 @@ export function SupplyChainMode({
   const [filtroLocal, setFiltroLocal] = useState<string>('todos');
   const [mostrarRevisaoValidade, setMostrarRevisaoValidade] = useState(false);
   const [itensParaRevisar, setItensParaRevisar] = useState<ItemEstoque[]>([]);
+  const [importFeedback, setImportFeedback] = useState<{ type: 'idle' | 'loading' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const data: SupplyChainStage = {
