@@ -430,24 +430,48 @@ export function SupplyChainMode({
           
           {/* 💰 Valor do Estoque */}
           {valorEstoque.itensComPreco > 0 && (
-            <div className="p-3 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-muted-foreground">💰 Valor do Estoque</span>
+            <div className="p-3 rounded-lg border bg-muted/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">💰 Valor em Estoque</span>
                 <span className="text-[10px] text-muted-foreground">
                   ({valorEstoque.itensComPreco}/{valorEstoque.totalItens} itens com preço)
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Custo Total</p>
-                  <p className="text-sm font-medium">{formatCurrency(valorEstoque.custoProdutos)}</p>
+              
+              {/* Produto Acabado */}
+              {valorEstoque.custoProdutoAcabado > 0 && (
+                <div className="p-2 rounded border border-green-500/20 bg-green-50/50 dark:bg-green-950/10">
+                  <p className="text-[10px] font-medium text-muted-foreground mb-1">📦 Produto Acabado</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Custo</p>
+                      <p className="text-sm font-medium">{formatCurrency(valorEstoque.custoProdutoAcabado)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Vendável (3x)</p>
+                      <p className="text-sm font-medium text-green-600 dark:text-green-500">
+                        {formatCurrency(valorEstoque.valorVendavel)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Valor Vendável (3x)</p>
-                  <p className="text-sm font-medium text-green-600 dark:text-green-500">
-                    {formatCurrency(valorEstoque.valorVendavel)}
-                  </p>
+              )}
+              
+              {/* Insumos / Matéria-Prima / Embalagem */}
+              {valorEstoque.custoInsumos > 0 && (
+                <div className="p-2 rounded border border-amber-500/20 bg-amber-50/50 dark:bg-amber-950/10">
+                  <p className="text-[10px] font-medium text-muted-foreground mb-1">🧪 Insumos / Embalagens / MP</p>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Capital Investido</p>
+                    <p className="text-sm font-medium text-amber-600">{formatCurrency(valorEstoque.custoInsumos)}</p>
+                  </div>
                 </div>
+              )}
+              
+              {/* Total */}
+              <div className="flex justify-between items-center pt-1 border-t border-border">
+                <span className="text-xs text-muted-foreground">Total em estoque</span>
+                <span className="text-sm font-bold">{formatCurrency(valorEstoque.custoTotal)}</span>
               </div>
             </div>
           )}
