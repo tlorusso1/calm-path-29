@@ -327,6 +327,15 @@ export function FinanceiroMode({
       {/* ========== 1. EXECUTIVE RESUME ========== */}
       <ExecutiveResume exports={exports} caixaContratado={totaisContas.aReceber} />
       
+      {/* ========== FORECAST SUPPLY ========== */}
+      {supplyExports?.forecast && (
+        <ForecastSupplyCard 
+          forecast={supplyExports.forecast}
+          receitaBruta={supplyExports.receitaBrutaSupply}
+          cmvMensal={supplyExports.cmvMensal}
+        />
+      )}
+      
       {/* ========== CAIXA vs A PAGAR 5 DIAS ========== */}
       <CaixaVsAPagar5d contasFluxo={data.contasFluxo || []} contasBancarias={data.contas} />
       
