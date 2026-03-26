@@ -631,22 +631,25 @@ export function SupplyChainMode({
               return dias !== null && dias < 90;
             })) && (
             <div className="pt-3 border-t border-border space-y-3">
-              {/* Ruptura Iminente - apenas produtos acabados */}
+              {/* Ruptura Iminente - produtos visíveis + insumos em dropdown */}
               {(() => {
-                const produtosRuptura = itensProcessados.filter(i => 
-                  i.status === 'vermelho' && 
-                  ['produto_acabado', 'acessorio', 'brinde', 'material_pdv'].includes(i.tipo)
+                const produtosRuptura = itensProcessados.filter(
+                  i => i.status === 'vermelho' && TIPOS_PRODUTO_FINAL.includes(i.tipo)
                 );
-                if (produtosRuptura.length === 0) return null;
+                const insumosRuptura = itensProcessados.filter(
+                  i => i.status === 'vermelho' && ['insumo', 'materia_prima', 'embalagem'].includes(i.tipo)
+                );
+                if (produtosRuptura.length === 0 && insumosRuptura.length === 0) return null;
                 return (
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="h-4 w-4 text-destructive" />
                       <span className="font-medium text-destructive text-sm">
                         Ruptura Iminente
                       </span>
                     </div>
-                    {renderAlertGroupedByTipo(
+
+                    {produtosRuptura.length > 0 && renderAlertGroupedByTipo(
                       produtosRuptura,
                       (item) => (
                         <>
@@ -658,6 +661,29 @@ export function SupplyChainMode({
                           )}
                         </>
                       )
+                    )}
+
+                    {insumosRuptura.length > 0 && (
+                      <details className="rounded-md border border-border bg-muted/30 px-2 py-1">
+                        <summary className="cursor-pointer text-xs text-muted-foreground">
+                          Ver insumos/MP/embalagens em ruptura ({insumosRuptura.length})
+                        </summary>
+                        <div className="mt-2">
+                          {renderAlertGroupedByTipo(
+                            insumosRuptura,
+                            (item) => (
+                              <>
+                                <span>{item.nome}</span>
+                                {item.coberturaDias !== undefined && (
+                                  <span className="text-muted-foreground font-medium">
+                                    ({item.coberturaDias}d)
+                                  </span>
+                                )}
+                              </>
+                            )
+                          )}
+                        </div>
+                      </details>
                     )}
                   </div>
                 );
