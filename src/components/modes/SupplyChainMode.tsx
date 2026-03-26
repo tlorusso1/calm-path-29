@@ -1574,7 +1574,7 @@ export function SupplyChainMode({
                         </div>
 
                         {/* Custo Produção (só para produto acabado) */}
-                        {!['embalagem', 'insumo', 'materia_prima'].includes(item.tipo) && (
+                        {!['embalagem', 'materia_prima'].includes(item.tipo) && (
                           <div className="flex items-center gap-2">
                             <Label className="text-xs text-muted-foreground whitespace-nowrap">
                               C.Prod:
