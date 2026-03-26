@@ -30,6 +30,7 @@ import { FornecedoresManager } from '@/components/financeiro/FornecedoresManager
 import { GerarContasFixasButton } from '@/components/financeiro/GerarContasFixasButton';
 import { AlertaCaixaInsuficiente } from '@/components/financeiro/AlertaCaixaInsuficiente';
 import { CaixaVsAPagar5d } from '@/components/financeiro/CaixaVsAPagar5d';
+import { ForecastSupplyCard } from '@/components/financeiro/ForecastSupplyCard';
 import { OrcadoRealizadoSection } from '@/components/financeiro/OrcadoRealizadoSection';
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { CMVGerencialCard } from '@/components/financeiro/CMVGerencialCard';
