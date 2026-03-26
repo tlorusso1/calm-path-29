@@ -100,10 +100,16 @@ export function SupplyChainMode({
   const [importFeedback, setImportFeedback] = useState<{ type: 'idle' | 'loading' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const data: SupplyChainStage = {
-    ...DEFAULT_SUPPLYCHAIN_DATA,
-    ...mode.supplyChainData,
-  };
+  const data: SupplyChainStage = useMemo(() => {
+    const raw = { ...DEFAULT_SUPPLYCHAIN_DATA, ...mode.supplyChainData };
+    // Migrar itens com tipo 'insumo' → 'materia_prima'
+    const migrated = raw.itens.some((i: any) => i.tipo === 'insumo');
+    if (migrated) {
+      raw.itens = raw.itens.map((i: any) => i.tipo === 'insumo' ? { ...i, tipo: 'materia_prima' as TipoEstoque } : i);
+      onUpdateSupplyChainData({ itens: raw.itens });
+    }
+    return raw;
+  }, [mode.supplyChainData]);
 
   // Processar resumo
   const resumo = processarSupply(data);
