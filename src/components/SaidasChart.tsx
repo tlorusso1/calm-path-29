@@ -68,7 +68,9 @@ interface WeekData {
 interface ProductMix {
   name: string;
   qty: number;
+  fat: number;
   pct: number;
+  pctFat: number;
 }
 
 export function SaidasChart({ movimentacoes, className }: SaidasChartProps) {
