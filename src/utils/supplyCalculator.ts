@@ -227,6 +227,56 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
     receitaBrutaSupply = calcularReceitaBruta(data.movimentacoes);
   }
   
+  // Calcular forecast
+  let forecast: SupplyForecast | undefined;
+  if (data.movimentacoes && data.movimentacoes.length > 0) {
+    const demandaMap = calcularDemandaSemanalPorItem(data.movimentacoes);
+    const forecastItens: ForecastItem[] = [];
+    let investimentoTotal = 0;
+
+    for (const item of data.itens) {
+      const key = normalizarNomeProduto(item.nome);
+      const saidaSemanal = demandaMap.get(key) ?? item.demandaSemanal ?? 0;
+      if (saidaSemanal <= 0) continue;
+
+      const demandaDiaria = saidaSemanal / 7;
+      const coberturaDias = Math.round(item.quantidade / demandaDiaria);
+      const regra = REGRAS_COBERTURA[item.tipo];
+      const metaDias = regra.ideal;
+      const qtdIdeal = Math.ceil(demandaDiaria * metaDias);
+      const precisaProduzir = Math.max(0, qtdIdeal - item.quantidade);
+
+      const custoUnit = item.custoProducao || item.precoCusto;
+      const investimento = custoUnit && precisaProduzir > 0 ? precisaProduzir * custoUnit : undefined;
+      if (investimento) investimentoTotal += investimento;
+
+      if (precisaProduzir > 0) {
+        forecastItens.push({
+          nome: item.nome,
+          tipo: item.tipo,
+          saidaSemanal,
+          estoqueAtual: item.quantidade,
+          coberturaDias,
+          precisaProduzir,
+          custoProducaoUnit: custoUnit,
+          investimentoNecessario: investimento,
+        });
+      }
+    }
+
+    // Projeção 30 dias baseada na velocidade atual
+    const receitaSemanal = (receitaBrutaSupply ?? 0) / 4; // simplificado
+    const cmvSemanal = (cmvMensal ?? 0) / 4;
+
+    forecast = {
+      receitaProjetada30d: receitaSemanal * 4.3,
+      cmvProjetado30d: cmvSemanal * 4.3,
+      margemProjetada: receitaSemanal > 0 ? ((receitaSemanal - cmvSemanal) / receitaSemanal) * 100 : 0,
+      investimentoProducao: investimentoTotal,
+      itens: forecastItens.sort((a, b) => (b.investimentoNecessario ?? 0) - (a.investimentoNecessario ?? 0)),
+    };
+  }
+
   return {
     statusEstoque: resumo.statusGeral,
     coberturaProdutosDias: resumo.coberturaProdutos,
@@ -236,6 +286,7 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
     scorePilar,
     cmvMensal,
     receitaBrutaSupply,
+    forecast,
   };
 }
 
