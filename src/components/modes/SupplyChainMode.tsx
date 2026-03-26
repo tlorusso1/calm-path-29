@@ -1021,6 +1021,15 @@ export function SupplyChainMode({
               >
                 <Upload className="h-4 w-4 mr-2" /> Importar Planilhas (.xlsx, .csv)
               </Button>
+              {importFeedback.type !== 'idle' && (
+                <p className={cn(
+                  "text-[11px]",
+                  importFeedback.type === 'error' ? "text-destructive" : "text-muted-foreground"
+                )}>
+                  {importFeedback.type === 'loading' ? '⏳ ' : importFeedback.type === 'success' ? '✅ ' : '⚠️ '}
+                  {importFeedback.message}
+                </p>
+              )}
             </TabsContent>
 
             <TabsContent value="movimentacoes" className="space-y-3">
