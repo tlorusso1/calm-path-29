@@ -425,7 +425,7 @@ function parseQuantity(text: string): number {
  */
 function isHeaderRow(cells: string[]): boolean {
   const normalized = cells.map(normalizeHeader);
-  const headerKeywords = ['descricao', 'produto', 'disponivel', 'quantidade', 'codigo', 'cod', 'item', 'gtin', 'sku', 'estoque'];
+  const headerKeywords = ['descricao', 'produto', 'disponivel', 'quantidade', 'codigo', 'cod', 'item', 'gtin', 'sku', 'estoque', 'tipo', 'valorun', 'total'];
   
   // Se mais de 1 célula contém keywords de header, é header
   let headerMatches = 0;
