@@ -906,10 +906,11 @@ export function SupplyChainMode({
         </CardHeader>
         <CardContent>
           <Tabs value={tabAtiva} onValueChange={setTabAtiva}>
-            <TabsList className="grid w-full grid-cols-6 mb-4">
+            <TabsList className="grid w-full grid-cols-7 mb-4">
               <TabsTrigger value="itens" className="text-[11px] px-1">Adicionar</TabsTrigger>
               <TabsTrigger value="colar" className="text-[11px] px-1">Estoques</TabsTrigger>
               <TabsTrigger value="movimentacoes" className="text-[11px] px-1">Mov.</TabsTrigger>
+              <TabsTrigger value="bom" className="text-[11px] px-1">BOM</TabsTrigger>
               <TabsTrigger value="cobertura" className="text-[11px] px-1">Cobertura</TabsTrigger>
               <TabsTrigger value="producao" className="text-[11px] px-1">Produção</TabsTrigger>
               <TabsTrigger value="analise" className="text-[11px] px-1">Análise</TabsTrigger>
