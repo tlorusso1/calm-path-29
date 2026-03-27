@@ -1117,12 +1117,28 @@ export function SupplyChainMode({
                 <ArrowDownUp className="h-4 w-4 mr-2" /> Importar Movimentações
               </Button>
               
-              {data.movimentacoes && data.movimentacoes.length > 0 && (
+              {data.movimentacoes && data.movimentacoes.length > 0 && (() => {
+                const datas = data.movimentacoes!
+                  .map(m => m.data)
+                  .filter(d => d && d !== '')
+                  .sort();
+                const dataMin = datas.length > 0 ? datas[0] : null;
+                const dataMax = datas.length > 0 ? datas[datas.length - 1] : null;
+                const formatDate = (d: string) => {
+                  const parts = d.split('-');
+                  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : d;
+                };
+                return (
                 <div className="space-y-2">
-                  <div className="text-xs text-muted-foreground text-center">
-                    {data.movimentacoes.length} movimentações acumuladas
+                  <div className="text-xs text-muted-foreground text-center space-y-0.5">
+                    <div>{data.movimentacoes!.length} movimentações acumuladas</div>
+                    {dataMin && dataMax && (
+                      <div className="font-medium text-foreground/70">
+                        📅 Período: {formatDate(dataMin)} até {formatDate(dataMax)}
+                      </div>
+                    )}
                     {data.ultimaImportacaoMov && (
-                      <span> • Última: {new Date(data.ultimaImportacaoMov).toLocaleDateString('pt-BR')}</span>
+                      <div>Última importação: {new Date(data.ultimaImportacaoMov).toLocaleDateString('pt-BR')}</div>
                     )}
                   </div>
                   <AlertDialog>
