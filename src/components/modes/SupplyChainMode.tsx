@@ -1179,7 +1179,8 @@ export function SupplyChainMode({
                     </AlertDialogContent>
                   </AlertDialog>
                 </div>
-              )}
+                );
+              })()}
             </TabsContent>
 
             {/* ========== ABA BOM (FICHA TÉCNICA) ========== */}
