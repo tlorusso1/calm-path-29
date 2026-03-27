@@ -45,6 +45,7 @@ import {
 import { cn } from '@/lib/utils';
 import { CoberturaChart } from '@/components/CoberturaChart';
 import { SaidasChart } from '@/components/SaidasChart';
+import { FichaTecnicaBOM } from '@/components/FichaTecnicaBOM';
 import { 
   processarSupply, 
   TIPO_LABELS, 
