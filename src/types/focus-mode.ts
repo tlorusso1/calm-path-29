@@ -585,6 +585,9 @@ export interface SupplyChainStage {
   // V4: Fichas Técnicas (BOM)
   fichasTecnicas?: FichaTecnica[];
   
+  // V4: Datas estimadas de produção (chave = nome normalizado do produto)
+  datasProducao?: Record<string, string>;
+  
   // Checklists legados (manter compatibilidade)
   ritmoAtual: SupplyChainRitmo;
   semanal: {
