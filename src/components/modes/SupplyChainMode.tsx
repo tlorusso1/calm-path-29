@@ -375,9 +375,25 @@ export function SupplyChainMode({
     }
   };
 
+  // Demanda derivada via BOM para insumos/embalagens
+  const demandaBOM = useMemo(() => 
+    calcularDemandaDerivadaBOM(data.itens, data.fichasTecnicas ?? [], data.demandaSemanalMedia),
+    [data.itens, data.fichasTecnicas, data.demandaSemanalMedia]
+  );
+
   // Processar itens com cobertura calculada
   const itensProcessados = data.itens.map(item => {
-    const demanda = item.demandaSemanal ?? data.demandaSemanalMedia;
+    const isInsumo = TIPOS_INSUMO.includes(item.tipo);
+    const keyInsumo = normalizarNomeProduto(item.nome);
+    const demandaDerivada = demandaBOM.get(keyInsumo);
+    
+    let demanda: number;
+    if (isInsumo && demandaDerivada !== undefined && demandaDerivada > 0) {
+      demanda = demandaDerivada;
+    } else {
+      demanda = item.demandaSemanal ?? data.demandaSemanalMedia;
+    }
+    
     let coberturaDias: number | undefined;
     let status: 'verde' | 'amarelo' | 'vermelho' | undefined;
 
