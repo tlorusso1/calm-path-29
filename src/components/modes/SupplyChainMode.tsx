@@ -51,8 +51,10 @@ import {
   TIPO_LABELS, 
   REGRAS_COBERTURA,
   TIPOS_PRODUTO_FINAL,
+  TIPOS_INSUMO,
   calcularDiasAteVencimento,
-  parsearListaEstoque 
+  parsearListaEstoque,
+  calcularDemandaDerivadaBOM,
 } from '@/utils/supplyCalculator';
 import {
   parsearMovimentacoes,
