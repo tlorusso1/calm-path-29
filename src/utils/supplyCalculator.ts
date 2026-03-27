@@ -103,6 +103,41 @@ export function getStatusVencimento(
   return 'verde';
 }
 
+// ============= Demanda Derivada via BOM =============
+
+/**
+ * Calcula a demanda semanal derivada de insumos/embalagens
+ * com base na ficha técnica (BOM) e na demanda dos produtos acabados.
+ * 
+ * Para cada insumo: demandaSemanal = Σ (demandaSemanal do PA × qtd do insumo por un do PA)
+ */
+export function calcularDemandaDerivadaBOM(
+  itens: ItemEstoque[],
+  fichas: FichaTecnica[],
+  demandaGlobal: number
+): Map<string, number> {
+  const demandaDerivada = new Map<string, number>();
+  
+  if (!fichas || fichas.length === 0) return demandaDerivada;
+  
+  for (const ficha of fichas) {
+    // Encontrar o PA correspondente
+    const keyPA = normalizarNomeProduto(ficha.produtoAcabadoNome);
+    const pa = itens.find(i => normalizarNomeProduto(i.nome) === keyPA);
+    const demandaPA = pa?.demandaSemanal ?? demandaGlobal;
+    
+    if (demandaPA <= 0) continue;
+    
+    for (const ing of ficha.ingredientes) {
+      const keyInsumo = normalizarNomeProduto(ing.insumoNome);
+      const atual = demandaDerivada.get(keyInsumo) ?? 0;
+      demandaDerivada.set(keyInsumo, atual + (demandaPA * ing.quantidade));
+    }
+  }
+  
+  return demandaDerivada;
+}
+
 // ============= Processamento de Itens =============
 
 /**
@@ -110,10 +145,19 @@ export function getStatusVencimento(
  */
 export function processarItem(
   item: ItemEstoque,
-  demandaGlobal: number
+  demandaGlobal: number,
+  demandaDerivadaBOM?: number
 ): ItemEstoque {
-  // Usar demanda específica do item ou a global
-  const demanda = item.demandaSemanal ?? demandaGlobal;
+  // Para insumos/embalagens, preferir demanda derivada do BOM
+  const isInsumo = TIPOS_INSUMO.includes(item.tipo);
+  let demanda: number;
+  
+  if (isInsumo && demandaDerivadaBOM !== undefined && demandaDerivadaBOM > 0) {
+    demanda = demandaDerivadaBOM;
+  } else {
+    demanda = item.demandaSemanal ?? demandaGlobal;
+  }
+  
   const coberturaDias = calcularCoberturaDias(item.quantidade, demanda);
   const status = getStatusPorCobertura(coberturaDias, item.tipo);
   
@@ -128,9 +172,13 @@ export function processarItem(
  * Processa todos os itens e calcula o resumo
  */
 export function processarSupply(data: SupplyChainStage): SupplyResumo {
-  const itensProcessados = data.itens.map(item => 
-    processarItem(item, data.demandaSemanalMedia)
-  );
+  const demandaBOM = calcularDemandaDerivadaBOM(data.itens, data.fichasTecnicas ?? [], data.demandaSemanalMedia);
+  
+  const itensProcessados = data.itens.map(item => {
+    const keyInsumo = normalizarNomeProduto(item.nome);
+    const demandaDerivada = demandaBOM.get(keyInsumo);
+    return processarItem(item, data.demandaSemanalMedia, demandaDerivada);
+  });
   
   // Agrupar por tipo
   const porTipo = {
