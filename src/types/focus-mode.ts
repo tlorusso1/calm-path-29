@@ -582,6 +582,9 @@ export interface SupplyChainStage {
   movimentacoes?: MovimentacaoEstoque[];
   ultimaImportacaoMov?: string;
   
+  // V4: Fichas Técnicas (BOM)
+  fichasTecnicas?: FichaTecnica[];
+  
   // Checklists legados (manter compatibilidade)
   ritmoAtual: SupplyChainRitmo;
   semanal: {
