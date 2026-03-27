@@ -45,13 +45,16 @@ import {
 import { cn } from '@/lib/utils';
 import { CoberturaChart } from '@/components/CoberturaChart';
 import { SaidasChart } from '@/components/SaidasChart';
+import { FichaTecnicaBOM } from '@/components/FichaTecnicaBOM';
 import { 
   processarSupply, 
   TIPO_LABELS, 
   REGRAS_COBERTURA,
   TIPOS_PRODUTO_FINAL,
+  TIPOS_INSUMO,
   calcularDiasAteVencimento,
-  parsearListaEstoque 
+  parsearListaEstoque,
+  calcularDemandaDerivadaBOM,
 } from '@/utils/supplyCalculator';
 import {
   parsearMovimentacoes,
@@ -372,9 +375,25 @@ export function SupplyChainMode({
     }
   };
 
+  // Demanda derivada via BOM para insumos/embalagens
+  const demandaBOM = useMemo(() => 
+    calcularDemandaDerivadaBOM(data.itens, data.fichasTecnicas ?? [], data.demandaSemanalMedia),
+    [data.itens, data.fichasTecnicas, data.demandaSemanalMedia]
+  );
+
   // Processar itens com cobertura calculada
   const itensProcessados = data.itens.map(item => {
-    const demanda = item.demandaSemanal ?? data.demandaSemanalMedia;
+    const isInsumo = TIPOS_INSUMO.includes(item.tipo);
+    const keyInsumo = normalizarNomeProduto(item.nome);
+    const demandaDerivada = demandaBOM.get(keyInsumo);
+    
+    let demanda: number;
+    if (isInsumo && demandaDerivada !== undefined && demandaDerivada > 0) {
+      demanda = demandaDerivada;
+    } else {
+      demanda = item.demandaSemanal ?? data.demandaSemanalMedia;
+    }
+    
     let coberturaDias: number | undefined;
     let status: 'verde' | 'amarelo' | 'vermelho' | undefined;
 
@@ -905,10 +924,11 @@ export function SupplyChainMode({
         </CardHeader>
         <CardContent>
           <Tabs value={tabAtiva} onValueChange={setTabAtiva}>
-            <TabsList className="grid w-full grid-cols-6 mb-4">
+            <TabsList className="grid w-full grid-cols-7 mb-4">
               <TabsTrigger value="itens" className="text-[11px] px-1">Adicionar</TabsTrigger>
               <TabsTrigger value="colar" className="text-[11px] px-1">Estoques</TabsTrigger>
               <TabsTrigger value="movimentacoes" className="text-[11px] px-1">Mov.</TabsTrigger>
+              <TabsTrigger value="bom" className="text-[11px] px-1">BOM</TabsTrigger>
               <TabsTrigger value="cobertura" className="text-[11px] px-1">Cobertura</TabsTrigger>
               <TabsTrigger value="producao" className="text-[11px] px-1">Produção</TabsTrigger>
               <TabsTrigger value="analise" className="text-[11px] px-1">Análise</TabsTrigger>
@@ -1144,6 +1164,15 @@ export function SupplyChainMode({
                   </AlertDialog>
                 </div>
               )}
+            </TabsContent>
+
+            {/* ========== ABA BOM (FICHA TÉCNICA) ========== */}
+            <TabsContent value="bom" className="space-y-3">
+              <FichaTecnicaBOM
+                fichasTecnicas={data.fichasTecnicas ?? []}
+                itens={data.itens}
+                onUpdate={(fichas) => onUpdateSupplyChainData({ fichasTecnicas: fichas })}
+              />
             </TabsContent>
 
             {/* ========== ABA COBERTURA ========== */}

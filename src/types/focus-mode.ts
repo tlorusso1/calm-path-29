@@ -555,6 +555,18 @@ export interface SupplyExports {
   forecast?: SupplyForecast;
 }
 
+// ============= Ficha Técnica (BOM) =============
+export interface FichaTecnicaIngrediente {
+  insumoNome: string;
+  quantidade: number;  // Quantidade necessária por unidade produzida
+  unidade: string;     // 'kg', 'un', 'g', 'ml', 'L'
+}
+
+export interface FichaTecnica {
+  produtoAcabadoNome: string;
+  ingredientes: FichaTecnicaIngrediente[];
+}
+
 // Estado do módulo Supply Chain
 export interface SupplyChainStage {
   // V2: Input de Demanda
@@ -569,6 +581,9 @@ export interface SupplyChainStage {
   // V3: Movimentações de estoque
   movimentacoes?: MovimentacaoEstoque[];
   ultimaImportacaoMov?: string;
+  
+  // V4: Fichas Técnicas (BOM)
+  fichasTecnicas?: FichaTecnica[];
   
   // Checklists legados (manter compatibilidade)
   ritmoAtual: SupplyChainRitmo;
