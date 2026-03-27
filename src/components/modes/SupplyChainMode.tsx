@@ -1148,6 +1148,15 @@ export function SupplyChainMode({
               )}
             </TabsContent>
 
+            {/* ========== ABA BOM (FICHA TÉCNICA) ========== */}
+            <TabsContent value="bom" className="space-y-3">
+              <FichaTecnicaBOM
+                fichasTecnicas={data.fichasTecnicas ?? []}
+                itens={data.itens}
+                onUpdate={(fichas) => onUpdateSupplyChainData({ fichasTecnicas: fichas })}
+              />
+            </TabsContent>
+
             {/* ========== ABA COBERTURA ========== */}
             <TabsContent value="cobertura" className="space-y-3">
               {(() => {
