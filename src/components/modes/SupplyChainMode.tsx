@@ -1229,6 +1229,7 @@ export function SupplyChainMode({
                         metaDias,
                         qtdIdeal: null as number | null,
                         precisaProduzir: null as number | null,
+                        demandaDiaria: 0,
                         semDemanda: true,
                       };
                     }
@@ -1243,6 +1244,7 @@ export function SupplyChainMode({
                       metaDias,
                       qtdIdeal,
                       precisaProduzir,
+                      demandaDiaria,
                       semDemanda: false,
                     };
                   })
@@ -1263,26 +1265,92 @@ export function SupplyChainMode({
                 return (
                   <div className="space-y-4">
                     <p className="text-[11px] text-muted-foreground">
-                      Quantidade necessária para atingir a cobertura ideal por tipo de item.
+                      Quantidade necessária para atingir a cobertura ideal. Use a data estimada de produção para simular o estoque futuro.
                     </p>
 
                     {precisam.length > 0 && (
                       <div className="space-y-2">
                         <p className="text-xs font-medium text-destructive">🔴 Precisam produzir ({precisam.length})</p>
-                        {precisam.map((item, idx) => (
-                          <div key={idx} className="p-2 rounded border border-destructive/20 bg-destructive/5 text-xs">
-                            <div className="flex justify-between items-baseline">
-                              <span className="text-foreground font-medium">{item.nome}</span>
-                              <span className="font-bold text-destructive whitespace-nowrap ml-2">
-                                +{item.precisaProduzir} un
-                              </span>
+                        {precisam.map((item, idx) => {
+                          const storageKey = `prod_data_${normalizarNomeProduto(item.nome)}`;
+                          const savedDate = data.datasProducao?.[normalizarNomeProduto(item.nome)] ?? '';
+                          
+                          // Simulação: se tiver data estimada, calcular estoque na data
+                          let simulacao: { estoqueNaData: number; precisaProduzirSimulado: number; diasAteProducao: number } | null = null;
+                          if (savedDate && item.demandaDiaria > 0) {
+                            const hoje = new Date();
+                            hoje.setHours(0, 0, 0, 0);
+                            const dataProducao = new Date(savedDate + 'T00:00:00');
+                            const diasAteProducao = Math.max(0, Math.ceil((dataProducao.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)));
+                            const consumoAteLa = Math.round(item.demandaDiaria * diasAteProducao);
+                            const estoqueNaData = Math.max(0, item.atual - consumoAteLa);
+                            const qtdIdealNaData = Math.ceil(item.demandaDiaria * item.metaDias);
+                            const precisaProduzirSimulado = Math.max(0, qtdIdealNaData - estoqueNaData);
+                            simulacao = { estoqueNaData, precisaProduzirSimulado, diasAteProducao };
+                          }
+
+                          return (
+                            <div key={idx} className="p-2 rounded border border-destructive/20 bg-destructive/5 text-xs space-y-1.5">
+                              <div className="flex justify-between items-baseline">
+                                <span className="text-foreground font-medium">{item.nome}</span>
+                                <span className="font-bold text-destructive whitespace-nowrap ml-2">
+                                  +{simulacao ? simulacao.precisaProduzirSimulado : item.precisaProduzir} un
+                                </span>
+                              </div>
+                              <div className="flex gap-3 text-[10px] text-muted-foreground">
+                                <span>Atual: {item.atual} un ({item.coberturaDias ?? '?'}d)</span>
+                                <span>Meta: {item.qtdIdeal} un ({item.metaDias}d)</span>
+                              </div>
+                              
+                              {/* Simulador de data de produção */}
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">Pronto em:</span>
+                                <input
+                                  type="date"
+                                  className="h-7 text-[11px] bg-background border border-border rounded px-1.5 w-[130px]"
+                                  value={savedDate}
+                                  min={new Date().toISOString().split('T')[0]}
+                                  onChange={(e) => {
+                                    const novasDatas = { ...(data.datasProducao ?? {}), [normalizarNomeProduto(item.nome)]: e.target.value };
+                                    onUpdateSupplyChainData({ datasProducao: novasDatas });
+                                  }}
+                                />
+                                {savedDate && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-muted-foreground"
+                                    onClick={() => {
+                                      const novasDatas = { ...(data.datasProducao ?? {}) };
+                                      delete novasDatas[normalizarNomeProduto(item.nome)];
+                                      onUpdateSupplyChainData({ datasProducao: novasDatas });
+                                    }}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
+                              
+                              {simulacao && (
+                                <div className="bg-muted/50 rounded p-1.5 text-[10px] space-y-0.5">
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Em {simulacao.diasAteProducao}d, estoque será:</span>
+                                    <span className={cn("font-medium", simulacao.estoqueNaData === 0 ? "text-destructive" : "text-foreground")}>
+                                      {simulacao.estoqueNaData} un
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Produzir p/ {item.metaDias}d cobertura:</span>
+                                    <span className="font-bold text-primary">{simulacao.precisaProduzirSimulado} un</span>
+                                  </div>
+                                  {simulacao.estoqueNaData === 0 && (
+                                    <p className="text-destructive font-medium mt-0.5">⚠️ Ruptura antes da produção ficar pronta!</p>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            <div className="flex gap-3 text-[10px] text-muted-foreground mt-0.5">
-                              <span>Atual: {item.atual} un ({item.coberturaDias ?? '?'}d)</span>
-                              <span>Meta: {item.qtdIdeal} un ({item.metaDias}d)</span>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 
