@@ -284,12 +284,22 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
   let forecast: SupplyForecast | undefined;
   if (data.movimentacoes && data.movimentacoes.length > 0) {
     const demandaMap = calcularDemandaSemanalPorItem(data.movimentacoes);
+    const demandaBOM = calcularDemandaDerivadaBOM(data.itens, data.fichasTecnicas ?? [], data.demandaSemanalMedia);
     const forecastItens: ForecastItem[] = [];
     let investimentoTotal = 0;
 
     for (const item of data.itens) {
       const key = normalizarNomeProduto(item.nome);
-      const saidaSemanal = demandaMap.get(key) ?? item.demandaSemanal ?? 0;
+      const isInsumo = TIPOS_INSUMO.includes(item.tipo);
+      
+      // Para insumos, preferir demanda derivada do BOM
+      let saidaSemanal: number;
+      if (isInsumo && demandaBOM.has(key) && (demandaBOM.get(key) ?? 0) > 0) {
+        saidaSemanal = demandaBOM.get(key)!;
+      } else {
+        saidaSemanal = demandaMap.get(key) ?? item.demandaSemanal ?? 0;
+      }
+      
       if (saidaSemanal <= 0) continue;
 
       const demandaDiaria = saidaSemanal / 7;
