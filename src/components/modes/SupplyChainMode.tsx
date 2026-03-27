@@ -1348,23 +1348,35 @@ export function SupplyChainMode({
                                 )}
                               </div>
                               
-                              {simulacao && (
-                                <div className="bg-muted/50 rounded p-1.5 text-[10px] space-y-0.5">
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Em {simulacao.diasAteProducao}d, estoque será:</span>
-                                    <span className={cn("font-medium", simulacao.estoqueNaData === 0 ? "text-destructive" : "text-foreground")}>
-                                      {simulacao.estoqueNaData} un
-                                    </span>
+                              {simulacao && (() => {
+                                const coberturas = [45, 60, 90];
+                                return (
+                                  <div className="bg-muted/50 rounded p-1.5 text-[10px] space-y-0.5">
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Em {simulacao.diasAteProducao}d, estoque será:</span>
+                                      <span className={cn("font-medium", simulacao.estoqueNaData === 0 ? "text-destructive" : "text-foreground")}>
+                                        {simulacao.estoqueNaData} un
+                                      </span>
+                                    </div>
+                                    <div className="border-t border-border/50 my-1 pt-1 space-y-0.5">
+                                      {coberturas.map(dias => {
+                                        const qtd = Math.max(0, Math.ceil(item.demandaDiaria * dias) - simulacao.estoqueNaData);
+                                        return (
+                                          <div key={dias} className="flex justify-between">
+                                            <span className="text-muted-foreground">Produzir p/ {dias}d cobertura:</span>
+                                            <span className={cn("font-medium", dias === item.metaDias ? "font-bold text-primary" : "text-foreground")}>
+                                              {qtd} un
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    {simulacao.estoqueNaData === 0 && (
+                                      <p className="text-destructive font-medium mt-0.5">⚠️ Ruptura antes da produção ficar pronta!</p>
+                                    )}
                                   </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Produzir p/ {item.metaDias}d cobertura:</span>
-                                    <span className="font-bold text-primary">{simulacao.precisaProduzirSimulado} un</span>
-                                  </div>
-                                  {simulacao.estoqueNaData === 0 && (
-                                    <p className="text-destructive font-medium mt-0.5">⚠️ Ruptura antes da produção ficar pronta!</p>
-                                  )}
-                                </div>
-                              )}
+                                );
+                              })()}
                             </div>
                           );
                         })}
