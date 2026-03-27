@@ -303,6 +303,22 @@ export function FinanceiroMode({
     }
   }, [data.faturamentoEsperado30d, onUpdateTimestamp]);
 
+  // Auto-preencher faturamento esperado com forecast supply quando vazio
+  const forecastAutoAppliedRef = useRef(false);
+  useEffect(() => {
+    if (
+      !data.faturamentoEsperado30d &&
+      supplyExports?.forecast?.receitaProjetada30d &&
+      supplyExports.forecast.receitaProjetada30d > 0 &&
+      !forecastAutoAppliedRef.current
+    ) {
+      forecastAutoAppliedRef.current = true;
+      const valor = supplyExports.forecast.receitaProjetada30d
+        .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      onUpdateFinanceiroData({ faturamentoEsperado30d: valor });
+    }
+  }, [supplyExports?.forecast?.receitaProjetada30d, data.faturamentoEsperado30d]);
+
   // Ritmo: Get task status for contextual alerts
   const getCaixaStatus = () => ritmoExpectativa?.tarefasHoje.find(t => t.id === 'caixa')?.status ?? 'ok';
   const getContasHojeStatus = () => ritmoExpectativa?.tarefasHoje.find(t => t.id === 'contas-hoje')?.status ?? 'ok';
@@ -629,6 +645,26 @@ export function FinanceiroMode({
                   className="h-10 text-base pl-10 text-right"
                 />
               </div>
+              {supplyExports?.forecast && supplyExports.forecast.receitaProjetada30d > 0 && (
+                <div className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-1.5">
+                  <span className="text-[10px] text-muted-foreground">
+                    📊 Forecast Supply: <strong>{formatCurrency(supplyExports.forecast.receitaProjetada30d)}</strong>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] px-2 text-primary hover:text-primary"
+                    onClick={() => {
+                      const valor = supplyExports!.forecast!.receitaProjetada30d
+                        .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      onUpdateFinanceiroData({ faturamentoEsperado30d: valor });
+                      toast.success('Faturamento esperado atualizado pelo Forecast Supply');
+                    }}
+                  >
+                    Usar este valor
+                  </Button>
+                </div>
+              )}
             </div>
             
             <div className="grid grid-cols-2 gap-3">
