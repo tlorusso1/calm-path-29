@@ -6,6 +6,7 @@ import {
   SupplyExports,
   SupplyForecast,
   ForecastItem,
+  FichaTecnica,
 } from '@/types/focus-mode';
 import { calcularCMVPorSaidas, calcularReceitaBruta, calcularDemandaSemanalPorItem, normalizarNomeProduto } from '@/utils/movimentacoesParser';
 import { encontrarPrecoCustoPadrao } from '@/data/precos-custo-default';
