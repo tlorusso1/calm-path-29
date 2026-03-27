@@ -629,6 +629,26 @@ export function FinanceiroMode({
                   className="h-10 text-base pl-10 text-right"
                 />
               </div>
+              {supplyExports?.forecast && supplyExports.forecast.receitaProjetada30d > 0 && (
+                <div className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-1.5">
+                  <span className="text-[10px] text-muted-foreground">
+                    📊 Forecast Supply: <strong>{formatCurrency(supplyExports.forecast.receitaProjetada30d)}</strong>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] px-2 text-primary hover:text-primary"
+                    onClick={() => {
+                      const valor = supplyExports!.forecast!.receitaProjetada30d
+                        .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      onUpdateFinanceiroData({ faturamentoEsperado30d: valor });
+                      toast.success('Faturamento esperado atualizado pelo Forecast Supply');
+                    }}
+                  >
+                    Usar este valor
+                  </Button>
+                </div>
+              )}
             </div>
             
             <div className="grid grid-cols-2 gap-3">
