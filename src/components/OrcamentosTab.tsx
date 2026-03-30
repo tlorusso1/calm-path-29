@@ -214,10 +214,23 @@ export function OrcamentosTab({ orcamentos, onUpdateOrcamentos }: OrcamentosTabP
                               </div>
                               {orc.itens.map((item, idx) => (
                                 <div key={idx} className="grid grid-cols-4 gap-1 py-1 border-b border-border/30 items-center">
-                                  <span className="col-span-2 text-xs truncate" title={item.nome}>
-                                    {item.nome}
+                                  <div className="col-span-2 flex items-center gap-1">
+                                    <Input
+                                      value={item.nome}
+                                      onChange={(e) => {
+                                        const updatedOrcs = orcamentos.map(o => {
+                                          if (o.id !== orc.id) return o;
+                                          const newItens = [...o.itens];
+                                          newItens[idx] = { ...newItens[idx], nome: e.target.value };
+                                          return { ...o, itens: newItens };
+                                        });
+                                        onUpdateOrcamentos(updatedOrcs);
+                                      }}
+                                      className="h-6 text-xs border-none shadow-none px-1 focus-visible:ring-1"
+                                      title={item.nome}
+                                    />
                                     {item.quantidade != null && (
-                                      <span className="text-muted-foreground ml-1">
+                                      <span className="text-muted-foreground text-[10px] whitespace-nowrap">
                                         ({item.quantidade}{item.unidade ? ` ${item.unidade}` : ''})
                                       </span>
                                     )}
