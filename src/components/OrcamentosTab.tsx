@@ -408,6 +408,19 @@ export function OrcamentosTab({ orcamentos, onUpdateOrcamentos, produtosAcabados
                                         className="h-5 w-28 text-[10px]"
                                       />
                                     </div>
+                                    <div className="flex items-center gap-1">
+                                      <Label className="text-[9px] text-muted-foreground">Frete:</Label>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={item.frete ?? 0}
+                                        onChange={(e) => handleUpdateItem(orc.id, idx, {
+                                          frete: e.target.value ? parseFloat(e.target.value) : 0,
+                                        })}
+                                        className="h-5 w-20 text-[10px] text-center"
+                                        placeholder="0,00"
+                                      />
+                                    </div>
                                   </div>
                                 ) : null)}
                               </div>
