@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import * as XLSX from 'xlsx';
-import { FocusMode, SupplyChainStage, ItemEstoque, TipoEstoque, MovimentacaoEstoque, DEFAULT_SUPPLYCHAIN_DATA } from '@/types/focus-mode';
+import { FocusMode, SupplyChainStage, ItemEstoque, TipoEstoque, MovimentacaoEstoque, DEFAULT_SUPPLYCHAIN_DATA, Orcamento } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { DatePasteInput } from '@/components/ui/date-paste-input';
@@ -46,6 +46,7 @@ import { cn } from '@/lib/utils';
 import { CoberturaChart } from '@/components/CoberturaChart';
 import { SaidasChart } from '@/components/SaidasChart';
 import { FichaTecnicaBOM } from '@/components/FichaTecnicaBOM';
+import { OrcamentosTab } from '@/components/OrcamentosTab';
 import { 
   processarSupply, 
   TIPO_LABELS, 
@@ -924,14 +925,15 @@ export function SupplyChainMode({
         </CardHeader>
         <CardContent>
           <Tabs value={tabAtiva} onValueChange={setTabAtiva}>
-            <TabsList className="grid w-full grid-cols-7 mb-4">
-              <TabsTrigger value="itens" className="text-[11px] px-1">Adicionar</TabsTrigger>
-              <TabsTrigger value="colar" className="text-[11px] px-1">Estoques</TabsTrigger>
-              <TabsTrigger value="movimentacoes" className="text-[11px] px-1">Mov.</TabsTrigger>
-              <TabsTrigger value="bom" className="text-[11px] px-1">BOM</TabsTrigger>
-              <TabsTrigger value="cobertura" className="text-[11px] px-1">Cobertura</TabsTrigger>
-              <TabsTrigger value="producao" className="text-[11px] px-1">Produção</TabsTrigger>
-              <TabsTrigger value="analise" className="text-[11px] px-1">Análise</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-8 mb-4">
+              <TabsTrigger value="itens" className="text-[10px] px-0.5">Adicionar</TabsTrigger>
+              <TabsTrigger value="colar" className="text-[10px] px-0.5">Estoques</TabsTrigger>
+              <TabsTrigger value="movimentacoes" className="text-[10px] px-0.5">Mov.</TabsTrigger>
+              <TabsTrigger value="bom" className="text-[10px] px-0.5">BOM</TabsTrigger>
+              <TabsTrigger value="cobertura" className="text-[10px] px-0.5">Cobertura</TabsTrigger>
+              <TabsTrigger value="producao" className="text-[10px] px-0.5">Produção</TabsTrigger>
+              <TabsTrigger value="analise" className="text-[10px] px-0.5">Análise</TabsTrigger>
+              <TabsTrigger value="orcamentos" className="text-[10px] px-0.5">Orçam.</TabsTrigger>
             </TabsList>
 
             <TabsContent value="itens" className="space-y-4">
@@ -1516,6 +1518,14 @@ export function SupplyChainMode({
                 );
               })()}
             </TabsContent>
+
+            {/* ========== ABA ORÇAMENTOS ========== */}
+            <TabsContent value="orcamentos" className="space-y-3">
+              <OrcamentosTab
+                orcamentos={data.orcamentos ?? []}
+                onUpdateOrcamentos={(orcamentos) => onUpdateSupplyChainData({ orcamentos })}
+              />
+            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
@@ -1604,11 +1614,22 @@ export function SupplyChainMode({
                           {getStatusIcon(item.status)}
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-sm truncate">{item.nome}</p>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                               <Badge variant="outline" className="text-[10px]">
                                 {TIPO_LABELS[item.tipo]}
                               </Badge>
-                              <span>{item.quantidade} {item.unidade}</span>
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  value={item.quantidade}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    onUpdateItem(item.id, { quantidade: val ? parseFloat(val) : 0 });
+                                  }}
+                                  className="h-6 w-20 text-xs text-center font-medium"
+                                />
+                                <span className="text-[10px]">{item.unidade}</span>
+                              </div>
                               {item.coberturaDias !== undefined && (
                                 <span className="font-medium">• {item.coberturaDias}d</span>
                               )}

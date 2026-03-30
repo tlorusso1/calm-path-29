@@ -567,6 +567,31 @@ export interface FichaTecnica {
   ingredientes: FichaTecnicaIngrediente[];
 }
 
+// ============= Orçamentos =============
+export type OrcamentoTipo = 'embalagem' | 'materia_prima' | 'mao_de_obra';
+
+export interface OrcamentoItem {
+  nome: string;
+  quantidade?: number;
+  unidade?: string;
+  valorUnitario?: number;
+  valorTotal?: number;
+}
+
+export interface Orcamento {
+  id: string;
+  fornecedor: string;
+  tipo: OrcamentoTipo;
+  dataOrcamento?: string;        // ISO date
+  prazoEntrega?: string;         // Ex: "15 dias úteis"
+  condicaoPagamento?: string;    // Ex: "30/60/90"
+  itens: OrcamentoItem[];
+  valorTotal?: number;
+  confianca?: number;            // 0-1
+  createdAt: string;             // ISO datetime
+  anexoPath?: string;            // path no storage
+}
+
 // Estado do módulo Supply Chain
 export interface SupplyChainStage {
   // V2: Input de Demanda
@@ -587,6 +612,9 @@ export interface SupplyChainStage {
   
   // V4: Datas estimadas de produção (chave = nome normalizado do produto)
   datasProducao?: Record<string, string>;
+  
+  // V5: Orçamentos
+  orcamentos?: Orcamento[];
   
   // Checklists legados (manter compatibilidade)
   ritmoAtual: SupplyChainRitmo;
