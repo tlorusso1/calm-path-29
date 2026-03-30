@@ -613,6 +613,9 @@ export interface SupplyChainStage {
   // V4: Datas estimadas de produção (chave = nome normalizado do produto)
   datasProducao?: Record<string, string>;
   
+  // V5: Orçamentos
+  orcamentos?: Orcamento[];
+  
   // Checklists legados (manter compatibilidade)
   ritmoAtual: SupplyChainRitmo;
   semanal: {
