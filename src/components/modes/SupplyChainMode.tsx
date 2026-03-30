@@ -1604,11 +1604,22 @@ export function SupplyChainMode({
                           {getStatusIcon(item.status)}
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-sm truncate">{item.nome}</p>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                               <Badge variant="outline" className="text-[10px]">
                                 {TIPO_LABELS[item.tipo]}
                               </Badge>
-                              <span>{item.quantidade} {item.unidade}</span>
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="number"
+                                  value={item.quantidade}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    onUpdateItem(item.id, { quantidade: val ? parseFloat(val) : 0 });
+                                  }}
+                                  className="h-6 w-20 text-xs text-center font-medium"
+                                />
+                                <span className="text-[10px]">{item.unidade}</span>
+                              </div>
                               {item.coberturaDias !== undefined && (
                                 <span className="font-medium">• {item.coberturaDias}d</span>
                               )}
