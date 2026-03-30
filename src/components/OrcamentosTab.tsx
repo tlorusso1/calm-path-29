@@ -24,7 +24,7 @@ interface OrcamentosTabProps {
   produtosAcabados?: string[];
 }
 
-export function OrcamentosTab({ orcamentos, onUpdateOrcamentos }: OrcamentosTabProps) {
+export function OrcamentosTab({ orcamentos, onUpdateOrcamentos, produtosAcabados = [] }: OrcamentosTabProps) {
   const [uploading, setUploading] = useState(false);
   const [tipoSelecionado, setTipoSelecionado] = useState<OrcamentoTipo>('materia_prima');
   const fileInputRef = useRef<HTMLInputElement>(null);
