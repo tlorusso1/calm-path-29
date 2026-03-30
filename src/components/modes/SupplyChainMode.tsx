@@ -924,14 +924,15 @@ export function SupplyChainMode({
         </CardHeader>
         <CardContent>
           <Tabs value={tabAtiva} onValueChange={setTabAtiva}>
-            <TabsList className="grid w-full grid-cols-7 mb-4">
-              <TabsTrigger value="itens" className="text-[11px] px-1">Adicionar</TabsTrigger>
-              <TabsTrigger value="colar" className="text-[11px] px-1">Estoques</TabsTrigger>
-              <TabsTrigger value="movimentacoes" className="text-[11px] px-1">Mov.</TabsTrigger>
-              <TabsTrigger value="bom" className="text-[11px] px-1">BOM</TabsTrigger>
-              <TabsTrigger value="cobertura" className="text-[11px] px-1">Cobertura</TabsTrigger>
-              <TabsTrigger value="producao" className="text-[11px] px-1">Produção</TabsTrigger>
-              <TabsTrigger value="analise" className="text-[11px] px-1">Análise</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-8 mb-4">
+              <TabsTrigger value="itens" className="text-[10px] px-0.5">Adicionar</TabsTrigger>
+              <TabsTrigger value="colar" className="text-[10px] px-0.5">Estoques</TabsTrigger>
+              <TabsTrigger value="movimentacoes" className="text-[10px] px-0.5">Mov.</TabsTrigger>
+              <TabsTrigger value="bom" className="text-[10px] px-0.5">BOM</TabsTrigger>
+              <TabsTrigger value="cobertura" className="text-[10px] px-0.5">Cobertura</TabsTrigger>
+              <TabsTrigger value="producao" className="text-[10px] px-0.5">Produção</TabsTrigger>
+              <TabsTrigger value="analise" className="text-[10px] px-0.5">Análise</TabsTrigger>
+              <TabsTrigger value="orcamentos" className="text-[10px] px-0.5">Orçam.</TabsTrigger>
             </TabsList>
 
             <TabsContent value="itens" className="space-y-4">
