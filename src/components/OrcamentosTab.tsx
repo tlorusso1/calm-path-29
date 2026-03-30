@@ -234,7 +234,7 @@ export function OrcamentosTab({ orcamentos, onUpdateOrcamentos }: OrcamentosTabP
                                         ({item.quantidade}{item.unidade ? ` ${item.unidade}` : ''})
                                       </span>
                                     )}
-                                  </span>
+                                  </div>
                                   <span className="text-right text-xs">
                                     {item.valorUnitario != null ? formatCurrency(item.valorUnitario) : '—'}
                                   </span>
