@@ -576,6 +576,10 @@ export interface OrcamentoItem {
   unidade?: string;
   valorUnitario?: number;
   valorTotal?: number;
+  comprado?: boolean;           // marcado como comprado
+  qtdComprada?: number;         // quantidade efetivamente comprada
+  valorUnitarioReal?: number;   // valor unitário efetivamente pago
+  dataCompra?: string;          // ISO date da compra
 }
 
 export interface Orcamento {
