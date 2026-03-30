@@ -1518,6 +1518,14 @@ export function SupplyChainMode({
                 );
               })()}
             </TabsContent>
+
+            {/* ========== ABA ORÇAMENTOS ========== */}
+            <TabsContent value="orcamentos" className="space-y-3">
+              <OrcamentosTab
+                orcamentos={data.orcamentos ?? []}
+                onUpdateOrcamentos={(orcamentos) => onUpdateSupplyChainData({ orcamentos })}
+              />
+            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
