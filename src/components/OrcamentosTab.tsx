@@ -211,7 +211,7 @@ export function OrcamentosTab({ orcamentos, onUpdateOrcamentos, produtosAcabados
                             </Select>
                           </div>
 
-                            {orc.dataOrcamento && (
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
                               <span>📅 {new Date(orc.dataOrcamento + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
                             )}
                             {orc.prazoEntrega && <span>🚚 {orc.prazoEntrega}</span>}
