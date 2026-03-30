@@ -21,9 +21,10 @@ const TIPO_ORCAMENTO_LABELS: Record<OrcamentoTipo, string> = {
 interface OrcamentosTabProps {
   orcamentos: Orcamento[];
   onUpdateOrcamentos: (orcamentos: Orcamento[]) => void;
+  produtosAcabados?: string[];
 }
 
-export function OrcamentosTab({ orcamentos, onUpdateOrcamentos }: OrcamentosTabProps) {
+export function OrcamentosTab({ orcamentos, onUpdateOrcamentos, produtosAcabados = [] }: OrcamentosTabProps) {
   const [uploading, setUploading] = useState(false);
   const [tipoSelecionado, setTipoSelecionado] = useState<OrcamentoTipo>('materia_prima');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +185,30 @@ export function OrcamentosTab({ orcamentos, onUpdateOrcamentos }: OrcamentosTabP
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
+                          </div>
+
+                          {/* Produto vinculado */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">🏷️ Produto:</span>
+                            <Select
+                              value={orc.produtoVinculado || '_none'}
+                              onValueChange={(v) => {
+                                const updated = orcamentos.map(o =>
+                                  o.id === orc.id ? { ...o, produtoVinculado: v === '_none' ? undefined : v } : o
+                                );
+                                onUpdateOrcamentos(updated);
+                              }}
+                            >
+                              <SelectTrigger className="h-6 text-[10px] flex-1 max-w-xs">
+                                <SelectValue placeholder="Selecionar produto acabado..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none">Nenhum (geral)</SelectItem>
+                                {produtosAcabados.map(nome => (
+                                  <SelectItem key={nome} value={nome}>{nome}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
 
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">

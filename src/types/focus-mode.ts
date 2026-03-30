@@ -590,6 +590,7 @@ export interface Orcamento {
   confianca?: number;            // 0-1
   createdAt: string;             // ISO datetime
   anexoPath?: string;            // path no storage
+  produtoVinculado?: string;     // nome do produto acabado vinculado
 }
 
 // Estado do módulo Supply Chain
