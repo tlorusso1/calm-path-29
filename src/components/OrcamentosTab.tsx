@@ -21,6 +21,7 @@ const TIPO_ORCAMENTO_LABELS: Record<OrcamentoTipo, string> = {
 interface OrcamentosTabProps {
   orcamentos: Orcamento[];
   onUpdateOrcamentos: (orcamentos: Orcamento[]) => void;
+  produtosAcabados?: string[];
 }
 
 export function OrcamentosTab({ orcamentos, onUpdateOrcamentos }: OrcamentosTabProps) {

@@ -1524,6 +1524,7 @@ export function SupplyChainMode({
               <OrcamentosTab
                 orcamentos={data.orcamentos ?? []}
                 onUpdateOrcamentos={(orcamentos) => onUpdateSupplyChainData({ orcamentos })}
+                produtosAcabados={(data.itensEstoque ?? []).filter(i => i.tipo === 'produto_acabado').map(i => i.nome)}
               />
             </TabsContent>
           </Tabs>
