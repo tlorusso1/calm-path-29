@@ -303,21 +303,25 @@ export function FinanceiroMode({
     }
   }, [data.faturamentoEsperado30d, onUpdateTimestamp]);
 
-  // Auto-preencher faturamento esperado com forecast supply quando vazio
+  // Auto-sincronizar faturamento esperado com forecast supply diariamente
   const forecastAutoAppliedRef = useRef(false);
   useEffect(() => {
     if (
-      !data.faturamentoEsperado30d &&
       supplyExports?.forecast?.receitaProjetada30d &&
       supplyExports.forecast.receitaProjetada30d > 0 &&
       !forecastAutoAppliedRef.current
     ) {
-      forecastAutoAppliedRef.current = true;
-      const valor = supplyExports.forecast.receitaProjetada30d
-        .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      onUpdateFinanceiroData({ faturamentoEsperado30d: valor });
+      const hoje = new Date().toISOString().split('T')[0];
+      const jaSincronizouHoje = data.forecastSyncDate === hoje;
+      
+      if (!jaSincronizouHoje) {
+        forecastAutoAppliedRef.current = true;
+        const valor = supplyExports.forecast.receitaProjetada30d
+          .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        onUpdateFinanceiroData({ faturamentoEsperado30d: valor, forecastSyncDate: hoje });
+      }
     }
-  }, [supplyExports?.forecast?.receitaProjetada30d, data.faturamentoEsperado30d]);
+  }, [supplyExports?.forecast?.receitaProjetada30d, data.forecastSyncDate]);
 
   // Ritmo: Get task status for contextual alerts
   const getCaixaStatus = () => ritmoExpectativa?.tarefasHoje.find(t => t.id === 'caixa')?.status ?? 'ok';

@@ -163,6 +163,7 @@ export interface FinanceiroStage {
   
   // NOVO: Faturamento Esperado próximos 30 dias (cenário conservador)
   faturamentoEsperado30d: string;
+  forecastSyncDate?: string; // data (YYYY-MM-DD) da última sincronização automática
   
   // NOVO: Contas Bancárias Detalhadas
   contas?: FinanceiroContas;
