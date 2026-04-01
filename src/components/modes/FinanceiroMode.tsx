@@ -297,8 +297,28 @@ export function FinanceiroMode({
         }
         return c;
       });
-      onUpdateFinanceiroData({ contasFluxo: contasAtualizadas });
-      toast.success(`${contasParaDarBaixa.length} conta(s) agendada(s) marcada(s) como paga(s)`);
+      
+      // Calcular impacto no caixa
+      const caixaAtualNum = parseCurrency(data.caixaAtual || '');
+      let totalSaidas = 0;
+      let totalEntradas = 0;
+      contasParaDarBaixa.forEach(c => {
+        const v = parseCurrency(c.valor);
+        if (c.tipo === 'receber') totalEntradas += v;
+        else if (c.tipo === 'pagar' || c.tipo === 'cartao') totalSaidas += v;
+      });
+      
+      const updates: Partial<FinanceiroStage> = { contasFluxo: contasAtualizadas };
+      
+      if (caixaAtualNum > 0 && (totalSaidas > 0 || totalEntradas > 0)) {
+        const novoCaixa = caixaAtualNum - totalSaidas + totalEntradas;
+        updates.caixaAtual = novoCaixa.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+      
+      onUpdateFinanceiroData(updates);
+      
+      const valorTotal = totalSaidas + totalEntradas;
+      toast.success(`${contasParaDarBaixa.length} conta(s) paga(s) — R$ ${formatCurrency(valorTotal)} · Caixa atualizado`);
     }
   }, [data.contasFluxo, onUpdateFinanceiroData]);
 
