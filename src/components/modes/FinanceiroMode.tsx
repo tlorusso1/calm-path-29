@@ -236,11 +236,36 @@ export function FinanceiroMode({
   };
   
   const handleTogglePago = (id: string) => {
-    onUpdateFinanceiroData({
+    const conta = (data.contasFluxo || []).find(c => c.id === id);
+    if (!conta) return;
+    
+    const estaMarcandoPago = !conta.pago;
+    const valorConta = parseCurrency(conta.valor);
+    const caixaAtualNum = parseCurrency(data.caixaAtual || '');
+    
+    const updates: Partial<FinanceiroStage> = {
       contasFluxo: (data.contasFluxo || []).map(c => 
         c.id === id ? { ...c, pago: !c.pago } : c
       ),
-    });
+    };
+    
+    // Atualizar caixa automaticamente
+    if (estaMarcandoPago && valorConta > 0 && caixaAtualNum > 0) {
+      let novoCaixa: number;
+      if (conta.tipo === 'receber') {
+        novoCaixa = caixaAtualNum + valorConta;
+      } else if (conta.tipo === 'pagar' || conta.tipo === 'cartao') {
+        novoCaixa = caixaAtualNum - valorConta;
+      } else {
+        novoCaixa = caixaAtualNum;
+      }
+      updates.caixaAtual = novoCaixa.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      
+      const sinal = conta.tipo === 'receber' ? '+' : '-';
+      toast.success(`Conta paga: ${sinal} R$ ${formatCurrency(valorConta)} → Caixa atualizado`);
+    }
+    
+    onUpdateFinanceiroData(updates);
     flushSave?.();
   };
   
