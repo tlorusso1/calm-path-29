@@ -517,6 +517,7 @@ export function ConciliacaoSection({
             fornecedorId: fornecedorIdMapeado,
             categoria: fornecedorMapeado?.categoria,
             conciliado: true,
+            contaOrigem: contaOrigem || undefined,
           });
         } else {
           // Para receitas sem match, tentar auto-atribuir por origem bancária
@@ -536,6 +537,7 @@ export function ConciliacaoSection({
               fornecedorId: autoReceita.fornecedorId,
               categoria: autoReceita.categoria,
               conciliado: true,
+              contaOrigem: contaOrigem || undefined,
             });
           } else {
             const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
@@ -551,6 +553,7 @@ export function ConciliacaoSection({
                 fornecedorId: fornecedorMatch.id,
                 categoria: fornecedorMatch.categoria,
                 conciliado: true,
+                contaOrigem: contaOrigem || undefined,
               });
             } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
               paraRevisar.push({
@@ -566,6 +569,7 @@ export function ConciliacaoSection({
                 dataVencimento: lanc.dataVencimento,
                 pago: true,
                 conciliado: true,
+                contaOrigem: contaOrigem || undefined,
               });
             }
           }
