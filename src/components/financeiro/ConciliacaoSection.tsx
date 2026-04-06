@@ -450,7 +450,30 @@ export function ConciliacaoSection({
         }
         
         // 1b. Match exato com contas JÁ BAIXADAS: detecta duplicidade
-        const matchJaBaixado = encontrarMatch(lanc, contasPagas, false);
+        // Reforçado: valor ± R$0.01 E (data ± 2 dias OU descrição normalizada similar ≥50%)
+        const matchJaBaixado = contasPagas.find(conta => {
+          if (!conta.pago) return false;
+          const tiposSaida: string[] = ['pagar', 'cartao'];
+          const lancEhSaida = tiposSaida.includes(lanc.tipo);
+          const contaEhSaida = tiposSaida.includes(conta.tipo);
+          if (lancEhSaida && !contaEhSaida) return false;
+          if (!lancEhSaida && conta.tipo !== lanc.tipo) return false;
+          
+          const valorLanc = parseValorFlexivel(lanc.valor);
+          const valorConta = parseValorFlexivel(conta.valor);
+          if (Math.abs(valorLanc - valorConta) > 0.01) return false;
+          
+          let dataLanc: Date, dataConta: Date;
+          try { dataLanc = parseISO(lanc.dataVencimento); dataConta = parseISO(conta.dataVencimento); } catch { return false; }
+          const diffDias = Math.abs(differenceInDays(dataLanc, dataConta));
+          
+          // Data ± 2 dias = duplicata (mais restritivo)
+          if (diffDias <= 2) return true;
+          // Data ± 5 dias + descrição similar = duplicata
+          if (diffDias <= 5 && calcularSimilaridade(lanc.descricao, conta.descricao) >= 0.5) return true;
+          
+          return false;
+        }) || null;
         if (matchJaBaixado) {
           // Lançamento já foi baixado anteriormente — ignorar e logar
           ignorados++;
