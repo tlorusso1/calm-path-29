@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronDown, ChevronUp, FileSpreadsheet, Loader2, CheckCircle2, Link2, AlertCircle, Plus, Calendar, Building2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileSpreadsheet, Loader2, CheckCircle2, Link2, AlertCircle, Plus, Calendar, Building2, Upload } from 'lucide-react';
 import { ContaFluxo, ContaFluxoTipo, ContaFluxoSubtipo, ContaFluxoNatureza, Fornecedor, MapeamentoDescricaoFornecedor, extrairPadraoDescricao, encontrarMapeamento, MODALIDADES_CAPITAL_GIRO, CONTAS_BANCARIAS_OPCOES } from '@/types/focus-mode';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -281,6 +281,7 @@ export function ConciliacaoSection({
   const [showReviewPanel, setShowReviewPanel] = useState(false);
   const [showDuplicatasLog, setShowDuplicatasLog] = useState(false);
   const [contaOrigem, setContaOrigem] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Progress para lotes
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
@@ -357,7 +358,246 @@ export function ConciliacaoSection({
     }
   };
 
-  const handleProcessar = async () => {
+  // Detectar mês/ano automaticamente a partir do conteúdo do extrato
+  const detectarMesAno = (conteudo: string, nomeArquivo: string): { mes: number; ano: number } | null => {
+    // Tentar pelo nome do arquivo (ex: extrato_03_2026.csv, extrato-marco-2026.txt)
+    const regexNomeArquivo = /(\d{1,2})[_\-](\d{4})/;
+    const matchNome = nomeArquivo.match(regexNomeArquivo);
+    if (matchNome) {
+      const mes = parseInt(matchNome[1]);
+      const ano = parseInt(matchNome[2]);
+      if (mes >= 1 && mes <= 12 && ano >= 2020 && ano <= 2030) return { mes, ano };
+    }
+
+    // Tentar pelas datas no conteúdo — procurar padrão DD/MM/YYYY ou YYYY-MM-DD
+    const datas: { mes: number; ano: number }[] = [];
+    const regexDDMMYYYY = /(\d{2})\/(\d{2})\/(\d{4})/g;
+    let m;
+    while ((m = regexDDMMYYYY.exec(conteudo)) !== null) {
+      const mes = parseInt(m[2]);
+      const ano = parseInt(m[3]);
+      if (mes >= 1 && mes <= 12) datas.push({ mes, ano });
+    }
+    const regexISO = /(\d{4})-(\d{2})-(\d{2})/g;
+    while ((m = regexISO.exec(conteudo)) !== null) {
+      const mes = parseInt(m[2]);
+      const ano = parseInt(m[1]);
+      if (mes >= 1 && mes <= 12) datas.push({ mes, ano });
+    }
+
+    if (datas.length > 0) {
+      // Pegar o mês mais frequente
+      const freq = new Map<string, number>();
+      for (const d of datas) {
+        const key = `${d.mes}-${d.ano}`;
+        freq.set(key, (freq.get(key) || 0) + 1);
+      }
+      let maxKey = '';
+      let maxCount = 0;
+      for (const [key, count] of freq) {
+        if (count > maxCount) { maxCount = count; maxKey = key; }
+      }
+      const [mesStr, anoStr] = maxKey.split('-');
+      return { mes: parseInt(mesStr), ano: parseInt(anoStr) };
+    }
+
+    return null;
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const validFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const ext = file.name.toLowerCase().split('.').pop();
+      if (ext === 'txt' || ext === 'csv') {
+        validFiles.push(file);
+      } else {
+        toast.error(`Arquivo "${file.name}" ignorado — apenas TXT e CSV.`);
+      }
+    }
+
+    if (validFiles.length === 0) return;
+
+    // Ler todos os arquivos
+    const conteudos: { texto: string; mesAno: string; nome: string }[] = [];
+    for (const file of validFiles) {
+      const text = await file.text();
+      const detected = detectarMesAno(text, file.name);
+      const mesAno = detected 
+        ? `${detected.mes}/${detected.ano}` 
+        : `${mesExtrato}/${anoExtrato}`;
+      
+      if (detected) {
+        toast.info(`📅 ${file.name}: mês detectado automaticamente → ${detected.mes}/${detected.ano}`);
+      }
+      
+      conteudos.push({ texto: text, mesAno, nome: file.name });
+    }
+
+    // Processar cada arquivo sequencialmente
+    setIsProcessing(true);
+    setLastResult(null);
+    setDuplicatasLog([]);
+    setShowDuplicatasLog(false);
+    setLancamentosParaRevisar([]);
+    setShowReviewPanel(false);
+
+    let totalConciliados = 0;
+    let totalNovos = 0;
+    let totalIgnorados = 0;
+    let totalDuplicatas = 0;
+
+    for (let fileIdx = 0; fileIdx < conteudos.length; fileIdx++) {
+      const { texto: textoArq, mesAno, nome } = conteudos[fileIdx];
+      toast.info(`📂 Processando ${nome} (${fileIdx + 1}/${conteudos.length})...`);
+
+      const linhas = textoArq.split('\n').filter((l: string) => l.trim());
+      const lotes: string[] = [];
+      for (let i = 0; i < linhas.length; i += BATCH_SIZE) {
+        lotes.push(linhas.slice(i, i + BATCH_SIZE).join('\n'));
+      }
+
+      let todosLancamentos: ExtractedLancamento[] = [];
+      for (let i = 0; i < lotes.length; i++) {
+        setBatchProgress({ current: i + 1, total: lotes.length });
+        try {
+          const lancamentosLote = await processarLote(lotes[i], mesAno);
+          todosLancamentos = [...todosLancamentos, ...lancamentosLote];
+          if (i < lotes.length - 1) await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (err: any) {
+          console.error(`Erro no lote ${i + 1} de ${nome}:`, err);
+          toast.error(`Erro em ${nome} lote ${i + 1}`);
+          break;
+        }
+      }
+
+      if (todosLancamentos.length > 0) {
+        // Reusar a lógica de processamento — chamar handleProcessar internamente
+        // Para simplificar, setamos o texto e mesAno e chamamos o processamento
+        const result = processarLancamentos(todosLancamentos);
+        totalConciliados += result.conciliados;
+        totalNovos += result.novos;
+        totalIgnorados += result.ignorados;
+        totalDuplicatas += result.duplicatasIgnoradas;
+      }
+    }
+
+    setBatchProgress(null);
+    setIsProcessing(false);
+    setLastResult({ conciliados: totalConciliados, novos: totalNovos, ignorados: totalIgnorados, duplicatasIgnoradas: totalDuplicatas });
+    toast.success(`✅ ${conteudos.length} arquivo(s): ${totalNovos} novos, ${totalConciliados} conciliados, ${totalIgnorados} ignorados`);
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Função reutilizável para processar lançamentos extraídos
+  const processarLancamentos = (todosLancamentos: ExtractedLancamento[]): { conciliados: number; novos: number; ignorados: number; duplicatasIgnoradas: number } => {
+    const contasNaoPagas = contasExistentes.filter(c => !c.pago);
+    const conciliados: { id: string; descricao: string; dataPagamento?: string; lancamentoConciliadoId?: string }[] = [];
+    const novos: Omit<ContaFluxo, 'id'>[] = [];
+    const paraRevisar: ExtractedLancamento[] = [];
+    let ignorados = 0;
+    let duplicatasIgnoradas = 0;
+    const duplicatasLogLocal: { descricao: string; valor: string; data: string; matchDescricao: string }[] = [];
+    const contasPagas = contasExistentes.filter(c => c.pago);
+
+    for (const lanc of todosLancamentos) {
+      const match = encontrarMatch(lanc, contasNaoPagas);
+      if (match) {
+        conciliados.push({ id: match.id, descricao: lanc.descricao, dataPagamento: lanc.dataVencimento, lancamentoConciliadoId: match.id });
+        const idx = contasNaoPagas.findIndex(c => c.id === match.id);
+        if (idx >= 0) contasNaoPagas.splice(idx, 1);
+        continue;
+      }
+
+      const matchJaBaixado = contasPagas.find(conta => {
+        if (!conta.pago) return false;
+        const tiposSaida: string[] = ['pagar', 'cartao'];
+        const lancEhSaida = tiposSaida.includes(lanc.tipo);
+        const contaEhSaida = tiposSaida.includes(conta.tipo);
+        if (lancEhSaida && !contaEhSaida) return false;
+        if (!lancEhSaida && conta.tipo !== lanc.tipo) return false;
+        const valorLanc = parseValorFlexivel(lanc.valor);
+        const valorConta = parseValorFlexivel(conta.valor);
+        if (Math.abs(valorLanc - valorConta) > 0.01) return false;
+        let dataLanc: Date, dataConta: Date;
+        try { dataLanc = parseISO(lanc.dataVencimento); dataConta = parseISO(conta.dataVencimento); } catch { return false; }
+        const diffDias = Math.abs(differenceInDays(dataLanc, dataConta));
+        if (diffDias <= 2) return true;
+        if (diffDias <= 5 && calcularSimilaridade(lanc.descricao, conta.descricao) >= 0.5) return true;
+        return false;
+      }) || null;
+      if (matchJaBaixado) {
+        ignorados++; duplicatasIgnoradas++;
+        duplicatasLogLocal.push({ descricao: lanc.descricao, valor: lanc.valor, data: lanc.dataVencimento, matchDescricao: matchJaBaixado.descricao });
+        continue;
+      }
+
+      const matchCanal = encontrarMatchPorCanal(lanc, contasNaoPagas);
+      if (matchCanal) {
+        conciliados.push({ id: matchCanal.id, descricao: `${lanc.descricao} (canal: ${matchCanal.descricao})`, dataPagamento: lanc.dataVencimento, lancamentoConciliadoId: matchCanal.id });
+        const idx = contasNaoPagas.findIndex(c => c.id === matchCanal.id);
+        if (idx >= 0) contasNaoPagas.splice(idx, 1);
+        continue;
+      }
+
+      const matchDesc = encontrarMatchPorDescricao(lanc, contasNaoPagas);
+      if (matchDesc) {
+        conciliados.push({ id: matchDesc.id, descricao: `${lanc.descricao} (≈ ${matchDesc.descricao})`, dataPagamento: lanc.dataVencimento, lancamentoConciliadoId: matchDesc.id });
+        const idx = contasNaoPagas.findIndex(c => c.id === matchDesc.id);
+        if (idx >= 0) contasNaoPagas.splice(idx, 1);
+        continue;
+      }
+
+      const matchProj = encontrarMatchProjecao(lanc, contasNaoPagas);
+      if (matchProj) {
+        conciliados.push({ id: matchProj.id, descricao: `${lanc.descricao} (proj: ${matchProj.descricao})` });
+        const idx = contasNaoPagas.findIndex(c => c.id === matchProj.id);
+        if (idx >= 0) contasNaoPagas.splice(idx, 1);
+        continue;
+      }
+
+      const fornecedorIdMapeado = encontrarMapeamento(lanc.descricao, mapeamentos);
+      if (fornecedorIdMapeado) {
+        const fornecedorMapeado = fornecedores.find(f => f.id === fornecedorIdMapeado);
+        novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, fornecedorId: fornecedorIdMapeado, categoria: fornecedorMapeado?.categoria, conciliado: true, contaOrigem: contaOrigem || undefined });
+      } else {
+        const autoReceita = lanc.tipo === 'receber' ? autoAtribuirFornecedorReceita(lanc.descricao, fornecedores) : null;
+        if (autoReceita) {
+          novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, fornecedorId: autoReceita.fornecedorId, categoria: autoReceita.categoria, conciliado: true, contaOrigem: contaOrigem || undefined });
+        } else {
+          const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
+          if (fornecedorMatch) {
+            novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, fornecedorId: fornecedorMatch.id, categoria: fornecedorMatch.categoria, conciliado: true, contaOrigem: contaOrigem || undefined });
+          } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
+            paraRevisar.push({ ...lanc, needsReview: true });
+          } else {
+            novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, conciliado: true, contaOrigem: contaOrigem || undefined });
+          }
+        }
+      }
+    }
+
+    if (paraRevisar.length > 0) {
+      setLancamentosParaRevisar(prev => [...prev, ...paraRevisar]);
+      setShowReviewPanel(true);
+    }
+
+    onConciliar({ conciliados, novos, ignorados, paraRevisar });
+
+    if (duplicatasLogLocal.length > 0) {
+      setDuplicatasLog(prev => [...prev, ...duplicatasLogLocal]);
+      setShowDuplicatasLog(true);
+    }
+
+    return { conciliados: conciliados.length, novos: novos.length, ignorados, duplicatasIgnoradas };
+  };
+
+
     if (!texto.trim()) {
       toast.error('Cole o extrato bancário no campo de texto.');
       return;
@@ -422,224 +662,25 @@ export function ConciliacaoSection({
         return;
       }
 
-      // Processar cada lançamento - tentar match
-      const contasNaoPagas = contasExistentes.filter(c => !c.pago);
-      const conciliados: { id: string; descricao: string; dataPagamento?: string; lancamentoConciliadoId?: string }[] = [];
-      const novos: Omit<ContaFluxo, 'id'>[] = [];
-      const paraRevisar: ExtractedLancamento[] = [];
-      let ignorados = 0;
-      let duplicatasIgnoradas = 0;
-      const duplicatasLogLocal: { descricao: string; valor: string; data: string; matchDescricao: string }[] = [];
-
-      const contasPagas = contasExistentes.filter(c => c.pago);
-
-      for (const lanc of todosLancamentos) {
-        // 1. Match exato: valor ± R$0.01 E data ± 5 dias (contas ainda em aberto)
-        const match = encontrarMatch(lanc, contasNaoPagas);
-        
-        if (match) {
-          conciliados.push({ 
-            id: match.id, 
-            descricao: lanc.descricao, 
-            dataPagamento: lanc.dataVencimento,
-            lancamentoConciliadoId: match.id,
-          });
-          const idx = contasNaoPagas.findIndex(c => c.id === match.id);
-          if (idx >= 0) contasNaoPagas.splice(idx, 1);
-          continue;
-        }
-        
-        // 1b. Match exato com contas JÁ BAIXADAS: detecta duplicidade
-        // Reforçado: valor ± R$0.01 E (data ± 2 dias OU descrição normalizada similar ≥50%)
-        const matchJaBaixado = contasPagas.find(conta => {
-          if (!conta.pago) return false;
-          const tiposSaida: string[] = ['pagar', 'cartao'];
-          const lancEhSaida = tiposSaida.includes(lanc.tipo);
-          const contaEhSaida = tiposSaida.includes(conta.tipo);
-          if (lancEhSaida && !contaEhSaida) return false;
-          if (!lancEhSaida && conta.tipo !== lanc.tipo) return false;
-          
-          const valorLanc = parseValorFlexivel(lanc.valor);
-          const valorConta = parseValorFlexivel(conta.valor);
-          if (Math.abs(valorLanc - valorConta) > 0.01) return false;
-          
-          let dataLanc: Date, dataConta: Date;
-          try { dataLanc = parseISO(lanc.dataVencimento); dataConta = parseISO(conta.dataVencimento); } catch { return false; }
-          const diffDias = Math.abs(differenceInDays(dataLanc, dataConta));
-          
-          // Data ± 2 dias = duplicata (mais restritivo)
-          if (diffDias <= 2) return true;
-          // Data ± 5 dias + descrição similar = duplicata
-          if (diffDias <= 5 && calcularSimilaridade(lanc.descricao, conta.descricao) >= 0.5) return true;
-          
-          return false;
-        }) || null;
-        if (matchJaBaixado) {
-          // Lançamento já foi baixado anteriormente — ignorar e logar
-          ignorados++;
-          duplicatasIgnoradas++;
-          duplicatasLogLocal.push({
-            descricao: lanc.descricao,
-            valor: lanc.valor,
-            data: lanc.dataVencimento,
-            matchDescricao: matchJaBaixado.descricao,
-          });
-          console.log(`🔴 DUPLICATA ignorada: "${lanc.descricao}" (R$${lanc.valor} em ${lanc.dataVencimento}) → match com conta paga: "${matchJaBaixado.descricao}"`);
-          continue;
-        }
-        
-        // 2. Match por canal (SHPP/SHOPEE → conta aberta SHPP/SHOPEE)
-        const matchCanal = encontrarMatchPorCanal(lanc, contasNaoPagas);
-        if (matchCanal) {
-          conciliados.push({ 
-            id: matchCanal.id, 
-            descricao: `${lanc.descricao} (canal: ${matchCanal.descricao})`,
-            dataPagamento: lanc.dataVencimento,
-            lancamentoConciliadoId: matchCanal.id,
-          });
-          const idx = contasNaoPagas.findIndex(c => c.id === matchCanal.id);
-          if (idx >= 0) contasNaoPagas.splice(idx, 1);
-          continue;
-        }
-        
-        // 3. Match por descrição similar (estimativa vs valor real)
-        const matchDesc = encontrarMatchPorDescricao(lanc, contasNaoPagas);
-        if (matchDesc) {
-          conciliados.push({ 
-            id: matchDesc.id, 
-            descricao: `${lanc.descricao} (≈ ${matchDesc.descricao})`,
-            dataPagamento: lanc.dataVencimento,
-            lancamentoConciliadoId: matchDesc.id,
-          });
-          const idx = contasNaoPagas.findIndex(c => c.id === matchDesc.id);
-          if (idx >= 0) contasNaoPagas.splice(idx, 1);
-          continue;
-        }
-        
-        // 3. Match com projeções (tolerância 30% valor, mesma semana)
-        const matchProj = encontrarMatchProjecao(lanc, contasNaoPagas);
-        if (matchProj) {
-          conciliados.push({ id: matchProj.id, descricao: `${lanc.descricao} (proj: ${matchProj.descricao})` });
-          const idx = contasNaoPagas.findIndex(c => c.id === matchProj.id);
-          if (idx >= 0) contasNaoPagas.splice(idx, 1);
-          continue;
-        }
-        
-        // 4. Sem match - tentar identificar fornecedor
-        const fornecedorIdMapeado = encontrarMapeamento(lanc.descricao, mapeamentos);
-        
-        if (fornecedorIdMapeado) {
-          const fornecedorMapeado = fornecedores.find(f => f.id === fornecedorIdMapeado);
-          novos.push({
-            tipo: lanc.tipo,
-            subtipo: lanc.subtipo,
-            descricao: lanc.descricao,
-            valor: lanc.valor,
-            dataVencimento: lanc.dataVencimento,
-            pago: true,
-            fornecedorId: fornecedorIdMapeado,
-            categoria: fornecedorMapeado?.categoria,
-            conciliado: true,
-            contaOrigem: contaOrigem || undefined,
-          });
-        } else {
-          // Para receitas sem match, tentar auto-atribuir por origem bancária
-          const autoReceita = lanc.tipo === 'receber' 
-            ? autoAtribuirFornecedorReceita(lanc.descricao, fornecedores) 
-            : null;
-          
-          if (autoReceita) {
-            // Auto-classificação de receita por origem bancária (hardcoded, não depende do CSV)
-            novos.push({
-              tipo: lanc.tipo,
-              subtipo: lanc.subtipo,
-              descricao: lanc.descricao,
-              valor: lanc.valor,
-              dataVencimento: lanc.dataVencimento,
-              pago: true,
-              fornecedorId: autoReceita.fornecedorId,
-              categoria: autoReceita.categoria,
-              conciliado: true,
-              contaOrigem: contaOrigem || undefined,
-            });
-          } else {
-            const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
-            
-            if (fornecedorMatch) {
-              novos.push({
-                tipo: lanc.tipo,
-                subtipo: lanc.subtipo,
-                descricao: lanc.descricao,
-                valor: lanc.valor,
-                dataVencimento: lanc.dataVencimento,
-                pago: true,
-                fornecedorId: fornecedorMatch.id,
-                categoria: fornecedorMatch.categoria,
-                conciliado: true,
-                contaOrigem: contaOrigem || undefined,
-              });
-            } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
-              paraRevisar.push({
-                ...lanc,
-                needsReview: true,
-              });
-            } else {
-              novos.push({
-                tipo: lanc.tipo,
-                subtipo: lanc.subtipo,
-                descricao: lanc.descricao,
-                valor: lanc.valor,
-                dataVencimento: lanc.dataVencimento,
-                pago: true,
-                conciliado: true,
-                contaOrigem: contaOrigem || undefined,
-              });
-            }
-          }
-        }
-      }
-
-      // Se tem itens para revisar, mostrar painel
-      if (paraRevisar.length > 0) {
-        setLancamentosParaRevisar(paraRevisar);
-        setShowReviewPanel(true);
-      }
-
-      // Executar conciliação
-      onConciliar({
-        conciliados,
-        novos,
-        ignorados,
-        paraRevisar,
-      });
-
-      // Log resumo de duplicatas no console para diagnóstico
-      if (duplicatasLogLocal.length > 0) {
-        console.group(`🔴 ${duplicatasLogLocal.length} lançamentos ignorados como duplicatas:`);
-        duplicatasLogLocal.forEach(d => {
-          console.log(`  • "${d.descricao}" R$${d.valor} (${d.data}) → match: "${d.matchDescricao}"`);
-        });
-        console.groupEnd();
-        setDuplicatasLog(duplicatasLogLocal);
-        setShowDuplicatasLog(true);
-      }
+      const result = processarLancamentos(todosLancamentos);
 
       setLastResult({ 
-        conciliados: conciliados.length, 
-        novos: novos.length,
-        duplicatasIgnoradas,
-        ignorados 
+        conciliados: result.conciliados, 
+        novos: result.novos,
+        duplicatasIgnoradas: result.duplicatasIgnoradas,
+        ignorados: result.ignorados 
       });
       
-      if (paraRevisar.length === 0) {
+      if (result.novos === 0 && result.conciliados === 0) {
+        // nothing
+      } else {
         setTexto('');
       }
       
       const partes = [
-        conciliados.length > 0 ? `✅ ${conciliados.length} contas baixadas automaticamente` : null,
-        novos.length > 0 ? `📥 ${novos.length} lançamentos novos no histórico` : null,
-        paraRevisar.length > 0 ? `⚠️ ${paraRevisar.length} para revisar` : null,
-        duplicatasIgnoradas > 0 ? `🔴 ${duplicatasIgnoradas} ignorados como duplicata (ver console)` : null,
+        result.conciliados > 0 ? `✅ ${result.conciliados} contas baixadas automaticamente` : null,
+        result.novos > 0 ? `📥 ${result.novos} lançamentos novos no histórico` : null,
+        result.duplicatasIgnoradas > 0 ? `🔴 ${result.duplicatasIgnoradas} ignorados como duplicata` : null,
       ].filter(Boolean);
       toast.success(`Conciliação: ${todosLancamentos.length} lançamentos processados`, {
         description: partes.join('\n'),
@@ -839,28 +880,50 @@ export function ConciliacaoSection({
               )}
 
               <div className="flex items-center justify-between">
-                <p className="text-[10px] text-muted-foreground">
-                  💡 Extratos grandes são processados automaticamente em lotes.
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] text-muted-foreground">
+                    💡 Cole o extrato ou importe arquivos TXT/CSV.
+                  </p>
+                </div>
                 
-                <Button
-                  size="sm"
-                  onClick={handleProcessar}
-                  disabled={!texto.trim() || isProcessing}
-                  className="gap-1"
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      {batchProgress ? `Lote ${batchProgress.current}/${batchProgress.total}` : 'Processando...'}
-                    </>
-                  ) : (
-                    <>
-                      <FileSpreadsheet className="h-3 w-3" />
-                      Processar Extrato
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".txt,.csv"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isProcessing}
+                    className="gap-1"
+                  >
+                    <Upload className="h-3 w-3" />
+                    Importar TXT/CSV
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleProcessar}
+                    disabled={!texto.trim() || isProcessing}
+                    className="gap-1"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        {batchProgress ? `Lote ${batchProgress.current}/${batchProgress.total}` : 'Processando...'}
+                      </>
+                    ) : (
+                      <>
+                        <FileSpreadsheet className="h-3 w-3" />
+                        Processar Extrato
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
 
