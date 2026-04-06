@@ -664,6 +664,7 @@ export function ConciliacaoSection({
         categoria: fornecedor?.categoria,
         conciliado: true,
         natureza: naturezaFinal,
+        contaOrigem: contaOrigem || undefined,
       }],
       ignorados: 0,
       paraRevisar: [],
