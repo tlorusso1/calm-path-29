@@ -494,7 +494,110 @@ export function ConciliacaoSection({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleProcessar = async () => {
+  // Função reutilizável para processar lançamentos extraídos
+  const processarLancamentos = (todosLancamentos: ExtractedLancamento[]): { conciliados: number; novos: number; ignorados: number; duplicatasIgnoradas: number } => {
+    const contasNaoPagas = contasExistentes.filter(c => !c.pago);
+    const conciliados: { id: string; descricao: string; dataPagamento?: string; lancamentoConciliadoId?: string }[] = [];
+    const novos: Omit<ContaFluxo, 'id'>[] = [];
+    const paraRevisar: ExtractedLancamento[] = [];
+    let ignorados = 0;
+    let duplicatasIgnoradas = 0;
+    const duplicatasLogLocal: { descricao: string; valor: string; data: string; matchDescricao: string }[] = [];
+    const contasPagas = contasExistentes.filter(c => c.pago);
+
+    for (const lanc of todosLancamentos) {
+      const match = encontrarMatch(lanc, contasNaoPagas);
+      if (match) {
+        conciliados.push({ id: match.id, descricao: lanc.descricao, dataPagamento: lanc.dataVencimento, lancamentoConciliadoId: match.id });
+        const idx = contasNaoPagas.findIndex(c => c.id === match.id);
+        if (idx >= 0) contasNaoPagas.splice(idx, 1);
+        continue;
+      }
+
+      const matchJaBaixado = contasPagas.find(conta => {
+        if (!conta.pago) return false;
+        const tiposSaida: string[] = ['pagar', 'cartao'];
+        const lancEhSaida = tiposSaida.includes(lanc.tipo);
+        const contaEhSaida = tiposSaida.includes(conta.tipo);
+        if (lancEhSaida && !contaEhSaida) return false;
+        if (!lancEhSaida && conta.tipo !== lanc.tipo) return false;
+        const valorLanc = parseValorFlexivel(lanc.valor);
+        const valorConta = parseValorFlexivel(conta.valor);
+        if (Math.abs(valorLanc - valorConta) > 0.01) return false;
+        let dataLanc: Date, dataConta: Date;
+        try { dataLanc = parseISO(lanc.dataVencimento); dataConta = parseISO(conta.dataVencimento); } catch { return false; }
+        const diffDias = Math.abs(differenceInDays(dataLanc, dataConta));
+        if (diffDias <= 2) return true;
+        if (diffDias <= 5 && calcularSimilaridade(lanc.descricao, conta.descricao) >= 0.5) return true;
+        return false;
+      }) || null;
+      if (matchJaBaixado) {
+        ignorados++; duplicatasIgnoradas++;
+        duplicatasLogLocal.push({ descricao: lanc.descricao, valor: lanc.valor, data: lanc.dataVencimento, matchDescricao: matchJaBaixado.descricao });
+        continue;
+      }
+
+      const matchCanal = encontrarMatchPorCanal(lanc, contasNaoPagas);
+      if (matchCanal) {
+        conciliados.push({ id: matchCanal.id, descricao: `${lanc.descricao} (canal: ${matchCanal.descricao})`, dataPagamento: lanc.dataVencimento, lancamentoConciliadoId: matchCanal.id });
+        const idx = contasNaoPagas.findIndex(c => c.id === matchCanal.id);
+        if (idx >= 0) contasNaoPagas.splice(idx, 1);
+        continue;
+      }
+
+      const matchDesc = encontrarMatchPorDescricao(lanc, contasNaoPagas);
+      if (matchDesc) {
+        conciliados.push({ id: matchDesc.id, descricao: `${lanc.descricao} (≈ ${matchDesc.descricao})`, dataPagamento: lanc.dataVencimento, lancamentoConciliadoId: matchDesc.id });
+        const idx = contasNaoPagas.findIndex(c => c.id === matchDesc.id);
+        if (idx >= 0) contasNaoPagas.splice(idx, 1);
+        continue;
+      }
+
+      const matchProj = encontrarMatchProjecao(lanc, contasNaoPagas);
+      if (matchProj) {
+        conciliados.push({ id: matchProj.id, descricao: `${lanc.descricao} (proj: ${matchProj.descricao})` });
+        const idx = contasNaoPagas.findIndex(c => c.id === matchProj.id);
+        if (idx >= 0) contasNaoPagas.splice(idx, 1);
+        continue;
+      }
+
+      const fornecedorIdMapeado = encontrarMapeamento(lanc.descricao, mapeamentos);
+      if (fornecedorIdMapeado) {
+        const fornecedorMapeado = fornecedores.find(f => f.id === fornecedorIdMapeado);
+        novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, fornecedorId: fornecedorIdMapeado, categoria: fornecedorMapeado?.categoria, conciliado: true, contaOrigem: contaOrigem || undefined });
+      } else {
+        const autoReceita = lanc.tipo === 'receber' ? autoAtribuirFornecedorReceita(lanc.descricao, fornecedores) : null;
+        if (autoReceita) {
+          novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, fornecedorId: autoReceita.fornecedorId, categoria: autoReceita.categoria, conciliado: true, contaOrigem: contaOrigem || undefined });
+        } else {
+          const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
+          if (fornecedorMatch) {
+            novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, fornecedorId: fornecedorMatch.id, categoria: fornecedorMatch.categoria, conciliado: true, contaOrigem: contaOrigem || undefined });
+          } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
+            paraRevisar.push({ ...lanc, needsReview: true });
+          } else {
+            novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, conciliado: true, contaOrigem: contaOrigem || undefined });
+          }
+        }
+      }
+    }
+
+    if (paraRevisar.length > 0) {
+      setLancamentosParaRevisar(prev => [...prev, ...paraRevisar]);
+      setShowReviewPanel(true);
+    }
+
+    onConciliar({ conciliados, novos, ignorados, paraRevisar });
+
+    if (duplicatasLogLocal.length > 0) {
+      setDuplicatasLog(prev => [...prev, ...duplicatasLogLocal]);
+      setShowDuplicatasLog(true);
+    }
+
+    return { conciliados: conciliados.length, novos: novos.length, ignorados, duplicatasIgnoradas };
+  };
+
+
     if (!texto.trim()) {
       toast.error('Cole o extrato bancário no campo de texto.');
       return;
