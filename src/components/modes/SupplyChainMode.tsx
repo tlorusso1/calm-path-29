@@ -221,6 +221,84 @@ export function SupplyChainMode({
     setTextoColado('');
   };
 
+  const processarMovimentacoesTexto = (texto: string) => {
+    const novas = parsearMovimentacoes(texto);
+    if (novas.length === 0) {
+      toast({ title: "Nenhuma movimentação encontrada", description: "Verifique o formato do CSV.", variant: "destructive" });
+      return;
+    }
+    
+    const movExistentes = data.movimentacoes || [];
+    const { resultado: todasMovimentacoes, novasAdicionadas, duplicatasIgnoradas } = deduplicarMovimentacoes(movExistentes, novas);
+    const demandaMap = calcularDemandaSemanalPorItem(todasMovimentacoes);
+    
+    let itensAtualizados = 0;
+    const itensComDemandaAtualizada = data.itens.map(item => {
+      const key = normalizarNomeProduto(item.nome);
+      const demanda = demandaMap.get(key);
+      if (demanda !== undefined) {
+        itensAtualizados++;
+        return { ...item, demandaSemanal: demanda };
+      }
+      return item;
+    });
+    
+    const saidas = novas.filter(m => m.tipo === 'saida').length;
+    const entradas = novas.filter(m => m.tipo === 'entrada').length;
+    
+    onUpdateSupplyChainData({ 
+      movimentacoes: todasMovimentacoes,
+      ultimaImportacaoMov: new Date().toISOString(),
+      itens: itensComDemandaAtualizada,
+    });
+    
+    const descDuplicatas = duplicatasIgnoradas > 0 ? ` (${duplicatasIgnoradas} duplicatas ignoradas)` : '';
+    toast({
+      title: "Movimentações Importadas",
+      description: `${saidas} saídas, ${entradas} entradas. ${novasAdicionadas} novas${itensAtualizados > 0 ? `. Demanda: ${itensAtualizados} produtos` : ''}${descDuplicatas}`,
+    });
+    flushSave?.();
+    setTextoMovimentacoes('');
+  };
+
+  const handleImportMovFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const isCsv = file.name.toLowerCase().endsWith('.csv');
+    const reader = new FileReader();
+
+    reader.onerror = () => {
+      toast({ title: `Erro ao ler ${file.name}`, variant: 'destructive' });
+    };
+
+    reader.onload = (evt) => {
+      try {
+        let textoCSV = '';
+        if (isCsv) {
+          textoCSV = String(evt.target?.result ?? '');
+        } else {
+          const arrayBuffer = evt.target?.result;
+          const wb = XLSX.read(arrayBuffer, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          textoCSV = XLSX.utils.sheet_to_csv(ws, { FS: ';' });
+        }
+        processarMovimentacoesTexto(textoCSV);
+      } catch (err) {
+        toast({ title: `Erro ao processar ${file.name}`, description: String(err), variant: 'destructive' });
+      }
+    };
+
+    if (isCsv) {
+      reader.readAsText(file, 'UTF-8');
+    } else {
+      reader.readAsArrayBuffer(file);
+    }
+
+    if (movFileInputRef.current) movFileInputRef.current.value = '';
+  };
+
   const handleImportXlsx = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
