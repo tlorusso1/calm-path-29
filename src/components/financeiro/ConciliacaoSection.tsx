@@ -732,6 +732,24 @@ export function ConciliacaoSection({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0">
+            {/* Seletor de Conta Bancária de Origem */}
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800">
+              <Building2 className="h-4 w-4 text-blue-600" />
+              <span className="text-sm text-blue-700 dark:text-blue-400 font-medium">Conta de origem:</span>
+              <Select value={contaOrigem} onValueChange={setContaOrigem}>
+                <SelectTrigger className="flex-1 h-8 text-xs">
+                  <SelectValue placeholder="Selecione a conta bancária..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {CONTAS_BANCARIAS_OPCOES.map((conta) => (
+                    <SelectItem key={conta} value={conta} className="text-xs">
+                      {conta}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Seletores de Mês/Ano */}
             <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border">
               <Calendar className="h-4 w-4 text-muted-foreground" />
