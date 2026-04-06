@@ -536,12 +536,20 @@ export interface ForecastItem {
   investimentoNecessario?: number; // precisaProduzir * custoProducao
 }
 
+export interface ForecastSemana {
+  semanaLabel: string;        // ex: "S10 MAR"
+  receitaReal: number;
+  cmvReal: number;
+  inicioSemana: string;       // ISO date
+}
+
 export interface SupplyForecast {
   receitaProjetada30d: number;   // receita bruta projetada (30 dias)
   cmvProjetado30d: number;       // CMV projetado (30 dias)
   margemProjetada: number;       // % margem
   investimentoProducao: number;  // total R$ necessário para produzir
   itens: ForecastItem[];         // detalhe por produto
+  breakdownSemanal?: ForecastSemana[];  // últimas 12 semanas de receita/CMV real
 }
 
 export interface SupplyExports {
