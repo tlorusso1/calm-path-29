@@ -8,7 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw, Building2, List, Search, Copy, Upload, FileUp, Check } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ContaFluxo, ContaAnexo, Fornecedor, ContaFluxoTipo } from '@/types/focus-mode';
+import { ContaFluxo, ContaAnexo, Fornecedor, ContaFluxoTipo, CONTAS_BANCARIAS_OPCOES } from '@/types/focus-mode';
 import { format, parseISO, isAfter, isBefore, isToday, addDays, subDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
@@ -80,6 +80,8 @@ export function ContasFluxoSection({
   const [filtroTipo, setFiltroTipo] = useState<ContaFluxoTipo | 'todos'>('todos');
   const [filtroCategoria, setFiltroCategoria] = useState<string | 'todos'>('todos');
   const [filtroFornecedor, setFiltroFornecedor] = useState<string | 'todos'>('todos');
+  const [filtroContaOrigem, setFiltroContaOrigem] = useState<string | 'todos'>('todos');
+  const [contaOrigemManual, setContaOrigemManual] = useState<string>('');
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const limite30d = addDays(hoje, 30);
