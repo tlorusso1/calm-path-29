@@ -880,28 +880,50 @@ export function ConciliacaoSection({
               )}
 
               <div className="flex items-center justify-between">
-                <p className="text-[10px] text-muted-foreground">
-                  💡 Extratos grandes são processados automaticamente em lotes.
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] text-muted-foreground">
+                    💡 Cole o extrato ou importe arquivos TXT/CSV.
+                  </p>
+                </div>
                 
-                <Button
-                  size="sm"
-                  onClick={handleProcessar}
-                  disabled={!texto.trim() || isProcessing}
-                  className="gap-1"
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      {batchProgress ? `Lote ${batchProgress.current}/${batchProgress.total}` : 'Processando...'}
-                    </>
-                  ) : (
-                    <>
-                      <FileSpreadsheet className="h-3 w-3" />
-                      Processar Extrato
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".txt,.csv"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isProcessing}
+                    className="gap-1"
+                  >
+                    <Upload className="h-3 w-3" />
+                    Importar TXT/CSV
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleProcessar}
+                    disabled={!texto.trim() || isProcessing}
+                    className="gap-1"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        {batchProgress ? `Lote ${batchProgress.current}/${batchProgress.total}` : 'Processando...'}
+                      </>
+                    ) : (
+                      <>
+                        <FileSpreadsheet className="h-3 w-3" />
+                        Processar Extrato
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
 
