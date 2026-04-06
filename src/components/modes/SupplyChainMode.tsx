@@ -104,6 +104,7 @@ export function SupplyChainMode({
   const [itensParaRevisar, setItensParaRevisar] = useState<ItemEstoque[]>([]);
   const [importFeedback, setImportFeedback] = useState<{ type: 'idle' | 'loading' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const movFileInputRef = useRef<HTMLInputElement>(null);
 
   const data: SupplyChainStage = useMemo(() => {
     const raw = { ...DEFAULT_SUPPLYCHAIN_DATA, ...mode.supplyChainData };
@@ -218,6 +219,84 @@ export function SupplyChainMode({
     flushSave?.();
     
     setTextoColado('');
+  };
+
+  const processarMovimentacoesTexto = (texto: string) => {
+    const novas = parsearMovimentacoes(texto);
+    if (novas.length === 0) {
+      toast({ title: "Nenhuma movimentação encontrada", description: "Verifique o formato do CSV.", variant: "destructive" });
+      return;
+    }
+    
+    const movExistentes = data.movimentacoes || [];
+    const { resultado: todasMovimentacoes, novasAdicionadas, duplicatasIgnoradas } = deduplicarMovimentacoes(movExistentes, novas);
+    const demandaMap = calcularDemandaSemanalPorItem(todasMovimentacoes);
+    
+    let itensAtualizados = 0;
+    const itensComDemandaAtualizada = data.itens.map(item => {
+      const key = normalizarNomeProduto(item.nome);
+      const demanda = demandaMap.get(key);
+      if (demanda !== undefined) {
+        itensAtualizados++;
+        return { ...item, demandaSemanal: demanda };
+      }
+      return item;
+    });
+    
+    const saidas = novas.filter(m => m.tipo === 'saida').length;
+    const entradas = novas.filter(m => m.tipo === 'entrada').length;
+    
+    onUpdateSupplyChainData({ 
+      movimentacoes: todasMovimentacoes,
+      ultimaImportacaoMov: new Date().toISOString(),
+      itens: itensComDemandaAtualizada,
+    });
+    
+    const descDuplicatas = duplicatasIgnoradas > 0 ? ` (${duplicatasIgnoradas} duplicatas ignoradas)` : '';
+    toast({
+      title: "Movimentações Importadas",
+      description: `${saidas} saídas, ${entradas} entradas. ${novasAdicionadas} novas${itensAtualizados > 0 ? `. Demanda: ${itensAtualizados} produtos` : ''}${descDuplicatas}`,
+    });
+    flushSave?.();
+    setTextoMovimentacoes('');
+  };
+
+  const handleImportMovFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const isCsv = file.name.toLowerCase().endsWith('.csv');
+    const reader = new FileReader();
+
+    reader.onerror = () => {
+      toast({ title: `Erro ao ler ${file.name}`, variant: 'destructive' });
+    };
+
+    reader.onload = (evt) => {
+      try {
+        let textoCSV = '';
+        if (isCsv) {
+          textoCSV = String(evt.target?.result ?? '');
+        } else {
+          const arrayBuffer = evt.target?.result;
+          const wb = XLSX.read(arrayBuffer, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          textoCSV = XLSX.utils.sheet_to_csv(ws, { FS: ';' });
+        }
+        processarMovimentacoesTexto(textoCSV);
+      } catch (err) {
+        toast({ title: `Erro ao processar ${file.name}`, description: String(err), variant: 'destructive' });
+      }
+    };
+
+    if (isCsv) {
+      reader.readAsText(file, 'UTF-8');
+    } else {
+      reader.readAsArrayBuffer(file);
+    }
+
+    if (movFileInputRef.current) movFileInputRef.current.value = '';
   };
 
   const handleImportXlsx = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1061,62 +1140,42 @@ export function SupplyChainMode({
             </TabsContent>
 
             <TabsContent value="movimentacoes" className="space-y-3">
+              <input
+                ref={movFileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                className="hidden"
+                onChange={handleImportMovFile}
+              />
+              <Button
+                onClick={() => movFileInputRef.current?.click()}
+                className="w-full"
+                size="sm"
+                variant="outline"
+              >
+                <Upload className="h-4 w-4 mr-2" /> Importar Arquivo (.csv, .xlsx)
+              </Button>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">ou cole abaixo</span>
+                </div>
+              </div>
               <Textarea
                 placeholder={"Cole o CSV de entradas ou saídas aqui...\nFormato esperado: separado por ; com cabeçalho"}
                 value={textoMovimentacoes}
                 onChange={(e) => setTextoMovimentacoes(e.target.value)}
-                rows={5}
+                rows={4}
               />
               <Button 
-                onClick={() => {
-                  const novas = parsearMovimentacoes(textoMovimentacoes);
-                  if (novas.length === 0) {
-                    toast({ title: "Nenhuma movimentação encontrada", description: "Verifique o formato do CSV.", variant: "destructive" });
-                    return;
-                  }
-                  
-                  const movExistentes = data.movimentacoes || [];
-                  
-                  // Deduplicar por conteúdo (tipo+produto+qtd+data), não por ID de linha
-                  const { resultado: todasMovimentacoes, novasAdicionadas, duplicatasIgnoradas } = deduplicarMovimentacoes(movExistentes, novas);
-                  
-                  // Recalcular demanda semanal dos itens (usando normalizarNomeProduto consistente)
-                  const demandaMap = calcularDemandaSemanalPorItem(todasMovimentacoes);
-                  
-                  // Atualizar itens com demanda calculada numa única operação atômica
-                  let itensAtualizados = 0;
-                  const itensComDemandaAtualizada = data.itens.map(item => {
-                    const key = normalizarNomeProduto(item.nome);
-                    const demanda = demandaMap.get(key);
-                    if (demanda !== undefined) {
-                      itensAtualizados++;
-                      return { ...item, demandaSemanal: demanda };
-                    }
-                    return item;
-                  });
-                  
-                  const saidas = novas.filter(m => m.tipo === 'saida').length;
-                  const entradas = novas.filter(m => m.tipo === 'entrada').length;
-                  
-                  onUpdateSupplyChainData({ 
-                    movimentacoes: todasMovimentacoes,
-                    ultimaImportacaoMov: new Date().toISOString(),
-                    itens: itensComDemandaAtualizada,
-                  });
-                  
-                  const descDuplicatas = duplicatasIgnoradas > 0 ? ` (${duplicatasIgnoradas} duplicatas ignoradas)` : '';
-                  toast({
-                    title: "Movimentações Importadas",
-                    description: `${saidas} saídas, ${entradas} entradas no CSV. ${novasAdicionadas} novas adicionadas${itensAtualizados > 0 ? `. Demanda atualizada para ${itensAtualizados} produtos` : ''}${descDuplicatas}`,
-                  });
-                  flushSave?.();
-                  setTextoMovimentacoes('');
-                }}
+                onClick={() => processarMovimentacoesTexto(textoMovimentacoes)}
                 className="w-full" 
                 size="sm" 
                 disabled={!textoMovimentacoes.trim()}
               >
-                <ArrowDownUp className="h-4 w-4 mr-2" /> Importar Movimentações
+                <ArrowDownUp className="h-4 w-4 mr-2" /> Importar do Texto
               </Button>
               
               {data.movimentacoes && data.movimentacoes.length > 0 && (() => {
