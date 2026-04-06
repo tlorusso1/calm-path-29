@@ -1,12 +1,13 @@
 import { FocusMode, FinanceiroStage, FinanceiroExports, DEFAULT_FINANCEIRO_DATA, DEFAULT_FINANCEIRO_CONTAS, ContaFluxo, Fornecedor, UserRitmoExpectativa, RitmoTimestamps, MapeamentoDescricaoFornecedor, SupplyExports, ReuniaoAdsStage } from '@/types/focus-mode';
 import { gerarContasReceberProjecao } from '@/utils/gerarContasReceberProjecao';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { ChevronDown, ChevronUp, AlertTriangle, Building2, Info } from 'lucide-react';
+import { ChevronDown, ChevronUp, AlertTriangle, Building2, Info, Trash2 } from 'lucide-react';
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/modeStatusCalculator';
