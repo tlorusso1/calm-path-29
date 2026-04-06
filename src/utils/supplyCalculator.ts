@@ -375,7 +375,8 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
       fimSemana.setDate(fimSemana.getDate() + 6);
       fimSemana.setHours(23,59,59,999);
 
-      const isoWeek = getISOWeek(inicioSemana);
+      const dayOfYear = Math.floor((inicioSemana.getTime() - new Date(inicioSemana.getFullYear(), 0, 1).getTime()) / 86400000);
+      const isoWeek = Math.ceil((dayOfYear + new Date(inicioSemana.getFullYear(), 0, 1).getDay() + 1) / 7);
       const mesLabel = MESES_CURTOS[inicioSemana.getMonth()];
       const semanaLabel = `S${isoWeek} ${mesLabel}`;
 
