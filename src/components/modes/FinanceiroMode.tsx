@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { ChevronDown, ChevronUp, AlertTriangle, Building2, Info } from 'lucide-react';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { calculateFinanceiroV2, formatCurrency, parseCurrency } from '@/utils/modeStatusCalculator';
 import { FluxoCaixaChart } from '@/components/financeiro/FluxoCaixaChart';
@@ -196,6 +196,20 @@ export function FinanceiroMode({
   const toggleSection = (section: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
+
+  const getContaCashAjuste = useCallback((conta: ContaFluxo, estaMarcandoPago: boolean): number => {
+    const valorConta = parseCurrency(conta.valor || '');
+    if (valorConta <= 0) return 0;
+
+    const valorBase =
+      conta.tipo === 'pagar' || conta.tipo === 'cartao'
+        ? -valorConta
+        : conta.tipo === 'receber'
+          ? valorConta
+          : 0;
+
+    return estaMarcandoPago ? valorBase : -valorBase;
+  }, []);
   
   // Handlers para contas do fluxo de caixa
   const handleAddConta = (conta: Omit<ContaFluxo, 'id'>) => {
@@ -240,7 +254,6 @@ export function FinanceiroMode({
     if (!conta) return;
     
     const estaMarcandoPago = !conta.pago;
-    const valorConta = parseCurrency(conta.valor);
     const caixaAtualNum = parseCurrency(data.caixaAtual || '');
     
     const updates: Partial<FinanceiroStage> = {
@@ -250,17 +263,15 @@ export function FinanceiroMode({
     };
     
     // Atualizar caixa automaticamente (bidirecional)
-    if (valorConta > 0) {
-      const isExpense = conta.tipo === 'pagar' || conta.tipo === 'cartao';
-      const valorBase = isExpense ? -valorConta : valorConta;
-      const ajuste = estaMarcandoPago ? valorBase : -valorBase;
+    const ajuste = getContaCashAjuste(conta, estaMarcandoPago);
+    if (ajuste !== 0) {
       const novoCaixa = caixaAtualNum + ajuste;
       
       updates.caixaAtual = novoCaixa.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       
       const sinal = ajuste >= 0 ? '+' : '-';
       const label = estaMarcandoPago ? 'Conta paga' : 'Conta desmarcada';
-      toast.success(`${label}: ${sinal} R$ ${formatCurrency(Math.abs(ajuste))} → Caixa ${estaMarcandoPago ? 'atualizado' : 'revertido'}`);
+      toast.success(`${label}: ${sinal} ${formatCurrency(Math.abs(ajuste))} → Caixa ${estaMarcandoPago ? 'atualizado' : 'revertido'}`);
     }
     
     onUpdateFinanceiroData(updates);
@@ -296,29 +307,30 @@ export function FinanceiroMode({
         return c;
       });
       
-      // Calcular impacto no caixa
       const caixaAtualNum = parseCurrency(data.caixaAtual || '');
-      let totalSaidas = 0;
-      let totalEntradas = 0;
-      contasParaDarBaixa.forEach(c => {
-        const v = parseCurrency(c.valor);
-        if (c.tipo === 'receber') totalEntradas += v;
-        else if (c.tipo === 'pagar' || c.tipo === 'cartao') totalSaidas += v;
-      });
+      const ajusteTotal = contasParaDarBaixa.reduce(
+        (acc, conta) => acc + getContaCashAjuste(conta, true),
+        0
+      );
       
       const updates: Partial<FinanceiroStage> = { contasFluxo: contasAtualizadas };
       
-      if (caixaAtualNum > 0 && (totalSaidas > 0 || totalEntradas > 0)) {
-        const novoCaixa = caixaAtualNum - totalSaidas + totalEntradas;
+      if (ajusteTotal !== 0) {
+        const novoCaixa = caixaAtualNum + ajusteTotal;
         updates.caixaAtual = novoCaixa.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       }
       
       onUpdateFinanceiroData(updates);
+      flushSave?.();
       
-      const valorTotal = totalSaidas + totalEntradas;
-      toast.success(`${contasParaDarBaixa.length} conta(s) paga(s) — R$ ${formatCurrency(valorTotal)} · Caixa atualizado`);
+      if (ajusteTotal !== 0) {
+        const sinal = ajusteTotal >= 0 ? '+' : '-';
+        toast.success(`${contasParaDarBaixa.length} conta(s) paga(s) — ${sinal} ${formatCurrency(Math.abs(ajusteTotal))} · Caixa atualizado`);
+      } else {
+        toast.success(`${contasParaDarBaixa.length} conta(s) paga(s) — sem impacto no caixa`);
+      }
     }
-  }, [data.contasFluxo, onUpdateFinanceiroData]);
+  }, [data.caixaAtual, data.contasFluxo, flushSave, getContaCashAjuste, onUpdateFinanceiroData]);
 
   // RITMO: Atualizar timestamp quando caixa muda
   const prevCaixaRef = useRef(data.caixaAtual);
