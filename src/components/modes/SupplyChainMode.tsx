@@ -104,6 +104,7 @@ export function SupplyChainMode({
   const [itensParaRevisar, setItensParaRevisar] = useState<ItemEstoque[]>([]);
   const [importFeedback, setImportFeedback] = useState<{ type: 'idle' | 'loading' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const movFileInputRef = useRef<HTMLInputElement>(null);
 
   const data: SupplyChainStage = useMemo(() => {
     const raw = { ...DEFAULT_SUPPLYCHAIN_DATA, ...mode.supplyChainData };
