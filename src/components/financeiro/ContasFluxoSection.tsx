@@ -1184,6 +1184,19 @@ export function ContasFluxoSection({
                             </SelectContent>
                           </Select>
                         )}
+
+                        {/* Filtro por conta de origem */}
+                        <Select value={filtroContaOrigem} onValueChange={setFiltroContaOrigem}>
+                          <SelectTrigger className="h-8 w-[140px] text-xs">
+                            <SelectValue placeholder="Conta" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todos">Todas contas</SelectItem>
+                            {CONTAS_BANCARIAS_OPCOES.map(c => (
+                              <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       {/* Mostrar quantidade de resultados após filtros */}
