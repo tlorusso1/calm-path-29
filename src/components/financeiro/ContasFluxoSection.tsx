@@ -113,6 +113,10 @@ export function ContasFluxoSection({
       pagas = pagas.filter(c => c.fornecedorId === filtroFornecedor);
     }
     
+    if (filtroContaOrigem !== 'todos') {
+      pagas = pagas.filter(c => c.contaOrigem === filtroContaOrigem);
+    }
+    
     if (filtroTipo !== 'todos') {
       pagas = pagas.filter(c => c.tipo === filtroTipo);
     }
@@ -190,7 +194,7 @@ export function ContasFluxoSection({
       saldoPeriodo: entradas - saidas,
       porConta: porContaArray,
     };
-  }, [contas, filtroTexto, filtroMes, filtroAno, filtroTipo, filtroCategoria, filtroFornecedor, fornecedores]);
+  }, [contas, filtroTexto, filtroMes, filtroAno, filtroTipo, filtroCategoria, filtroFornecedor, filtroContaOrigem, fornecedores]);
   
   const formatCurrencyValue = (value: number): string => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
