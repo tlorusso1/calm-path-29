@@ -358,6 +358,142 @@ export function ConciliacaoSection({
     }
   };
 
+  // Detectar mês/ano automaticamente a partir do conteúdo do extrato
+  const detectarMesAno = (conteudo: string, nomeArquivo: string): { mes: number; ano: number } | null => {
+    // Tentar pelo nome do arquivo (ex: extrato_03_2026.csv, extrato-marco-2026.txt)
+    const regexNomeArquivo = /(\d{1,2})[_\-](\d{4})/;
+    const matchNome = nomeArquivo.match(regexNomeArquivo);
+    if (matchNome) {
+      const mes = parseInt(matchNome[1]);
+      const ano = parseInt(matchNome[2]);
+      if (mes >= 1 && mes <= 12 && ano >= 2020 && ano <= 2030) return { mes, ano };
+    }
+
+    // Tentar pelas datas no conteúdo — procurar padrão DD/MM/YYYY ou YYYY-MM-DD
+    const datas: { mes: number; ano: number }[] = [];
+    const regexDDMMYYYY = /(\d{2})\/(\d{2})\/(\d{4})/g;
+    let m;
+    while ((m = regexDDMMYYYY.exec(conteudo)) !== null) {
+      const mes = parseInt(m[2]);
+      const ano = parseInt(m[3]);
+      if (mes >= 1 && mes <= 12) datas.push({ mes, ano });
+    }
+    const regexISO = /(\d{4})-(\d{2})-(\d{2})/g;
+    while ((m = regexISO.exec(conteudo)) !== null) {
+      const mes = parseInt(m[2]);
+      const ano = parseInt(m[1]);
+      if (mes >= 1 && mes <= 12) datas.push({ mes, ano });
+    }
+
+    if (datas.length > 0) {
+      // Pegar o mês mais frequente
+      const freq = new Map<string, number>();
+      for (const d of datas) {
+        const key = `${d.mes}-${d.ano}`;
+        freq.set(key, (freq.get(key) || 0) + 1);
+      }
+      let maxKey = '';
+      let maxCount = 0;
+      for (const [key, count] of freq) {
+        if (count > maxCount) { maxCount = count; maxKey = key; }
+      }
+      const [mesStr, anoStr] = maxKey.split('-');
+      return { mes: parseInt(mesStr), ano: parseInt(anoStr) };
+    }
+
+    return null;
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const validFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const ext = file.name.toLowerCase().split('.').pop();
+      if (ext === 'txt' || ext === 'csv') {
+        validFiles.push(file);
+      } else {
+        toast.error(`Arquivo "${file.name}" ignorado — apenas TXT e CSV.`);
+      }
+    }
+
+    if (validFiles.length === 0) return;
+
+    // Ler todos os arquivos
+    const conteudos: { texto: string; mesAno: string; nome: string }[] = [];
+    for (const file of validFiles) {
+      const text = await file.text();
+      const detected = detectarMesAno(text, file.name);
+      const mesAno = detected 
+        ? `${detected.mes}/${detected.ano}` 
+        : `${mesExtrato}/${anoExtrato}`;
+      
+      if (detected) {
+        toast.info(`📅 ${file.name}: mês detectado automaticamente → ${detected.mes}/${detected.ano}`);
+      }
+      
+      conteudos.push({ texto: text, mesAno, nome: file.name });
+    }
+
+    // Processar cada arquivo sequencialmente
+    setIsProcessing(true);
+    setLastResult(null);
+    setDuplicatasLog([]);
+    setShowDuplicatasLog(false);
+    setLancamentosParaRevisar([]);
+    setShowReviewPanel(false);
+
+    let totalConciliados = 0;
+    let totalNovos = 0;
+    let totalIgnorados = 0;
+    let totalDuplicatas = 0;
+
+    for (let fileIdx = 0; fileIdx < conteudos.length; fileIdx++) {
+      const { texto: textoArq, mesAno, nome } = conteudos[fileIdx];
+      toast.info(`📂 Processando ${nome} (${fileIdx + 1}/${conteudos.length})...`);
+
+      const linhas = textoArq.split('\n').filter((l: string) => l.trim());
+      const lotes: string[] = [];
+      for (let i = 0; i < linhas.length; i += BATCH_SIZE) {
+        lotes.push(linhas.slice(i, i + BATCH_SIZE).join('\n'));
+      }
+
+      let todosLancamentos: ExtractedLancamento[] = [];
+      for (let i = 0; i < lotes.length; i++) {
+        setBatchProgress({ current: i + 1, total: lotes.length });
+        try {
+          const lancamentosLote = await processarLote(lotes[i], mesAno);
+          todosLancamentos = [...todosLancamentos, ...lancamentosLote];
+          if (i < lotes.length - 1) await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (err: any) {
+          console.error(`Erro no lote ${i + 1} de ${nome}:`, err);
+          toast.error(`Erro em ${nome} lote ${i + 1}`);
+          break;
+        }
+      }
+
+      if (todosLancamentos.length > 0) {
+        // Reusar a lógica de processamento — chamar handleProcessar internamente
+        // Para simplificar, setamos o texto e mesAno e chamamos o processamento
+        const result = processarLancamentos(todosLancamentos);
+        totalConciliados += result.conciliados;
+        totalNovos += result.novos;
+        totalIgnorados += result.ignorados;
+        totalDuplicatas += result.duplicatasIgnoradas;
+      }
+    }
+
+    setBatchProgress(null);
+    setIsProcessing(false);
+    setLastResult({ conciliados: totalConciliados, novos: totalNovos, ignorados: totalIgnorados, duplicatasIgnoradas: totalDuplicatas });
+    toast.success(`✅ ${conteudos.length} arquivo(s): ${totalNovos} novos, ${totalConciliados} conciliados, ${totalIgnorados} ignorados`);
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleProcessar = async () => {
     if (!texto.trim()) {
       toast.error('Cole o extrato bancário no campo de texto.');
