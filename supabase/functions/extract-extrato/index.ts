@@ -18,8 +18,8 @@ Regras de extração:
    - Negativo (com "-" ou "débito"): tipo baseado na classificação abaixo
    - Positivo (sem "-" ou "crédito"): tipo baseado na classificação abaixo
    - Formato: número puro (ex: "1234.56" para R$ 1.234,56)
-4. Descrição: Simplifique para identificar o pagamento (ex: "PIX ENVIADO FULANO" -> "PIX Fulano")
-5. Data: 
+4. Descrição: MANTENHA A DESCRIÇÃO ORIGINAL DO EXTRATO. NÃO invente, altere ou resuma nomes de pessoas ou empresas. Copie exatamente como aparece no extrato. Exemplo: "PIX ENVIADO AMANDA MATIE" deve ficar "PIX ENVIADO AMANDA MATIE", NÃO altere para outro nome.
+5. Data:
    - Se houver dia/mês no início da linha (ex: "30"), assuma mês/ano atual
    - Se não houver data clara, use a data de hoje
    - Formato ISO: YYYY-MM-DD
