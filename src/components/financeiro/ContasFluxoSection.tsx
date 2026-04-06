@@ -562,6 +562,7 @@ export function ContasFluxoSection({
       valor,
       dataVencimento,
       pago: false,
+      contaOrigem: contaOrigemManual || undefined,
     };
 
     // Verificar duplicata nas contas NÃO pagas do mesmo tipo
