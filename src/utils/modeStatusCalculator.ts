@@ -16,6 +16,7 @@ import {
   Tendencia,
   HistoricoMedias,
 } from '@/types/focus-mode';
+import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
 
 export { MARGEM_OPERACIONAL };
 
@@ -24,10 +25,7 @@ export { calculateSupplyExports, processarSupply } from '@/utils/supplyCalculato
 
 // ============= Utilitários =============
 export const parseCurrency = (value: string): number => {
-  const cleaned = value
-    .replace(/[R$\s.]/g, '')
-    .replace(',', '.');
-  return parseFloat(cleaned) || 0;
+  return parseValorFlexivel(value);
 };
 
 export const formatCurrency = (value: number): string => {
