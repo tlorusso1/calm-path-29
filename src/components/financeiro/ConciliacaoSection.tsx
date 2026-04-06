@@ -6,8 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronDown, ChevronUp, FileSpreadsheet, Loader2, CheckCircle2, Link2, AlertCircle, Plus, Calendar } from 'lucide-react';
-import { ContaFluxo, ContaFluxoTipo, ContaFluxoSubtipo, ContaFluxoNatureza, Fornecedor, MapeamentoDescricaoFornecedor, extrairPadraoDescricao, encontrarMapeamento, MODALIDADES_CAPITAL_GIRO } from '@/types/focus-mode';
+import { ChevronDown, ChevronUp, FileSpreadsheet, Loader2, CheckCircle2, Link2, AlertCircle, Plus, Calendar, Building2 } from 'lucide-react';
+import { ContaFluxo, ContaFluxoTipo, ContaFluxoSubtipo, ContaFluxoNatureza, Fornecedor, MapeamentoDescricaoFornecedor, extrairPadraoDescricao, encontrarMapeamento, MODALIDADES_CAPITAL_GIRO, CONTAS_BANCARIAS_OPCOES } from '@/types/focus-mode';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
@@ -280,6 +280,7 @@ export function ConciliacaoSection({
   const [lancamentosParaRevisar, setLancamentosParaRevisar] = useState<ExtractedLancamento[]>([]);
   const [showReviewPanel, setShowReviewPanel] = useState(false);
   const [showDuplicatasLog, setShowDuplicatasLog] = useState(false);
+  const [contaOrigem, setContaOrigem] = useState<string>('');
   
   // Progress para lotes
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
@@ -449,7 +450,30 @@ export function ConciliacaoSection({
         }
         
         // 1b. Match exato com contas JÁ BAIXADAS: detecta duplicidade
-        const matchJaBaixado = encontrarMatch(lanc, contasPagas, false);
+        // Reforçado: valor ± R$0.01 E (data ± 2 dias OU descrição normalizada similar ≥50%)
+        const matchJaBaixado = contasPagas.find(conta => {
+          if (!conta.pago) return false;
+          const tiposSaida: string[] = ['pagar', 'cartao'];
+          const lancEhSaida = tiposSaida.includes(lanc.tipo);
+          const contaEhSaida = tiposSaida.includes(conta.tipo);
+          if (lancEhSaida && !contaEhSaida) return false;
+          if (!lancEhSaida && conta.tipo !== lanc.tipo) return false;
+          
+          const valorLanc = parseValorFlexivel(lanc.valor);
+          const valorConta = parseValorFlexivel(conta.valor);
+          if (Math.abs(valorLanc - valorConta) > 0.01) return false;
+          
+          let dataLanc: Date, dataConta: Date;
+          try { dataLanc = parseISO(lanc.dataVencimento); dataConta = parseISO(conta.dataVencimento); } catch { return false; }
+          const diffDias = Math.abs(differenceInDays(dataLanc, dataConta));
+          
+          // Data ± 2 dias = duplicata (mais restritivo)
+          if (diffDias <= 2) return true;
+          // Data ± 5 dias + descrição similar = duplicata
+          if (diffDias <= 5 && calcularSimilaridade(lanc.descricao, conta.descricao) >= 0.5) return true;
+          
+          return false;
+        }) || null;
         if (matchJaBaixado) {
           // Lançamento já foi baixado anteriormente — ignorar e logar
           ignorados++;
@@ -516,6 +540,7 @@ export function ConciliacaoSection({
             fornecedorId: fornecedorIdMapeado,
             categoria: fornecedorMapeado?.categoria,
             conciliado: true,
+            contaOrigem: contaOrigem || undefined,
           });
         } else {
           // Para receitas sem match, tentar auto-atribuir por origem bancária
@@ -535,6 +560,7 @@ export function ConciliacaoSection({
               fornecedorId: autoReceita.fornecedorId,
               categoria: autoReceita.categoria,
               conciliado: true,
+              contaOrigem: contaOrigem || undefined,
             });
           } else {
             const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
@@ -550,6 +576,7 @@ export function ConciliacaoSection({
                 fornecedorId: fornecedorMatch.id,
                 categoria: fornecedorMatch.categoria,
                 conciliado: true,
+                contaOrigem: contaOrigem || undefined,
               });
             } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
               paraRevisar.push({
@@ -565,6 +592,7 @@ export function ConciliacaoSection({
                 dataVencimento: lanc.dataVencimento,
                 pago: true,
                 conciliado: true,
+                contaOrigem: contaOrigem || undefined,
               });
             }
           }
@@ -659,6 +687,7 @@ export function ConciliacaoSection({
         categoria: fornecedor?.categoria,
         conciliado: true,
         natureza: naturezaFinal,
+        contaOrigem: contaOrigem || undefined,
       }],
       ignorados: 0,
       paraRevisar: [],
@@ -731,6 +760,24 @@ export function ConciliacaoSection({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0">
+            {/* Seletor de Conta Bancária de Origem */}
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800">
+              <Building2 className="h-4 w-4 text-blue-600" />
+              <span className="text-sm text-blue-700 dark:text-blue-400 font-medium">Conta de origem:</span>
+              <Select value={contaOrigem} onValueChange={setContaOrigem}>
+                <SelectTrigger className="flex-1 h-8 text-xs">
+                  <SelectValue placeholder="Selecione a conta bancária..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {CONTAS_BANCARIAS_OPCOES.map((conta) => (
+                    <SelectItem key={conta} value={conta} className="text-xs">
+                      {conta}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Seletores de Mês/Ano */}
             <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border">
               <Calendar className="h-4 w-4 text-muted-foreground" />

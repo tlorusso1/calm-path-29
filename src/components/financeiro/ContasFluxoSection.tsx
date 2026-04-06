@@ -8,7 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChevronDown, ChevronUp, Plus, ArrowDownCircle, ArrowUpCircle, ImageIcon, Loader2, AlertTriangle, Clock, History, CheckCircle2, Calendar, Trash2, RefreshCw, Building2, List, Search, Copy, Upload, FileUp, Check } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ContaFluxo, ContaAnexo, Fornecedor, ContaFluxoTipo } from '@/types/focus-mode';
+import { ContaFluxo, ContaAnexo, Fornecedor, ContaFluxoTipo, CONTAS_BANCARIAS_OPCOES } from '@/types/focus-mode';
 import { format, parseISO, isAfter, isBefore, isToday, addDays, subDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
@@ -80,6 +80,8 @@ export function ContasFluxoSection({
   const [filtroTipo, setFiltroTipo] = useState<ContaFluxoTipo | 'todos'>('todos');
   const [filtroCategoria, setFiltroCategoria] = useState<string | 'todos'>('todos');
   const [filtroFornecedor, setFiltroFornecedor] = useState<string | 'todos'>('todos');
+  const [filtroContaOrigem, setFiltroContaOrigem] = useState<string | 'todos'>('todos');
+  const [contaOrigemManual, setContaOrigemManual] = useState<string>('');
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const limite30d = addDays(hoje, 30);
@@ -109,6 +111,10 @@ export function ContasFluxoSection({
     
     if (filtroFornecedor !== 'todos') {
       pagas = pagas.filter(c => c.fornecedorId === filtroFornecedor);
+    }
+    
+    if (filtroContaOrigem !== 'todos') {
+      pagas = pagas.filter(c => c.contaOrigem === filtroContaOrigem);
     }
     
     if (filtroTipo !== 'todos') {
@@ -188,7 +194,7 @@ export function ContasFluxoSection({
       saldoPeriodo: entradas - saidas,
       porConta: porContaArray,
     };
-  }, [contas, filtroTexto, filtroMes, filtroAno, filtroTipo, filtroCategoria, filtroFornecedor, fornecedores]);
+  }, [contas, filtroTexto, filtroMes, filtroAno, filtroTipo, filtroCategoria, filtroFornecedor, filtroContaOrigem, fornecedores]);
   
   const formatCurrencyValue = (value: number): string => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -556,6 +562,7 @@ export function ContasFluxoSection({
       valor,
       dataVencimento,
       pago: false,
+      contaOrigem: contaOrigemManual || undefined,
     };
 
     // Verificar duplicata nas contas NÃO pagas do mesmo tipo
@@ -689,7 +696,7 @@ export function ContasFluxoSection({
 
             {/* Form para adicionar - Responsivo */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 p-3 rounded-lg border bg-muted/30">
-              <div className="sm:col-span-3">
+              <div className="sm:col-span-2">
                 <Select value={tipo} onValueChange={(v) => setTipo(v as 'pagar' | 'receber' | 'intercompany')}>
                   <SelectTrigger className="h-9 sm:h-8 text-sm sm:text-xs">
                     <SelectValue />
@@ -701,7 +708,7 @@ export function ContasFluxoSection({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="sm:col-span-4">
+              <div className="sm:col-span-3">
                 <Input
                   placeholder="Descrição"
                   value={descricao}
@@ -731,6 +738,21 @@ export function ContasFluxoSection({
                     max={format(limite30d, 'yyyy-MM-dd')}
                   />
                 </div>
+              </div>
+              <div className="sm:col-span-2">
+                <Select value={contaOrigemManual} onValueChange={setContaOrigemManual}>
+                  <SelectTrigger className="h-9 sm:h-8 text-sm sm:text-xs">
+                    <SelectValue placeholder="Conta..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhuma</SelectItem>
+                    {CONTAS_BANCARIAS_OPCOES.map((conta) => (
+                      <SelectItem key={conta} value={conta} className="text-xs">
+                        {conta}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="sm:col-span-1">
                 <Button
@@ -1162,10 +1184,23 @@ export function ContasFluxoSection({
                             </SelectContent>
                           </Select>
                         )}
+
+                        {/* Filtro por conta de origem */}
+                        <Select value={filtroContaOrigem} onValueChange={setFiltroContaOrigem}>
+                          <SelectTrigger className="h-8 w-[140px] text-xs">
+                            <SelectValue placeholder="Conta" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todos">Todas contas</SelectItem>
+                            {CONTAS_BANCARIAS_OPCOES.map(c => (
+                              <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       {/* Mostrar quantidade de resultados após filtros */}
-                      {(filtroTexto || filtroMes !== 'todos' || filtroTipo !== 'todos' || filtroCategoria !== 'todos' || filtroFornecedor !== 'todos') && (
+                      {(filtroTexto || filtroMes !== 'todos' || filtroTipo !== 'todos' || filtroCategoria !== 'todos' || filtroFornecedor !== 'todos' || filtroContaOrigem !== 'todos') && (
                         <div className="text-xs text-muted-foreground px-1">
                           {contasPagas.length} resultado{contasPagas.length !== 1 ? 's' : ''}
                         </div>

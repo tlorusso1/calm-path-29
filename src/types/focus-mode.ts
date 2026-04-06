@@ -107,6 +107,13 @@ export type ContaFluxoSubtipo = 'cdb' | 'trust' | 'renda_fixa' | 'lci' | 'lca' |
 // Natureza da saída: operacional (impacta meta) vs capitalGiro (não impacta meta)
 export type ContaFluxoNatureza = 'operacional' | 'capitalGiro';
 
+// Contas bancárias disponíveis para seleção
+export const CONTAS_BANCARIAS_OPCOES = [
+  'ITAU - NICE FOODS',
+  'ITAU - NICE ECOM',
+  'MERCADO LIVRE - NICE ECOM',
+] as const;
+
 export interface ContaFluxo {
   id: string;
   tipo: ContaFluxoTipo;  
@@ -137,6 +144,8 @@ export interface ContaFluxo {
   chaveDanfe?: string;       // Chave de acesso DANFE (44 dígitos)
   // Anexos (PDFs, imagens)
   anexos?: ContaAnexo[];
+  // Conta bancária de origem
+  contaOrigem?: string;      // Ex: "ITAU - NICE FOODS", "ITAU - NICE ECOM"
 }
 
 export interface ContaAnexo {
