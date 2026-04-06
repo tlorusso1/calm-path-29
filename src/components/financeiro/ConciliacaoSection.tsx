@@ -671,15 +671,16 @@ export function ConciliacaoSection({
         ignorados: result.ignorados 
       });
       
-      if (paraRevisar.length === 0) {
+      if (result.novos === 0 && result.conciliados === 0) {
+        // nothing
+      } else {
         setTexto('');
       }
       
       const partes = [
-        conciliados.length > 0 ? `✅ ${conciliados.length} contas baixadas automaticamente` : null,
-        novos.length > 0 ? `📥 ${novos.length} lançamentos novos no histórico` : null,
-        paraRevisar.length > 0 ? `⚠️ ${paraRevisar.length} para revisar` : null,
-        duplicatasIgnoradas > 0 ? `🔴 ${duplicatasIgnoradas} ignorados como duplicata (ver console)` : null,
+        result.conciliados > 0 ? `✅ ${result.conciliados} contas baixadas automaticamente` : null,
+        result.novos > 0 ? `📥 ${result.novos} lançamentos novos no histórico` : null,
+        result.duplicatasIgnoradas > 0 ? `🔴 ${result.duplicatasIgnoradas} ignorados como duplicata` : null,
       ].filter(Boolean);
       toast.success(`Conciliação: ${todosLancamentos.length} lançamentos processados`, {
         description: partes.join('\n'),
