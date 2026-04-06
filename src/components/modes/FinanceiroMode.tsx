@@ -80,6 +80,7 @@ export function FinanceiroMode({
     conciliacao: true,
     fornecedores: false,
   });
+  const [limparMode, setLimparMode] = useState<'tudo' | 'pagas' | null>(null);
   
   // Carregar fornecedores do CSV uma vez
   const fornecedoresCarregados = useMemo(() => loadFornecedores(), []);
