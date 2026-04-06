@@ -249,20 +249,18 @@ export function FinanceiroMode({
       ),
     };
     
-    // Atualizar caixa automaticamente
-    if (estaMarcandoPago && valorConta > 0 && caixaAtualNum > 0) {
-      let novoCaixa: number;
-      if (conta.tipo === 'receber') {
-        novoCaixa = caixaAtualNum + valorConta;
-      } else if (conta.tipo === 'pagar' || conta.tipo === 'cartao') {
-        novoCaixa = caixaAtualNum - valorConta;
-      } else {
-        novoCaixa = caixaAtualNum;
-      }
+    // Atualizar caixa automaticamente (bidirecional)
+    if (valorConta > 0) {
+      const isExpense = conta.tipo === 'pagar' || conta.tipo === 'cartao';
+      const valorBase = isExpense ? -valorConta : valorConta;
+      const ajuste = estaMarcandoPago ? valorBase : -valorBase;
+      const novoCaixa = caixaAtualNum + ajuste;
+      
       updates.caixaAtual = novoCaixa.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       
-      const sinal = conta.tipo === 'receber' ? '+' : '-';
-      toast.success(`Conta paga: ${sinal} R$ ${formatCurrency(valorConta)} → Caixa atualizado`);
+      const sinal = ajuste >= 0 ? '+' : '-';
+      const label = estaMarcandoPago ? 'Conta paga' : 'Conta desmarcada';
+      toast.success(`${label}: ${sinal} R$ ${formatCurrency(Math.abs(ajuste))} → Caixa ${estaMarcandoPago ? 'atualizado' : 'revertido'}`);
     }
     
     onUpdateFinanceiroData(updates);
