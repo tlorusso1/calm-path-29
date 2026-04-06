@@ -1005,6 +1005,70 @@ export function FinanceiroMode({
         </CardContent>
       </Card>
       
+      {/* ========== LIMPAR HISTÓRICO ========== */}
+      <div className="flex items-center justify-center gap-2 py-2">
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/10">
+              <Trash2 className="h-3 w-3" />
+              Limpar Histórico
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Limpar histórico de lançamentos</AlertDialogTitle>
+              <AlertDialogDescription>
+                Escolha o que deseja limpar. Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2 py-2">
+              <Button
+                variant="outline"
+                className="w-full justify-start text-sm gap-2"
+                onClick={() => setLimparMode('pagas')}
+              >
+                🧹 Apenas contas pagas (histórico)
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {(data.contasFluxo || []).filter(c => c.pago).length} contas
+                </span>
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start text-sm gap-2 text-destructive"
+                onClick={() => setLimparMode('tudo')}
+              >
+                ⚠️ Tudo (pagas + pendentes)
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {(data.contasFluxo || []).length} contas
+                </span>
+              </Button>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              {limparMode && (
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => {
+                    if (limparMode === 'pagas') {
+                      const restantes = (data.contasFluxo || []).filter(c => !c.pago);
+                      onUpdateFinanceiroData({ contasFluxo: restantes });
+                      toast.success(`Histórico limpo — ${(data.contasFluxo || []).filter(c => c.pago).length} contas pagas removidas`);
+                    } else {
+                      onUpdateFinanceiroData({ contasFluxo: [] });
+                      toast.success('Todas as contas removidas');
+                    }
+                    setLimparMode(null);
+                    flushSave?.();
+                  }}
+                >
+                  Confirmar: {limparMode === 'pagas' ? 'Limpar pagas' : 'Limpar tudo'}
+                </AlertDialogAction>
+              )}
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+      
       {/* ========== 8. CHECKLIST FINAL — RITMO ========== */}
       <RitmoChecklist
         checklistDiario={data.checklistDiario}

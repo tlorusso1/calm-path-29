@@ -418,6 +418,28 @@ export function DRESection({
                 <span>{formatCurrency(totais.resultadoOperacional)}</span>
               </div>
               
+              {/* CMV Real (Gerencial) — Subtotal que soma produto + custos variáveis */}
+              {cmvGerencialData && cmvGerencialData.receitaBruta > 0 && (
+                <div className="space-y-1 p-3 rounded-lg border bg-purple-50/50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800">
+                  <div className="flex justify-between font-bold text-sm text-purple-700 dark:text-purple-400">
+                    <span className="flex items-center gap-1">
+                      🧠 CMV REAL (Gerencial)
+                      <span className="text-[9px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 px-1 py-0.5 rounded">UNIT ECON</span>
+                    </span>
+                    <span>{formatCurrency(cmvGerencialData.cmvGerencialTotal)}</span>
+                  </div>
+                  <p className="text-[10px] text-purple-600/70 dark:text-purple-400/70">
+                    CMV Produto + Impostos ({((cmvGerencialData.receitaBruta > 0 ? (cmvGerencialData.cmvGerencialTotal - (cmvSupply || 0)) / cmvGerencialData.receitaBruta * 100 : 0)).toFixed(0)}% variáveis) + Taxa Cartão + Fulfillment + Materiais
+                  </p>
+                  <div className="flex justify-between text-xs text-purple-600 dark:text-purple-400">
+                    <span>Margem após CMV Real</span>
+                    <span className="font-medium">
+                      {formatCurrency(cmvGerencialData.receitaBruta - cmvGerencialData.cmvGerencialTotal)} ({(cmvGerencialData.margemGerencial * 100).toFixed(1)}%)
+                    </span>
+                  </div>
+                </div>
+              )}
+              
               {/* Resumo Margem Gerencial */}
               {cmvGerencialData && cmvGerencialData.receitaBruta > 0 && (
                 <div className={cn(
