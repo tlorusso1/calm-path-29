@@ -363,12 +363,50 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
     const receitaSemanal = receitaTotal90d / semanas90d;
     const cmvSemanal = cmvTotal90d / semanas90d;
 
+    // Breakdown semanal (últimas 12 semanas)
+    const breakdownSemanal: ForecastSemana[] = [];
+    const MESES_CURTOS = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+    const agora = new Date();
+    for (let w = 11; w >= 0; w--) {
+      const inicioSemana = new Date(agora);
+      inicioSemana.setDate(inicioSemana.getDate() - (w * 7) - agora.getDay() + 1); // seg
+      inicioSemana.setHours(0,0,0,0);
+      const fimSemana = new Date(inicioSemana);
+      fimSemana.setDate(fimSemana.getDate() + 6);
+      fimSemana.setHours(23,59,59,999);
+
+      const isoWeek = getISOWeek(inicioSemana);
+      const mesLabel = MESES_CURTOS[inicioSemana.getMonth()];
+      const semanaLabel = `S${isoWeek} ${mesLabel}`;
+
+      let recSemana = 0;
+      let cmvSemana = 0;
+      for (const saida of saidasPA) {
+        const ts = new Date(saida.data.includes('T') ? saida.data : saida.data + 'T00:00:00').getTime();
+        if (ts >= inicioSemana.getTime() && ts <= fimSemana.getTime()) {
+          if (saida.valorUnitarioVenda && saida.valorUnitarioVenda > 0) {
+            recSemana += saida.quantidade * saida.valorUnitarioVenda;
+          }
+          const pc = encontrarPrecoCustoPadrao(saida.produto);
+          if (pc && pc > 0) cmvSemana += saida.quantidade * pc;
+        }
+      }
+
+      breakdownSemanal.push({
+        semanaLabel,
+        receitaReal: Math.round(recSemana * 100) / 100,
+        cmvReal: Math.round(cmvSemana * 100) / 100,
+        inicioSemana: inicioSemana.toISOString().split('T')[0],
+      });
+    }
+
     forecast = {
       receitaProjetada30d: receitaSemanal * (30 / 7),
       cmvProjetado30d: cmvSemanal * (30 / 7),
       margemProjetada: receitaSemanal > 0 ? ((receitaSemanal - cmvSemanal) / receitaSemanal) * 100 : 0,
       investimentoProducao: investimentoTotal,
       itens: forecastItens.sort((a, b) => (b.investimentoNecessario ?? 0) - (a.investimentoNecessario ?? 0)),
+      breakdownSemanal,
     };
   }
 
