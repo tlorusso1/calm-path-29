@@ -696,7 +696,7 @@ export function ContasFluxoSection({
 
             {/* Form para adicionar - Responsivo */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 p-3 rounded-lg border bg-muted/30">
-              <div className="sm:col-span-3">
+              <div className="sm:col-span-2">
                 <Select value={tipo} onValueChange={(v) => setTipo(v as 'pagar' | 'receber' | 'intercompany')}>
                   <SelectTrigger className="h-9 sm:h-8 text-sm sm:text-xs">
                     <SelectValue />
@@ -708,7 +708,7 @@ export function ContasFluxoSection({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="sm:col-span-4">
+              <div className="sm:col-span-3">
                 <Input
                   placeholder="Descrição"
                   value={descricao}
@@ -738,6 +738,21 @@ export function ContasFluxoSection({
                     max={format(limite30d, 'yyyy-MM-dd')}
                   />
                 </div>
+              </div>
+              <div className="sm:col-span-2">
+                <Select value={contaOrigemManual} onValueChange={setContaOrigemManual}>
+                  <SelectTrigger className="h-9 sm:h-8 text-sm sm:text-xs">
+                    <SelectValue placeholder="Conta..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhuma</SelectItem>
+                    {CONTAS_BANCARIAS_OPCOES.map((conta) => (
+                      <SelectItem key={conta} value={conta} className="text-xs">
+                        {conta}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="sm:col-span-1">
                 <Button
@@ -1172,7 +1187,7 @@ export function ContasFluxoSection({
                       </div>
 
                       {/* Mostrar quantidade de resultados após filtros */}
-                      {(filtroTexto || filtroMes !== 'todos' || filtroTipo !== 'todos' || filtroCategoria !== 'todos' || filtroFornecedor !== 'todos') && (
+                      {(filtroTexto || filtroMes !== 'todos' || filtroTipo !== 'todos' || filtroCategoria !== 'todos' || filtroFornecedor !== 'todos' || filtroContaOrigem !== 'todos') && (
                         <div className="text-xs text-muted-foreground px-1">
                           {contasPagas.length} resultado{contasPagas.length !== 1 ? 's' : ''}
                         </div>
