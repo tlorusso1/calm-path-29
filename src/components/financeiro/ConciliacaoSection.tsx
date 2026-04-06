@@ -281,6 +281,7 @@ export function ConciliacaoSection({
   const [showReviewPanel, setShowReviewPanel] = useState(false);
   const [showDuplicatasLog, setShowDuplicatasLog] = useState(false);
   const [contaOrigem, setContaOrigem] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Progress para lotes
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
