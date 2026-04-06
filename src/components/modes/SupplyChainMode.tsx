@@ -1140,62 +1140,42 @@ export function SupplyChainMode({
             </TabsContent>
 
             <TabsContent value="movimentacoes" className="space-y-3">
+              <input
+                ref={movFileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                className="hidden"
+                onChange={handleImportMovFile}
+              />
+              <Button
+                onClick={() => movFileInputRef.current?.click()}
+                className="w-full"
+                size="sm"
+                variant="outline"
+              >
+                <Upload className="h-4 w-4 mr-2" /> Importar Arquivo (.csv, .xlsx)
+              </Button>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">ou cole abaixo</span>
+                </div>
+              </div>
               <Textarea
                 placeholder={"Cole o CSV de entradas ou saídas aqui...\nFormato esperado: separado por ; com cabeçalho"}
                 value={textoMovimentacoes}
                 onChange={(e) => setTextoMovimentacoes(e.target.value)}
-                rows={5}
+                rows={4}
               />
               <Button 
-                onClick={() => {
-                  const novas = parsearMovimentacoes(textoMovimentacoes);
-                  if (novas.length === 0) {
-                    toast({ title: "Nenhuma movimentação encontrada", description: "Verifique o formato do CSV.", variant: "destructive" });
-                    return;
-                  }
-                  
-                  const movExistentes = data.movimentacoes || [];
-                  
-                  // Deduplicar por conteúdo (tipo+produto+qtd+data), não por ID de linha
-                  const { resultado: todasMovimentacoes, novasAdicionadas, duplicatasIgnoradas } = deduplicarMovimentacoes(movExistentes, novas);
-                  
-                  // Recalcular demanda semanal dos itens (usando normalizarNomeProduto consistente)
-                  const demandaMap = calcularDemandaSemanalPorItem(todasMovimentacoes);
-                  
-                  // Atualizar itens com demanda calculada numa única operação atômica
-                  let itensAtualizados = 0;
-                  const itensComDemandaAtualizada = data.itens.map(item => {
-                    const key = normalizarNomeProduto(item.nome);
-                    const demanda = demandaMap.get(key);
-                    if (demanda !== undefined) {
-                      itensAtualizados++;
-                      return { ...item, demandaSemanal: demanda };
-                    }
-                    return item;
-                  });
-                  
-                  const saidas = novas.filter(m => m.tipo === 'saida').length;
-                  const entradas = novas.filter(m => m.tipo === 'entrada').length;
-                  
-                  onUpdateSupplyChainData({ 
-                    movimentacoes: todasMovimentacoes,
-                    ultimaImportacaoMov: new Date().toISOString(),
-                    itens: itensComDemandaAtualizada,
-                  });
-                  
-                  const descDuplicatas = duplicatasIgnoradas > 0 ? ` (${duplicatasIgnoradas} duplicatas ignoradas)` : '';
-                  toast({
-                    title: "Movimentações Importadas",
-                    description: `${saidas} saídas, ${entradas} entradas no CSV. ${novasAdicionadas} novas adicionadas${itensAtualizados > 0 ? `. Demanda atualizada para ${itensAtualizados} produtos` : ''}${descDuplicatas}`,
-                  });
-                  flushSave?.();
-                  setTextoMovimentacoes('');
-                }}
+                onClick={() => processarMovimentacoesTexto(textoMovimentacoes)}
                 className="w-full" 
                 size="sm" 
                 disabled={!textoMovimentacoes.trim()}
               >
-                <ArrowDownUp className="h-4 w-4 mr-2" /> Importar Movimentações
+                <ArrowDownUp className="h-4 w-4 mr-2" /> Importar do Texto
               </Button>
               
               {data.movimentacoes && data.movimentacoes.length > 0 && (() => {
