@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronDown, ChevronUp, FileSpreadsheet, Loader2, CheckCircle2, Link2, AlertCircle, Plus, Calendar, Building2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileSpreadsheet, Loader2, CheckCircle2, Link2, AlertCircle, Plus, Calendar, Building2, Upload } from 'lucide-react';
 import { ContaFluxo, ContaFluxoTipo, ContaFluxoSubtipo, ContaFluxoNatureza, Fornecedor, MapeamentoDescricaoFornecedor, extrairPadraoDescricao, encontrarMapeamento, MODALIDADES_CAPITAL_GIRO, CONTAS_BANCARIAS_OPCOES } from '@/types/focus-mode';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
