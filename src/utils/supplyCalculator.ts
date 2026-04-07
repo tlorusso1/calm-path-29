@@ -273,12 +273,14 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
     scorePilar = Math.max(0, scorePilar - 5);
   }
   
-  // Calcular CMV e receita bruta se houver movimentações
+  // Calcular CMV, receita bruta e dados por SKU se houver movimentações
   let cmvMensal: number | undefined;
   let receitaBrutaSupply: number | undefined;
+  let skuData: { nome: string; qtdVendida: number; receitaTotal: number; custoUnitario: number }[] | undefined;
   if (data.movimentacoes && data.movimentacoes.length > 0) {
     cmvMensal = calcularCMVPorSaidas(data.movimentacoes);
     receitaBrutaSupply = calcularReceitaBruta(data.movimentacoes);
+    skuData = calcularDadosPorSKU(data.movimentacoes, 90);
   }
   
   // Calcular forecast
