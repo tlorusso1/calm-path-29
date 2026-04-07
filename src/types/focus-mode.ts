@@ -570,6 +570,7 @@ export interface SupplyExports {
   scorePilar: number;  // 0-30 para Score Negócio
   cmvMensal?: number;  // CMV calculado por saídas x custo unitário
   receitaBrutaSupply?: number;  // Receita bruta (soma ValorSaída)
+  skuData?: { nome: string; qtdVendida: number; receitaTotal: number; custoUnitario: number }[];
   forecast?: SupplyForecast;
 }
 
