@@ -422,6 +422,7 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
     scorePilar,
     cmvMensal,
     receitaBrutaSupply,
+    skuData,
     forecast,
   };
 }
