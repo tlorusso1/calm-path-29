@@ -9,7 +9,7 @@ import {
   ForecastSemana,
   FichaTecnica,
 } from '@/types/focus-mode';
-import { calcularCMVPorSaidas, calcularReceitaBruta, calcularDemandaSemanalPorItem, normalizarNomeProduto } from '@/utils/movimentacoesParser';
+import { calcularCMVPorSaidas, calcularReceitaBruta, calcularDemandaSemanalPorItem, normalizarNomeProduto, calcularDadosPorSKU } from '@/utils/movimentacoesParser';
 import { encontrarPrecoCustoPadrao } from '@/data/precos-custo-default';
 
 // ============= Réguas de Segurança por Tipo =============
