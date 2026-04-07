@@ -745,7 +745,7 @@ export function ContasFluxoSection({
                     <SelectValue placeholder="Conta..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhuma</SelectItem>
+                    <SelectItem value="__none__">Nenhuma</SelectItem>
                     {CONTAS_BANCARIAS_OPCOES.map((conta) => (
                       <SelectItem key={conta} value={conta} className="text-xs">
                         {conta}
