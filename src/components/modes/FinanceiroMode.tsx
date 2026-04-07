@@ -832,7 +832,16 @@ export function FinanceiroMode({
             cmvProduto={cmvSupply || 0}
             ticketMedio={parseCurrency(reuniaoAdsData?.ticketMedio || '')}
             impostoPercentual={data.impostoPercentual ?? 0.16}
+            fretePorPedido={mediasConciliadas.fretePorPedido}
           />
+          
+          {supplyExports?.skuData && supplyExports.skuData.length > 0 && (
+            <UnitEconomicsSKU
+              skus={supplyExports.skuData}
+              ticketMedio={parseCurrency(reuniaoAdsData?.ticketMedio || '')}
+              fretePorPedido={mediasConciliadas.fretePorPedido}
+            />
+          )}
           
           <OrcadoRealizadoSection
             contasFluxo={data.contasFluxo || []}
