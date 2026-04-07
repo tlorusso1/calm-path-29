@@ -67,7 +67,7 @@ export function calcularMediasConciliadas(
     } else if (TIPOS_SAIDA.includes(lanc.tipo)) {
       totalSaidas += valor;
       // Detectar frete
-      const desc = lanc.descricao || lanc.fornecedorNome || '';
+      const desc = lanc.descricao || '';
       if (PATTERNS_FRETE.some(p => p.test(desc))) {
         freteTotalPeriodo += valor;
       }
