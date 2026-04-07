@@ -173,6 +173,12 @@ export function FinanceiroMode({
   );
   const caixaMinimo = parseCurrency(data.caixaMinimo || '');
   
+  // Médias unificadas da conciliação (fonte única)
+  const mediasConciliadas = useMemo(
+    () => calcularMediasConciliadas(data.contasFluxo || [], 90),
+    [data.contasFluxo]
+  );
+
   // CMV Gerencial data
   const cmvGerencialCalc = useMemo(() => {
     const receitaBruta = supplyExports?.receitaBrutaSupply || 0;
@@ -190,13 +196,7 @@ export function FinanceiroMode({
     if (!result) return null;
     
     return { margemGerencial: result.margemPercentual, cmvGerencialTotal: result.cmvRealTotal, receitaBruta };
-  }, [supplyExports, cmvSupply, reuniaoAdsData?.ticketMedio, data.impostoPercentual, data.contasFluxo]);
-
-  // Médias unificadas da conciliação (fonte única)
-  const mediasConciliadas = useMemo(
-    () => calcularMediasConciliadas(data.contasFluxo || [], 90),
-    [data.contasFluxo]
-  );
+  }, [supplyExports, cmvSupply, reuniaoAdsData?.ticketMedio, data.impostoPercentual, mediasConciliadas]);
 
   const toggleSection = (section: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
