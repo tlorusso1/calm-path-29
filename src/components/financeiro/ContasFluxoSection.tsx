@@ -740,7 +740,7 @@ export function ContasFluxoSection({
                 </div>
               </div>
               <div className="sm:col-span-2">
-                <Select value={contaOrigemManual} onValueChange={setContaOrigemManual}>
+                <Select value={contaOrigemManual || '__none__'} onValueChange={(v) => setContaOrigemManual(v === '__none__' ? '' : v)}>
                   <SelectTrigger className="h-9 sm:h-8 text-sm sm:text-xs">
                     <SelectValue placeholder="Conta..." />
                   </SelectTrigger>
