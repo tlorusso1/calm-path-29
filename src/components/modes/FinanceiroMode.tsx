@@ -178,24 +178,25 @@ export function FinanceiroMode({
     const receitaBruta = supplyExports?.receitaBrutaSupply || 0;
     const cmvProduto = cmvSupply || 0;
     const ticketMedio = parseCurrency(reuniaoAdsData?.ticketMedio || '');
-    const impostoPercentual = data.impostoPercentual ?? 0.16;
     
     if (receitaBruta <= 0 || cmvProduto <= 0) return null;
     
-    const taxaCartao = 0.06;
-    const fulfillment = 5.0;
-    const materiais = 5.0;
+    const result = calcularCMVReal({
+      receitaBruta,
+      cmvProduto,
+      ticketMedio,
+      fretePorPedido: mediasConciliadas.fretePorPedido,
+    });
+    if (!result) return null;
     
-    const impostos = receitaBruta * impostoPercentual;
-    const taxaCartaoValor = receitaBruta * taxaCartao;
-    const numPedidos = ticketMedio > 0 ? receitaBruta / ticketMedio : 0;
-    const fulfillmentTotal = numPedidos * fulfillment;
-    const materiaisTotal = numPedidos * materiais;
-    const cmvGerencialTotal = cmvProduto + impostos + taxaCartaoValor + fulfillmentTotal + materiaisTotal;
-    const margemGerencial = (receitaBruta - cmvGerencialTotal) / receitaBruta;
-    
-    return { margemGerencial, cmvGerencialTotal, receitaBruta };
-  }, [supplyExports, cmvSupply, reuniaoAdsData?.ticketMedio, data.impostoPercentual]);
+    return { margemGerencial: result.margemPercentual, cmvGerencialTotal: result.cmvRealTotal, receitaBruta };
+  }, [supplyExports, cmvSupply, reuniaoAdsData?.ticketMedio, data.impostoPercentual, data.contasFluxo]);
+
+  // Médias unificadas da conciliação (fonte única)
+  const mediasConciliadas = useMemo(
+    () => calcularMediasConciliadas(data.contasFluxo || [], 90),
+    [data.contasFluxo]
+  );
 
   const toggleSection = (section: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
