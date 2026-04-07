@@ -4,16 +4,17 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Input } from '@/components/ui/input';
 import { ChevronDown, ChevronUp, Calculator } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CUSTOS_VARIAVEIS } from '@/utils/financeiro/mediasCalculator';
 
 interface CMVGerencialCardProps {
   receitaBruta: number;
   cmvProduto: number;
   ticketMedio: number;
-  impostoPercentual: number;  // ex: 0.16
-  // Config editável
+  impostoPercentual: number;
   taxaCartaoPercentual?: number;
   fulfillmentPorPedido?: number;
   materiaisPorPedido?: number;
+  fretePorPedido?: number;
   onConfigChange?: (config: {
     taxaCartaoPercentual: number;
     fulfillmentPorPedido: number;
@@ -34,9 +35,10 @@ export function CMVGerencialCard({
   cmvProduto,
   ticketMedio,
   impostoPercentual,
-  taxaCartaoPercentual: taxaCartaoInit = 0.06,
-  fulfillmentPorPedido: fulfillmentInit = 5.0,
-  materiaisPorPedido: materiaisInit = 5.0,
+  taxaCartaoPercentual: taxaCartaoInit = CUSTOS_VARIAVEIS.taxaCartao,
+  fulfillmentPorPedido: fulfillmentInit = CUSTOS_VARIAVEIS.fulfillment,
+  materiaisPorPedido: materiaisInit = CUSTOS_VARIAVEIS.embalagem,
+  fretePorPedido = 0,
   onConfigChange,
 }: CMVGerencialCardProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -49,25 +51,27 @@ export function CMVGerencialCard({
 
     const impostos = receitaBruta * impostoPercentual;
     const taxaCartaoValor = receitaBruta * taxaCartao;
+    const devolucoesValor = receitaBruta * CUSTOS_VARIAVEIS.devolucoes;
     const numPedidos = ticketMedio > 0 ? receitaBruta / ticketMedio : 0;
     const fulfillmentTotal = numPedidos * fulfillment;
     const materiaisTotal = numPedidos * materiais;
+    const freteTotal = numPedidos * fretePorPedido;
 
-    const cmvGerencialTotal = cmvProduto + impostos + taxaCartaoValor + fulfillmentTotal + materiaisTotal;
+    const cmvGerencialTotal = cmvProduto + impostos + taxaCartaoValor + devolucoesValor + fulfillmentTotal + materiaisTotal + freteTotal;
     const margemGerencial = (receitaBruta - cmvGerencialTotal) / receitaBruta;
-    const margemProduto = (receitaBruta - cmvProduto) / receitaBruta;
 
     return {
       impostos,
       taxaCartaoValor,
+      devolucoesValor,
       numPedidos: Math.round(numPedidos),
       fulfillmentTotal,
       materiaisTotal,
+      freteTotal,
       cmvGerencialTotal,
       margemGerencial,
-      margemProduto,
     };
-  }, [receitaBruta, cmvProduto, ticketMedio, impostoPercentual, taxaCartao, fulfillment, materiais]);
+  }, [receitaBruta, cmvProduto, ticketMedio, impostoPercentual, taxaCartao, fulfillment, materiais, fretePorPedido]);
 
   const handleConfigUpdate = (field: string, value: number) => {
     const newConfig = {
@@ -100,7 +104,7 @@ export function CMVGerencialCard({
             <CardTitle className="flex items-center justify-between text-base">
               <span className="flex items-center gap-2">
                 <Calculator className="h-4 w-4" />
-                🧠 CMV Gerencial (Unit Economics)
+                🧠 CMV Real (Unit Economics)
                 <span className="text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 px-1.5 py-0.5 rounded">GERENCIAL</span>
               </span>
               <div className="flex items-center gap-2">
@@ -118,7 +122,6 @@ export function CMVGerencialCard({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0">
-            {/* Tabela de cálculo */}
             <div className="space-y-1 text-sm">
               <div className="flex justify-between font-medium text-green-600 border-b pb-1">
                 <span>Receita Bruta</span>
@@ -126,38 +129,55 @@ export function CMVGerencialCard({
               </div>
 
               <div className="flex justify-between text-muted-foreground pl-2">
-                <span>(-) CMV Produto</span>
+                <span>(-) Custo Produto (CP)</span>
                 <span className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground/70">({formatPercent(cmvProduto / receitaBruta)})</span>
                   {formatCurrency(-cmvProduto)}
                 </span>
               </div>
 
-              <div className="flex justify-between text-muted-foreground pl-2">
-                <span>(-) Impostos</span>
+              <p className="text-[9px] font-medium text-muted-foreground pl-2 pt-1 uppercase">Despesas Variáveis:</p>
+
+              <div className="flex justify-between text-muted-foreground pl-4">
+                <span>Impostos</span>
                 <span className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground/70">({formatPercent(impostoPercentual)})</span>
                   {formatCurrency(-calculo.impostos)}
                 </span>
               </div>
 
-              <div className="flex justify-between text-muted-foreground pl-2">
-                <span>(-) Taxa Cartão</span>
+              <div className="flex justify-between text-muted-foreground pl-4">
+                <span>Meio de Pagamento</span>
                 <span className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground/70">({formatPercent(taxaCartao)})</span>
                   {formatCurrency(-calculo.taxaCartaoValor)}
                 </span>
               </div>
 
-              <div className="flex justify-between text-muted-foreground pl-2">
-                <span>(-) Fulfillment ({calculo.numPedidos} ped.)</span>
+              <div className="flex justify-between text-muted-foreground pl-4">
+                <span>Devoluções/Reembolsos</span>
+                <span className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground/70">({formatPercent(CUSTOS_VARIAVEIS.devolucoes)})</span>
+                  {formatCurrency(-calculo.devolucoesValor)}
+                </span>
+              </div>
+
+              <div className="flex justify-between text-muted-foreground pl-4">
+                <span>Fulfillment ({calculo.numPedidos} ped.)</span>
                 <span>{formatCurrency(-calculo.fulfillmentTotal)}</span>
               </div>
 
-              <div className="flex justify-between text-muted-foreground pl-2">
-                <span>(-) Caixa + Materiais ({calculo.numPedidos} ped.)</span>
+              <div className="flex justify-between text-muted-foreground pl-4">
+                <span>Embalagem ({calculo.numPedidos} ped.)</span>
                 <span>{formatCurrency(-calculo.materiaisTotal)}</span>
               </div>
+
+              {calculo.freteTotal > 0 && (
+                <div className="flex justify-between text-muted-foreground pl-4">
+                  <span>Frete ({calculo.numPedidos} ped.)</span>
+                  <span>{formatCurrency(-calculo.freteTotal)}</span>
+                </div>
+              )}
 
               <div className={cn(
                 "flex justify-between font-bold p-2 rounded-lg border mt-2",
@@ -167,12 +187,11 @@ export function CMVGerencialCard({
                   ? "bg-amber-50 dark:bg-amber-900/20 border-amber-300 text-amber-700"
                   : "bg-red-50 dark:bg-red-900/20 border-red-300 text-red-700"
               )}>
-                <span>= MARGEM GERENCIAL</span>
+                <span>= MARGEM DE CONTRIBUIÇÃO</span>
                 <span>{formatCurrency(receitaBruta - calculo.cmvGerencialTotal)} ({formatPercent(calculo.margemGerencial)})</span>
               </div>
             </div>
 
-            {/* Parâmetros editáveis */}
             <div className="border-t pt-3 space-y-2">
               <p className="text-[10px] font-medium text-muted-foreground uppercase">Parâmetros ajustáveis</p>
               <div className="grid grid-cols-3 gap-2">
@@ -205,7 +224,7 @@ export function CMVGerencialCard({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted-foreground">Materiais/ped</label>
+                  <label className="text-[10px] text-muted-foreground">Embalagem/ped</label>
                   <Input
                     type="number"
                     step="0.5"
@@ -220,7 +239,9 @@ export function CMVGerencialCard({
                 </div>
               </div>
               <p className="text-[9px] text-muted-foreground">
-                Ticket médio: {formatCurrency(ticketMedio)} · Impostos: {formatPercent(impostoPercentual)} (da aba Financeiro)
+                Ticket médio: {formatCurrency(ticketMedio)} · Impostos: {formatPercent(impostoPercentual)} · 
+                Frete/ped: {formatCurrency(fretePorPedido)} (conciliação) · 
+                Devoluções: {formatPercent(CUSTOS_VARIAVEIS.devolucoes)}
               </p>
             </div>
           </CardContent>
