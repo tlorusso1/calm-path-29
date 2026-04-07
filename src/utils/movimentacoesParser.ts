@@ -400,3 +400,43 @@ export function topProdutosPorSaida(
     .sort((a, b) => b.quantidade - a.quantidade)
     .slice(0, n);
 }
+
+/**
+ * Retorna dados por SKU: quantidade vendida, receita total, custo unitário
+ */
+export function calcularDadosPorSKU(
+  movimentacoes: MovimentacaoEstoque[],
+  diasJanela: number = 90
+): { nome: string; qtdVendida: number; receitaTotal: number; custoUnitario: number }[] {
+  const corte = Date.now() - diasJanela * 24 * 60 * 60 * 1000;
+  const saidas = movimentacoes.filter(m => {
+    if (m.tipo !== 'saida') return false;
+    const dataStr = m.data.includes('T') ? m.data : m.data + 'T00:00:00';
+    const ts = new Date(dataStr).getTime();
+    return !isNaN(ts) && ts >= corte;
+  });
+
+  const skuMap = new Map<string, { qtd: number; receita: number; custo: number }>();
+
+  for (const s of saidas) {
+    const key = s.produto;
+    const entry = skuMap.get(key) || { qtd: 0, receita: 0, custo: 0 };
+    entry.qtd += s.quantidade;
+    if (s.valorUnitarioVenda && s.valorUnitarioVenda > 0) {
+      entry.receita += s.quantidade * s.valorUnitarioVenda;
+    }
+    const pc = encontrarPrecoCustoPadrao(s.produto);
+    if (pc && pc > 0) entry.custo = pc;
+    skuMap.set(key, entry);
+  }
+
+  return Array.from(skuMap.entries())
+    .filter(([, v]) => v.qtd > 0 && v.receita > 0)
+    .map(([nome, v]) => ({
+      nome,
+      qtdVendida: v.qtd,
+      receitaTotal: v.receita,
+      custoUnitario: v.custo,
+    }))
+    .sort((a, b) => b.receitaTotal - a.receitaTotal);
+}
