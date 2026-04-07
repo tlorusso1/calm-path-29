@@ -597,7 +597,7 @@ export function ConciliacaoSection({
     return { conciliados: conciliados.length, novos: novos.length, ignorados, duplicatasIgnoradas };
   };
 
-
+  const handleProcessar = async () => {
     if (!texto.trim()) {
       toast.error('Cole o extrato bancário no campo de texto.');
       return;
