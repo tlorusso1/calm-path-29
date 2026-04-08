@@ -843,6 +843,8 @@ export function FinanceiroMode({
             faturamentoCanais={data.faturamentoCanais || { b2b: '', ecomNuvem: '', ecomShopee: '', ecomAssinaturas: '' }}
             onUpdate={(canais) => onUpdateFinanceiroData({ faturamentoCanais: canais })}
             receitaBrutaMovimentacoes={supplyExports?.receitaBrutaSupply}
+            contasFluxo={data.contasFluxo}
+            movimentacoes={supplyExports?.movimentacoes}
           />
         </CardContent>
       </Card>
