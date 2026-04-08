@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { TrendingUp, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ContaFluxo, MovimentacaoEstoque, CanalVenda } from '@/types/focus-mode';
 
 interface FaturamentoCanais {
   b2b: string;
@@ -16,20 +17,36 @@ interface FaturamentoCanaisCardProps {
   faturamentoCanais: FaturamentoCanais;
   onUpdate: (canais: FaturamentoCanais) => void;
   receitaBrutaMovimentacoes?: number;
+  contasFluxo?: ContaFluxo[];
+  movimentacoes?: MovimentacaoEstoque[];
 }
 
 interface CanalInfo {
   key: keyof FaturamentoCanais;
+  canalKey: CanalVenda;
   label: string;
   color: string;
 }
 
 const CANAIS: CanalInfo[] = [
-  { key: 'b2b', label: 'B2B', color: 'bg-blue-500' },
-  { key: 'ecomNuvem', label: 'ECOM-NUVEM', color: 'bg-purple-500' },
-  { key: 'ecomShopee', label: 'ECOM-SHOPEE', color: 'bg-orange-500' },
-  { key: 'ecomAssinaturas', label: 'ECOM-ASSINATURAS (RITS)', color: 'bg-green-500' },
+  { key: 'b2b', canalKey: 'b2b', label: 'B2B', color: 'bg-blue-500' },
+  { key: 'ecomNuvem', canalKey: 'ecomNuvem', label: 'ECOM-NUVEM', color: 'bg-purple-500' },
+  { key: 'ecomShopee', canalKey: 'ecomShopee', label: 'ECOM-SHOPEE', color: 'bg-orange-500' },
+  { key: 'ecomAssinaturas', canalKey: 'ecomAssinaturas', label: 'ECOM-ASSINATURAS (RITS)', color: 'bg-green-500' },
 ];
+
+// Mapeamento: contaOrigem → canal
+function classificarContaOrigem(contaOrigem?: string): CanalVenda | null {
+  if (!contaOrigem) return null;
+  const upper = contaOrigem.toUpperCase();
+  
+  if (upper.includes('ASAAS')) return 'ecomAssinaturas';
+  if (upper.includes('MERCADO LIVRE') || upper.includes('MERCADOLIVRE')) return 'ecomShopee';
+  if (upper.includes('NICE ECOM') || upper.includes('PAGAR.ME') || upper.includes('PAGARME') || upper.includes('NUVEMSHOP') || upper.includes('NUVEM')) return 'ecomNuvem';
+  if (upper.includes('NICE FOODS') && !upper.includes('ECOM')) return 'b2b';
+  
+  return null;
+}
 
 function parseCurrency(value: string): number {
   if (!value) return 0;
@@ -45,24 +62,80 @@ export function FaturamentoCanaisCard({
   faturamentoCanais,
   onUpdate,
   receitaBrutaMovimentacoes,
+  contasFluxo,
+  movimentacoes,
 }: FaturamentoCanaisCardProps) {
   const hoje = new Date();
   const diaDoMes = hoje.getDate();
   const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
   const diasRestantes = diasNoMes - diaDoMes;
+  const mesAtual = hoje.getMonth();
+  const anoAtual = hoje.getFullYear();
+  
+  // Dados automáticos da conciliação bancária (líquido)
+  const liquidoPorCanal = useMemo(() => {
+    const result: Record<CanalVenda, number> = { b2b: 0, ecomNuvem: 0, ecomShopee: 0, ecomAssinaturas: 0 };
+    if (!contasFluxo) return result;
+    
+    for (const conta of contasFluxo) {
+      if (conta.tipo !== 'receber') continue;
+      // Filtrar pelo mês atual
+      if (conta.data) {
+        const d = new Date(conta.data + 'T00:00:00');
+        if (d.getMonth() !== mesAtual || d.getFullYear() !== anoAtual) continue;
+      }
+      // Não contar intercompany
+      if (conta.classificacao === 'intercompany') continue;
+      
+      const canal = classificarContaOrigem(conta.contaOrigem);
+      if (canal) {
+        result[canal] += Math.abs(parseCurrency(conta.valor));
+      }
+    }
+    return result;
+  }, [contasFluxo, mesAtual, anoAtual]);
+  
+  // Dados automáticos das movimentações (bruto)
+  const brutoPorCanal = useMemo(() => {
+    const result: Record<CanalVenda, number> = { b2b: 0, ecomNuvem: 0, ecomShopee: 0, ecomAssinaturas: 0 };
+    if (!movimentacoes) return result;
+    
+    for (const mov of movimentacoes) {
+      if (mov.tipo !== 'saida' || !mov.canal) continue;
+      // Filtrar pelo mês atual
+      if (mov.data) {
+        const d = new Date(mov.data + 'T00:00:00');
+        if (d.getMonth() !== mesAtual || d.getFullYear() !== anoAtual) continue;
+      }
+      const receita = (mov.valorUnitarioVenda || 0) * mov.quantidade;
+      if (receita > 0) {
+        result[mov.canal] += receita;
+      }
+    }
+    return result;
+  }, [movimentacoes, mesAtual, anoAtual]);
   
   // Calcular projeções
   const calculos = useMemo(() => {
     const resultado = CANAIS.map(canal => {
-      const valorAtual = parseCurrency(faturamentoCanais[canal.key]);
-      // Projeção: (valor atual / dia atual) * dias no mês
+      const manualVal = parseCurrency(faturamentoCanais[canal.key]);
+      const liquidoVal = liquidoPorCanal[canal.canalKey];
+      const brutoVal = brutoPorCanal[canal.canalKey];
+      
+      // Usa manual se preenchido, senão líquido (banco), senão bruto (mov)
+      const valorAtual = manualVal > 0 ? manualVal : (liquidoVal > 0 ? liquidoVal : brutoVal);
+      const fonte = manualVal > 0 ? 'manual' : (liquidoVal > 0 ? 'banco' : (brutoVal > 0 ? 'mov' : 'none'));
+      
       const projecaoMes = diaDoMes > 0 ? (valorAtual / diaDoMes) * diasNoMes : 0;
-      // Média diária atual
       const mediaDiaria = diaDoMes > 0 ? valorAtual / diaDoMes : 0;
       
       return {
         ...canal,
         valorAtual,
+        liquidoVal,
+        brutoVal,
+        manualVal,
+        fonte,
         projecaoMes,
         mediaDiaria,
       };
@@ -70,15 +143,21 @@ export function FaturamentoCanaisCard({
     
     const totalAtual = resultado.reduce((acc, c) => acc + c.valorAtual, 0);
     const totalProjecao = resultado.reduce((acc, c) => acc + c.projecaoMes, 0);
+    const totalLiquido = resultado.reduce((acc, c) => acc + c.liquidoVal, 0);
+    const totalBruto = resultado.reduce((acc, c) => acc + c.brutoVal, 0);
     
-    return { canais: resultado, totalAtual, totalProjecao };
-  }, [faturamentoCanais, diaDoMes, diasNoMes]);
+    return { canais: resultado, totalAtual, totalProjecao, totalLiquido, totalBruto };
+  }, [faturamentoCanais, liquidoPorCanal, brutoPorCanal, diaDoMes, diasNoMes]);
   
   const handleChange = (key: keyof FaturamentoCanais, value: string) => {
-    onUpdate({
-      ...faturamentoCanais,
-      [key]: value,
-    });
+    onUpdate({ ...faturamentoCanais, [key]: value });
+  };
+
+  const fonteLabel = (fonte: string) => {
+    if (fonte === 'banco') return '🏦';
+    if (fonte === 'mov') return '📦';
+    if (fonte === 'manual') return '✏️';
+    return '';
   };
 
   return (
@@ -97,43 +176,48 @@ export function FaturamentoCanaisCard({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Cabeçalho */}
-        <div className="grid grid-cols-[1fr,100px,100px] gap-2 text-[10px] text-muted-foreground font-medium px-1">
+        <div className="grid grid-cols-[1fr,80px,80px,80px] gap-1 text-[9px] text-muted-foreground font-medium px-1">
           <span>Canal</span>
-          <span className="text-right">Atual</span>
-          <span className="text-right">Projeção Mês</span>
+          <span className="text-right">Líquido 🏦</span>
+          <span className="text-right">Bruto 📦</span>
+          <span className="text-right">Projeção</span>
         </div>
         
         {/* Canais */}
         <div className="space-y-3">
           {calculos.canais.map(canal => (
             <div key={canal.key} className="space-y-1">
-              <div className="grid grid-cols-[1fr,100px,100px] gap-2 items-center">
-                <div className="flex items-center gap-2">
+              <div className="grid grid-cols-[1fr,80px,80px,80px] gap-1 items-center">
+                <div className="flex items-center gap-1.5">
                   <div className={cn("w-2 h-2 rounded-full shrink-0", canal.color)} />
-                  <span className="text-xs font-medium truncate">{canal.label}</span>
+                  <span className="text-[10px] font-medium truncate">{canal.label}</span>
+                  <span className="text-[9px]">{fonteLabel(canal.fonte)}</span>
                 </div>
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">R$</span>
-                  <Input
-                    value={faturamentoCanais[canal.key]}
-                    onChange={(e) => handleChange(canal.key, e.target.value)}
-                    placeholder="0,00"
-                    className="h-7 text-xs pl-6 text-right"
-                  />
-                </div>
-                <span className="text-xs text-right text-muted-foreground">
+                <span className="text-[10px] text-right text-muted-foreground">
+                  {canal.liquidoVal > 0 ? formatCurrency(canal.liquidoVal) : '-'}
+                </span>
+                <span className="text-[10px] text-right text-muted-foreground">
+                  {canal.brutoVal > 0 ? formatCurrency(canal.brutoVal) : '-'}
+                </span>
+                <span className="text-[10px] text-right font-medium">
                   {formatCurrency(canal.projecaoMes)}
                 </span>
               </div>
-              {/* Barra de progresso do mês */}
+              {/* Override manual */}
               <div className="flex items-center gap-2 pl-4">
+                <div className="relative flex-1">
+                  <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] text-muted-foreground">R$</span>
+                  <Input
+                    value={faturamentoCanais[canal.key]}
+                    onChange={(e) => handleChange(canal.key, e.target.value)}
+                    placeholder="override manual"
+                    className="h-6 text-[10px] pl-5 text-right"
+                  />
+                </div>
                 <Progress 
                   value={(diaDoMes / diasNoMes) * 100} 
-                  className={cn("h-1 flex-1", canal.color)} 
+                  className={cn("h-1 w-16", canal.color)} 
                 />
-                <span className="text-[9px] text-muted-foreground w-14 text-right">
-                  ~{formatCurrency(canal.mediaDiaria).replace('R$', '')}/d
-                </span>
               </div>
             </div>
           ))}
@@ -141,10 +225,13 @@ export function FaturamentoCanaisCard({
         
         {/* Total */}
         <div className="border-t pt-3 mt-3">
-          <div className="grid grid-cols-[1fr,100px,100px] gap-2 items-center">
+          <div className="grid grid-cols-[1fr,80px,80px,80px] gap-1 items-center">
             <span className="text-sm font-bold">TOTAL</span>
-            <span className="text-sm font-bold text-right">
-              {formatCurrency(calculos.totalAtual)}
+            <span className="text-[10px] font-bold text-right">
+              {calculos.totalLiquido > 0 ? formatCurrency(calculos.totalLiquido) : '-'}
+            </span>
+            <span className="text-[10px] font-bold text-right">
+              {calculos.totalBruto > 0 ? formatCurrency(calculos.totalBruto) : '-'}
             </span>
             <span className="text-sm font-bold text-right text-primary">
               {formatCurrency(calculos.totalProjecao)}
@@ -156,27 +243,15 @@ export function FaturamentoCanaisCard({
         <div className="bg-muted/50 rounded-lg p-3 space-y-1">
           {receitaBrutaMovimentacoes && receitaBrutaMovimentacoes > 0 && (
             <p className="text-xs text-muted-foreground">
-              📦 <strong>Receita Supply (mov.):</strong> {formatCurrency(receitaBrutaMovimentacoes)}
-              {calculos.totalAtual > 0 && (
-                <span className="ml-1 text-[10px]">
-                  (dif: {formatCurrency(Math.abs(receitaBrutaMovimentacoes - calculos.totalAtual))})
-                </span>
-              )}
+              📦 <strong>Receita Supply (total):</strong> {formatCurrency(receitaBrutaMovimentacoes)}
             </p>
           )}
-          <p className="text-xs text-muted-foreground">
-            💡 <strong>Projeção:</strong> Baseada na média diária atual ({diaDoMes} dias)
+          <p className="text-[10px] text-muted-foreground">
+            🏦 = conciliação bancária (líquido) · 📦 = movimentações (bruto) · ✏️ = manual
           </p>
           <p className="text-xs text-muted-foreground">
             📅 Faltam <strong>{diasRestantes} dias</strong> para fechar o mês
           </p>
-          {calculos.totalProjecao > 0 && (
-            <p className="text-xs text-muted-foreground">
-              📊 Média diária necessária para manter: <strong>
-                {formatCurrency(calculos.totalProjecao / diasNoMes)}
-              </strong>
-            </p>
-          )}
         </div>
       </CardContent>
     </Card>

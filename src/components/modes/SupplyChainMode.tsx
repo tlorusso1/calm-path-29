@@ -1148,6 +1148,20 @@ export function SupplyChainMode({
             </TabsContent>
 
             <TabsContent value="movimentacoes" className="space-y-3">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Canal de venda (para saídas)</Label>
+                <Select value={canalImportMov} onValueChange={(v) => setCanalImportMov(v as CanalVenda | '')}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Todos / Não especificado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos / Não especificado</SelectItem>
+                    {CANAIS_VENDA.map(c => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <input
                 ref={movFileInputRef}
                 type="file"
