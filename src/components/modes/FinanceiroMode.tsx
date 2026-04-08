@@ -984,6 +984,14 @@ export function FinanceiroMode({
                   ),
                 });
               }}
+              onUpdateMultipleContas={(updates) => {
+                const contasAtualizadas = (data.contasFluxo || []).map(c => {
+                  const upd = updates.find(u => u.id === c.id);
+                  return upd ? { ...c, ...upd.changes } : c;
+                });
+                onUpdateFinanceiroData({ contasFluxo: contasAtualizadas });
+                flushSave?.();
+              }}
               isOpen={openSections.conciliacao || false}
               onToggle={() => toggleSection('conciliacao')}
             />
