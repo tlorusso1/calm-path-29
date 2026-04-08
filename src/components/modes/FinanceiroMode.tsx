@@ -174,17 +174,48 @@ export function FinanceiroMode({
   );
   const caixaMinimo = parseCurrency(data.caixaMinimo || '');
   
+  const ticketMedioReal = parseCurrency(reuniaoAdsData?.ticketMedio || '');
+
   // Médias unificadas da conciliação (fonte única)
   const mediasConciliadas = useMemo(
-    () => calcularMediasConciliadas(data.contasFluxo || [], 90),
-    [data.contasFluxo]
+    () => calcularMediasConciliadas(data.contasFluxo || [], 90, ticketMedioReal),
+    [data.contasFluxo, ticketMedioReal]
   );
+
+  // Resultado mensal derivado do histórico real atual (evita snapshots inflados/stale)
+  const snapshotsReais = useMemo(() => {
+    const acumulado = new Map<string, { entradas: number; saidas: number }>();
+    const tiposExcluidos = new Set(['intercompany', 'aplicacao', 'resgate', 'cartao']);
+
+    for (const conta of data.contasFluxo || []) {
+      if (!conta.pago) continue;
+      if (tiposExcluidos.has(conta.tipo)) continue;
+      const mesAno = conta.dataVencimento?.slice(0, 7);
+      if (!mesAno) continue;
+
+      const valor = parseCurrency(conta.valor?.toString() || '');
+      if (valor <= 0) continue;
+
+      const bucket = acumulado.get(mesAno) || { entradas: 0, saidas: 0 };
+      if (conta.tipo === 'receber') bucket.entradas += valor;
+      else if (conta.tipo === 'pagar') bucket.saidas += valor;
+      acumulado.set(mesAno, bucket);
+    }
+
+    return Array.from(acumulado.entries()).map(([mesAno, valores]) => ({
+      mesAno,
+      entradas: valores.entradas,
+      saidas: valores.saidas,
+      saldo: valores.entradas - valores.saidas,
+      geradoEm: new Date().toISOString(),
+    }));
+  }, [data.contasFluxo]);
 
   // CMV Gerencial data
   const cmvGerencialCalc = useMemo(() => {
     const receitaBruta = supplyExports?.receitaBrutaSupply || 0;
     const cmvProduto = cmvSupply || 0;
-    const ticketMedio = parseCurrency(reuniaoAdsData?.ticketMedio || '');
+    const ticketMedio = ticketMedioReal;
     
     if (receitaBruta <= 0 || cmvProduto <= 0) return null;
     
@@ -197,7 +228,7 @@ export function FinanceiroMode({
     if (!result) return null;
     
     return { margemGerencial: result.margemPercentual, cmvGerencialTotal: result.cmvRealTotal, receitaBruta };
-  }, [supplyExports, cmvSupply, reuniaoAdsData?.ticketMedio, data.impostoPercentual, mediasConciliadas]);
+  }, [supplyExports, cmvSupply, ticketMedioReal, mediasConciliadas]);
 
   const toggleSection = (section: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
