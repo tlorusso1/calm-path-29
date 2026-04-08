@@ -424,6 +424,7 @@ export function calculateSupplyExports(data: SupplyChainStage): SupplyExports {
     receitaBrutaSupply,
     skuData,
     forecast,
+    movimentacoes: data.movimentacoes,
   };
 }
 

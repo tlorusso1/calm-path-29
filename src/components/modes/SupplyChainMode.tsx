@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import * as XLSX from 'xlsx';
-import { FocusMode, SupplyChainStage, ItemEstoque, TipoEstoque, MovimentacaoEstoque, DEFAULT_SUPPLYCHAIN_DATA, Orcamento } from '@/types/focus-mode';
+import { FocusMode, SupplyChainStage, ItemEstoque, TipoEstoque, MovimentacaoEstoque, DEFAULT_SUPPLYCHAIN_DATA, Orcamento, CanalVenda, CANAIS_VENDA } from '@/types/focus-mode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { DatePasteInput } from '@/components/ui/date-paste-input';
@@ -99,6 +99,7 @@ export function SupplyChainMode({
   const [textoColado, setTextoColado] = useState('');
   const [localizacaoImport, setLocalizacaoImport] = useState('');
   const [textoMovimentacoes, setTextoMovimentacoes] = useState('');
+  const [canalImportMov, setCanalImportMov] = useState<string>('');
   const [tabAtiva, setTabAtiva] = useState('itens');
   const [filtroTipo, setFiltroTipo] = useState<TipoEstoque | 'todos'>('todos');
   const [filtroLocal, setFiltroLocal] = useState<string>('todos');
@@ -224,10 +225,16 @@ export function SupplyChainMode({
   };
 
   const processarMovimentacoesTexto = (texto: string) => {
-    const novas = parsearMovimentacoes(texto);
+    let novas = parsearMovimentacoes(texto);
     if (novas.length === 0) {
       toast({ title: "Nenhuma movimentação encontrada", description: "Verifique o formato do CSV.", variant: "destructive" });
       return;
+    }
+    
+    // Aplicar canal selecionado às saídas
+    if (canalImportMov && canalImportMov !== '' && canalImportMov !== 'all') {
+      const canal = canalImportMov as CanalVenda;
+      novas = novas.map(m => m.tipo === 'saida' ? { ...m, canal } : m);
     }
     
     const movExistentes = data.movimentacoes || [];
@@ -1142,6 +1149,20 @@ export function SupplyChainMode({
             </TabsContent>
 
             <TabsContent value="movimentacoes" className="space-y-3">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Canal de venda (para saídas)</Label>
+                <Select value={canalImportMov} onValueChange={(v) => setCanalImportMov(v as CanalVenda | '')}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Todos / Não especificado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos / Não especificado</SelectItem>
+                    {CANAIS_VENDA.map(c => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <input
                 ref={movFileInputRef}
                 type="file"
