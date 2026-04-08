@@ -980,6 +980,24 @@ export function ConciliacaoSection({
               </div>
             </div>
 
+            {/* Botão Detectar Intercompany Cross-Conta */}
+            {onUpdateMultipleContas && (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDetectarIntercompany}
+                  className="gap-1 text-xs"
+                >
+                  <Link2 className="h-3 w-3" />
+                  🔁 Detectar Intercompany Cross-Conta
+                </Button>
+                <span className="text-[10px] text-muted-foreground">
+                  Encontra pares entrada↔saída entre contas diferentes (mesmo valor, ±1 dia)
+                </span>
+              </div>
+            )}
+
             {/* Painel de Revisão */}
             {showReviewPanel && lancamentosParaRevisar.length > 0 && (
               <ReviewPanel
