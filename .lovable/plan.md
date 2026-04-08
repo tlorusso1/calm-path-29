@@ -1,69 +1,57 @@
 
+## O que encontrei
 
-## Fix: Impostos não aparecem em DEDUÇÕES no DRE
+- `Proj 30d` e `Real 4sem` vêm do Supply, não do banco.
+- `Proj 30d` é calculado pela média semanal das saídas com preço de venda das movimentações dos últimos até 90 dias e depois extrapolado para 30 dias (`30/7`).
+- `Real 4sem` é a soma das últimas 4 semanas reais do breakdown semanal, ou seja, cerca de 28 dias.
+- Então sim: o projetado usa uma janela móvel de até 90d e por isso fica mais “suavizado” que o `Real 4sem`.
 
-### Problema raiz
+- Os impostos foram puxados do extrato, sim. Encontrei no histórico lançamentos como:
+  - `PAGAMENTOS TRIB COD BARRAS SIMPLES NACIONAL ...`
+  - `PAGAMENTOS TRIB COD BARRAS DARF ...`
 
-A função `classificarLancamento` no DRE só auto-classifica **entradas** (receitas B2C via descrição/contaOrigem). Para **saídas**, depende 100% de `lanc.categoria` ou `fornecedor.categoria`. 
+- O problema é de classificação:
+  1. na conciliação, o matcher está pegando o fornecedor genérico `Pagamento`;
+  2. isso grava categoria `Material de Uso e Consumo`;
+  3. a regra que foi adicionada no DRE só roda quando o lançamento está sem categoria, então ela não corrige esses casos já salvos errado;
+  4. além disso, a regra atual de `DARF` só pega quando vem `DARF + INSS`, mas seus extratos vêm só como `DARF`.
 
-Pagamentos de impostos importados do extrato bancário (DAS, DARF, INSS, Simples Nacional) chegam sem categoria e sem fornecedor, caindo em **"Saídas a Reclassificar"** em vez de **DEDUÇÕES**.
+## Plano
 
-### Solução
+1. Deixar o Forecast explícito
+   - Renomear os labels para:
+     - `Proj 30d (média móvel até 90d)`
+     - `Real últimas 4 semanas (~28d)`
+   - Adicionar texto curto dizendo que ambos usam movimentações de estoque.
 
-Adicionar auto-classificação de saídas por palavras-chave na descrição bancária, similar ao que já existe para receitas. Isso preenche automaticamente a categoria correta para impostos e outros padrões comuns.
+2. Corrigir a classificação na entrada
+   - Ajustar `matchFornecedor` para priorizar o match mais específico/longo.
+   - Impedir que nomes genéricos como `Pagamento` ganhem de descrições tributárias mais específicas.
 
-### Mudanças em `src/components/financeiro/DRESection.tsx`
+3. Corrigir o DRE para o histórico já importado
+   - Criar um override no DRE para descrições de tributos quando a categoria atual for genérica/errada.
+   - Ex.: se a descrição tiver `SIMPLES NACIONAL` e a categoria estiver `Material de Uso e Consumo`, forçar `Simples Nacional (DAS)` na leitura do DRE.
+   - Isso corrige os meses já importados sem precisar reimportar.
 
-Na função `classificarLancamento`, após o bloco de auto-classificação de receitas (linha ~100), adicionar um bloco equivalente para **saídas sem categoria**:
+4. Tratar DARF com segurança
+   - `SIMPLES NACIONAL` vai para `DEDUÇÕES`.
+   - `FGTS/INSS` vão para `DESPESAS DE PESSOAL`.
+   - `DARF` genérico sem complemento não será jogado automaticamente em `DEDUÇÕES`; ficará sob regra explícita e auditável para não distorcer o DRE.
 
-```
-if (!categoria && !isReceita) {
-  const desc = (lanc.descricao || '').toUpperCase();
-  
-  // Impostos → DEDUÇÕES
-  if (desc.includes('DAS') || desc.includes('SIMPLES NACIONAL'))
-    categoria = 'Simples Nacional (DAS)';
-  else if (desc.includes('DARF') && desc.includes('INSS'))
-    categoria = 'INSS';
-  else if (desc.includes('ICMS'))
-    categoria = 'ICMS';
-  else if (desc.includes('PIS') || desc.includes('COFINS'))
-    categoria = 'PIS E COFINS';
-  
-  // Pessoal
-  else if (desc.includes('FOLHA') || desc.includes('SALARIO'))
-    categoria = 'Salários CLT';
-  else if (desc.includes('FGTS'))
-    categoria = 'FGTS';
-  else if (desc.includes('PRO LABORE') || desc.includes('PRÓ-LABORE'))
-    categoria = 'Pro Labore';
-  
-  // Frete
-  else if (desc.includes('JADLOG') || desc.includes('MANDAE'))
-    categoria = 'Frete Venda';
-  
-  // Empréstimos
-  else if (desc.includes('EMPRESTIMO') || desc.includes('FINANCIAMENTO'))
-    categoria = 'Pagamento da Parcela Principal';
-  
-  // Tarifas bancárias
-  else if (desc.includes('TARIFA') || desc.includes('IOF'))
-    categoria = 'Tarifas Bancárias';
-}
-```
+## Arquivos a ajustar
 
-Estas regras funcionam como **fallback** — se o lançamento já tem `categoria` (manual ou via mapeamento aprendido), nada muda. Só atua em lançamentos sem classificação.
+- `src/utils/supplyCalculator.ts`
+- `src/components/financeiro/ForecastSupplyCard.tsx`
+- `src/utils/fornecedoresParser.ts`
+- `src/components/financeiro/ConciliacaoSection.tsx`
+- `src/components/financeiro/DRESection.tsx`
 
-### Resultado esperado
+## Detalhe técnico
 
-- Pagamentos de DAS, DARF INSS → aparecem em **DEDUÇÕES** no DRE
-- FGTS, Folha → aparecem em **DESPESAS DE PESSOAL**
-- Jadlog/Mandae → aparecem em **DESPESAS COMERCIAIS > Frete Venda**
-- Menos itens em "Saídas a Reclassificar"
-
-### Arquivo alterado
-
-| Arquivo | Mudança |
-|---------|---------|
-| `src/components/financeiro/DRESection.tsx` | Adicionar auto-classificação de saídas por palavras-chave na descrição |
-
+- Forecast atual:
+  - `Proj 30d = (receita total da janela / semanas da janela) * (30/7)`
+  - `Real 4sem = soma das 4 semanas mais recentes do breakdown`
+- Bug dos impostos:
+  - eles existem no histórico;
+  - hoje estão com categoria errada (`Material de Uso e Consumo`) por match indevido com fornecedor genérico;
+  - por isso “somem” de `DEDUÇÕES`.
