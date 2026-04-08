@@ -3,13 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChevronDown, ChevronUp, BarChart3, Calendar } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { ChevronDown, ChevronUp, BarChart3, Calendar as CalendarIcon, Download } from 'lucide-react';
 import { ContaFluxo, Fornecedor } from '@/types/focus-mode';
 import { ORDEM_MODALIDADES_DRE, findCategoria, getTipoByModalidade } from '@/data/categorias-dre';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
-import { parseISO, format, startOfMonth, endOfMonth, subMonths, isWithinInterval, startOfYear, endOfYear } from 'date-fns';
+import { parseISO, format, startOfMonth, endOfMonth, subMonths, isWithinInterval, startOfYear, endOfYear, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface CMVGerencialData {
   margemGerencial: number;
@@ -51,6 +55,18 @@ function formatCurrency(valor: number): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Helper: melhor data disponível
+function getDataLancamento(l: ContaFluxo): Date | null {
+  const dataBase = (l.dataPagamento || l.dataVencimento || '').slice(0, 10);
+  if (!dataBase || dataBase.length < 10) return null;
+  try {
+    const d = parseISO(dataBase);
+    return isValid(d) ? d : null;
+  } catch {
+    return null;
+  }
+}
+
 export function DRESection({
   lancamentos,
   fornecedores,
@@ -61,12 +77,14 @@ export function DRESection({
 }: DRESectionProps) {
   const hoje = new Date();
   const [mesAno, setMesAno] = useState(() => format(hoje, 'yyyy-MM'));
-  const [viewMode, setViewMode] = useState<'mensal' | 'anual'>('mensal');
+  const [viewMode, setViewMode] = useState<'mensal' | 'anual' | 'custom'>('mensal');
+  const [customFrom, setCustomFrom] = useState<Date | undefined>();
+  const [customTo, setCustomTo] = useState<Date | undefined>();
   
-  // Gerar opções de meses (últimos 12 meses)
+  // Gerar opções de meses (últimos 18 meses)
   const mesesDisponiveis = useMemo(() => {
     const meses = [];
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 18; i++) {
       const data = subMonths(hoje, i);
       meses.push({
         value: format(data, 'yyyy-MM'),
@@ -74,85 +92,92 @@ export function DRESection({
       });
     }
     return meses;
-  }, [hoje]);
+  }, []);
   
   // Filtrar lançamentos EXCLUINDO tipos que não entram no DRE
+  // IMPORTANTE: inclui TODOS os lançamentos pagos (receber + pagar), não filtra projeções
   const lancamentosFiltrados = useMemo(() => {
     return lancamentos.filter(l => {
+      // Só pagos entram no DRE
       if (!l.pago) return false;
+      // Excluir tipos não-operacionais
       if (TIPOS_EXCLUIDOS_DRE.includes(l.tipo)) return false;
+      // Excluir projeções (são estimativas, não real)
+      if (l.projecao) return false;
+      // Só pagar e receber
       return l.tipo === 'receber' || l.tipo === 'pagar';
     });
   }, [lancamentos]);
   
-  // Filtrar por período usando a melhor data disponível (dataPagamento > dataVencimento)
+  // Filtrar por período
   const lancamentosPeriodo = useMemo(() => {
-    const getDataLancamento = (l: ContaFluxo) => {
-      const dataBase = ((l as ContaFluxo & { dataPagamento?: string }).dataPagamento || l.dataVencimento || '').slice(0, 10);
-      try {
-        return parseISO(dataBase);
-      } catch {
-        return null;
-      }
-    };
+    let inicio: Date;
+    let fim: Date;
 
     if (viewMode === 'anual') {
       const anoAtual = hoje.getFullYear();
-      const inicio = startOfYear(new Date(anoAtual, 0, 1));
-      const fim = endOfYear(new Date(anoAtual, 11, 31));
-      
-      return lancamentosFiltrados.filter(l => {
-        const data = getDataLancamento(l);
-        return data ? isWithinInterval(data, { start: inicio, end: fim }) : false;
-      });
+      inicio = startOfYear(new Date(anoAtual, 0, 1));
+      fim = endOfYear(new Date(anoAtual, 11, 31));
+    } else if (viewMode === 'custom' && customFrom && customTo) {
+      inicio = customFrom;
+      fim = customTo;
+    } else {
+      const [ano, mes] = mesAno.split('-').map(Number);
+      inicio = startOfMonth(new Date(ano, mes - 1));
+      fim = endOfMonth(new Date(ano, mes - 1));
     }
-
-    const [ano, mes] = mesAno.split('-').map(Number);
-    const inicio = startOfMonth(new Date(ano, mes - 1));
-    const fim = endOfMonth(new Date(ano, mes - 1));
     
     return lancamentosFiltrados.filter(l => {
       const data = getDataLancamento(l);
       return data ? isWithinInterval(data, { start: inicio, end: fim }) : false;
     });
-  }, [lancamentosFiltrados, mesAno, viewMode, hoje]);
+  }, [lancamentosFiltrados, mesAno, viewMode, customFrom, customTo]);
   
   // Agrupar por categoria DRE
   const dre = useMemo(() => {
     const modalidadesMap = new Map<string, Map<string, Map<string, number>>>();
     
-    // Inicializar estrutura
     for (const lanc of lancamentosPeriodo) {
       let categoria = lanc.categoria;
-      let fornecedor = lanc.fornecedorId ? fornecedores.find(f => f.id === lanc.fornecedorId) : undefined;
+      const fornecedor = lanc.fornecedorId ? fornecedores.find(f => f.id === lanc.fornecedorId) : undefined;
 
       if (!categoria && fornecedor) {
         categoria = fornecedor.categoria;
       }
 
-      // Fallback de receita por conta de origem / descrição quando a conciliação não preencheu fornecedor
+      // Fallback de receita por conta de origem / descrição
       if (!categoria && lanc.tipo === 'receber') {
         const desc = (lanc.descricao || '').toUpperCase();
         const contaOrigem = (lanc.contaOrigem || '').toUpperCase();
 
         if (
-          contaOrigem.includes('ITAU - NICE ECOM') ||
-          contaOrigem.includes('MERCADO LIVRE - NICE ECOM') ||
-          desc.includes('ITAUBBA') ||
-          desc.includes('ITAU BBA') ||
+          contaOrigem.includes('MERCADO LIVRE') ||
+          contaOrigem.includes('NICE ECOM') ||
           desc.includes('MERCADO LIVRE') ||
           desc.includes('MERCADO PAGO') ||
           desc.includes('SHOPEE') ||
-          desc.includes('SHPP')
+          desc.includes('SHPP') ||
+          desc.includes('ITAUBBA') ||
+          desc.includes('ITAU BBA') ||
+          desc.includes('NUVEMSHOP') ||
+          desc.includes('PAGARME') ||
+          desc.includes('PAGAR.ME') ||
+          desc.includes('ASAAS')
         ) {
           categoria = 'Clientes Nacionais (B2C)';
         } else if (
-          contaOrigem.includes('ITAU - NICE FOODS') ||
-          desc.includes('ITAU') ||
-          desc.includes('CONTA CORRENTE')
+          contaOrigem.includes('NICE FOODS') ||
+          desc.includes('TED') ||
+          desc.includes('DOC') ||
+          desc.includes('PIX')
         ) {
           categoria = 'Clientes Nacionais (B2B)';
         }
+      }
+
+      // Fallback para despesas sem classificação
+      if (!categoria && lanc.tipo === 'pagar') {
+        categoria = 'Saídas a Reclassificar';
       }
 
       if (!categoria) {
@@ -165,7 +190,6 @@ export function DRESection({
       const modalidade = catDRE?.modalidade || modalidadeFallback;
       const grupo = catDRE?.grupo || grupoFallback;
       
-      // Adicionar ao mapa
       if (!modalidadesMap.has(modalidade)) {
         modalidadesMap.set(modalidade, new Map());
       }
@@ -234,6 +258,7 @@ export function DRESection({
       } else if (mod.modalidade === 'CUSTOS DE PRODUTO VENDIDO') {
         cpv += mod.total;
       } else if (mod.modalidade === 'OUTRAS RECEITAS/DESPESAS') {
+        // Separar entradas de saídas dentro de Outras Receitas/Despesas
         for (const g of mod.grupos) {
           for (const cat of g.categorias) {
             if (cat.categoria.toLowerCase().includes('entrada') || g.grupo.toLowerCase().includes('entrada')) {
@@ -248,7 +273,7 @@ export function DRESection({
       }
     }
     
-    // Usar CMV do Supply Chain se disponível (quantidade × custo unitário real)
+    // Usar CMV do Supply Chain se disponível
     if (cmvSupply && cmvSupply > 0) {
       cpv = cmvSupply;
     }
@@ -269,12 +294,74 @@ export function DRESection({
     };
   }, [dre, cmvSupply]);
   
-  // Contar lançamentos excluídos para feedback
+  // Contar lançamentos excluídos
   const lancamentosExcluidos = useMemo(() => {
     return lancamentos.filter(l => l.pago && TIPOS_EXCLUIDOS_DRE.includes(l.tipo)).length;
   }, [lancamentos]);
+
+  // Debug: contar receitas não classificadas
+  const receitasSemCategoria = useMemo(() => {
+    return lancamentosPeriodo.filter(l => l.tipo === 'receber' && !l.categoria && !l.fornecedorId).length;
+  }, [lancamentosPeriodo]);
   
-  const mesLabel = mesesDisponiveis.find(m => m.value === mesAno)?.label || mesAno;
+  // Exportar DRE como CSV
+  const exportarCSV = () => {
+    const linhas: string[] = [];
+    const periodoLabel = viewMode === 'anual' 
+      ? `Anual ${hoje.getFullYear()}`
+      : viewMode === 'custom' && customFrom && customTo
+        ? `${format(customFrom, 'dd/MM/yyyy')} a ${format(customTo, 'dd/MM/yyyy')}`
+        : mesesDisponiveis.find(m => m.value === mesAno)?.label || mesAno;
+
+    linhas.push(`DRE - ${periodoLabel}`);
+    linhas.push('');
+    linhas.push('Modalidade;Grupo;Categoria;Valor');
+    
+    // Receitas
+    linhas.push(`RECEITAS BRUTAS;;;${totais.receitas.toFixed(2)}`);
+    for (const mod of dre.filter(m => m.modalidade === 'RECEITAS' || m.modalidade === 'RECEITAS FINANCEIRAS')) {
+      for (const g of mod.grupos) {
+        for (const cat of g.categorias) {
+          linhas.push(`${mod.modalidade};${g.grupo};${cat.categoria};${cat.valor.toFixed(2)}`);
+        }
+      }
+    }
+    
+    linhas.push(`(-) DEDUÇÕES;;;${(-totais.deducoes).toFixed(2)}`);
+    for (const mod of dre.filter(m => m.modalidade === 'DEDUÇÕES')) {
+      for (const g of mod.grupos) {
+        for (const cat of g.categorias) {
+          linhas.push(`${mod.modalidade};${g.grupo};${cat.categoria};${(-cat.valor).toFixed(2)}`);
+        }
+      }
+    }
+    
+    linhas.push(`RECEITA LÍQUIDA;;;${totais.receitaLiquida.toFixed(2)}`);
+    linhas.push(`(-) CPV;;;${(-totais.cpv).toFixed(2)}`);
+    linhas.push(`LUCRO BRUTO;;;${totais.lucroBruto.toFixed(2)}`);
+    
+    // Despesas
+    linhas.push(`(-) DESPESAS OPERACIONAIS;;;${(-totais.despesas).toFixed(2)}`);
+    for (const mod of dre.filter(m => m.tipo === 'DESPESAS' && !['DEDUÇÕES', 'CUSTOS DE PRODUTO VENDIDO'].includes(m.modalidade))) {
+      for (const g of mod.grupos) {
+        for (const cat of g.categorias) {
+          linhas.push(`${mod.modalidade};${g.grupo};${cat.categoria};${(-cat.valor).toFixed(2)}`);
+        }
+      }
+    }
+    
+    linhas.push('');
+    linhas.push(`RESULTADO OPERACIONAL;;;${totais.resultadoOperacional.toFixed(2)}`);
+    
+    const blob = new Blob(['\ufeff' + linhas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `DRE_${periodoLabel.replace(/[\s/]/g, '_')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('DRE exportado com sucesso!');
+  };
 
   return (
     <Collapsible open={isOpen} onOpenChange={onToggle}>
@@ -301,43 +388,87 @@ export function DRESection({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0">
-            {/* Toggle Mensal/Anual + Seletor de mês */}
+            {/* Toggle Mensal/Anual/Custom + Seletor */}
             <div className="flex flex-col gap-3">
-              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'mensal' | 'anual')} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 h-8">
+              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'mensal' | 'anual' | 'custom')} className="w-full">
+                <TabsList className="grid w-full grid-cols-3 h-8">
                   <TabsTrigger value="mensal" className="text-xs gap-1">
-                    <Calendar className="h-3 w-3" />
+                    <CalendarIcon className="h-3 w-3" />
                     Mensal
                   </TabsTrigger>
                   <TabsTrigger value="anual" className="text-xs gap-1">
                     <BarChart3 className="h-3 w-3" />
-                    Anual {hoje.getFullYear()}
+                    Anual
+                  </TabsTrigger>
+                  <TabsTrigger value="custom" className="text-xs gap-1">
+                    <CalendarIcon className="h-3 w-3" />
+                    Período
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
               
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <p className="text-xs text-muted-foreground">
                   {lancamentosPeriodo.length} lançamentos
                   {lancamentosExcluidos > 0 && (
-                    <span className="text-muted-foreground/70"> ({lancamentosExcluidos} mov. financeiras excluídas)</span>
+                    <span className="text-muted-foreground/70"> ({lancamentosExcluidos} mov. financeiras excl.)</span>
+                  )}
+                  {receitasSemCategoria > 0 && (
+                    <span className="text-amber-600"> • {receitasSemCategoria} receitas s/ classificação</span>
                   )}
                 </p>
-                {viewMode === 'mensal' && (
-                  <Select value={mesAno} onValueChange={setMesAno}>
-                    <SelectTrigger className="w-[180px] h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {mesesDisponiveis.map(mes => (
-                        <SelectItem key={mes.value} value={mes.value} className="text-xs">
-                          {mes.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                
+                <div className="flex items-center gap-2">
+                  {viewMode === 'mensal' && (
+                    <Select value={mesAno} onValueChange={setMesAno}>
+                      <SelectTrigger className="w-[160px] h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {mesesDisponiveis.map(mes => (
+                          <SelectItem key={mes.value} value={mes.value} className="text-xs">
+                            {mes.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={exportarCSV}>
+                    <Download className="h-3 w-3" />
+                    CSV
+                  </Button>
+                </div>
               </div>
+
+              {/* Custom period date pickers */}
+              {viewMode === 'custom' && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className={cn("h-8 text-xs gap-1 w-[130px]", !customFrom && "text-muted-foreground")}>
+                        <CalendarIcon className="h-3 w-3" />
+                        {customFrom ? format(customFrom, 'dd/MM/yyyy') : 'De'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={customFrom} onSelect={setCustomFrom} initialFocus className="p-3 pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                  <span className="text-xs text-muted-foreground">até</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className={cn("h-8 text-xs gap-1 w-[130px]", !customTo && "text-muted-foreground")}>
+                        <CalendarIcon className="h-3 w-3" />
+                        {customTo ? format(customTo, 'dd/MM/yyyy') : 'Até'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={customTo} onSelect={setCustomTo} initialFocus className="p-3 pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
             </div>
             
             {/* DRE */}
@@ -437,7 +568,7 @@ export function DRESection({
                 <span>{formatCurrency(totais.resultadoOperacional)}</span>
               </div>
               
-              {/* CMV Real (Gerencial) — Subtotal que soma produto + custos variáveis */}
+              {/* CMV Real (Gerencial) */}
               {cmvGerencialData && cmvGerencialData.receitaBruta > 0 && (
                 <div className="space-y-1 p-3 rounded-lg border bg-purple-50/50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800">
                   <div className="flex justify-between font-bold text-sm text-purple-700 dark:text-purple-400">
@@ -448,7 +579,7 @@ export function DRESection({
                     <span>{formatCurrency(cmvGerencialData.cmvGerencialTotal)}</span>
                   </div>
                   <p className="text-[10px] text-purple-600/70 dark:text-purple-400/70">
-                    CMV Produto + Impostos ({((cmvGerencialData.receitaBruta > 0 ? (cmvGerencialData.cmvGerencialTotal - (cmvSupply || 0)) / cmvGerencialData.receitaBruta * 100 : 0)).toFixed(0)}% variáveis) + Taxa Cartão + Fulfillment + Materiais
+                    CMV Produto + Impostos ({((cmvGerencialData.receitaBruta > 0 ? (cmvGerencialData.cmvGerencialTotal - (cmvSupply || 0)) / cmvGerencialData.receitaBruta * 100 : 0)).toFixed(0)}% variáveis) + Fulfillment + Materiais
                   </p>
                   <div className="flex justify-between text-xs text-purple-600 dark:text-purple-400">
                     <span>Margem após CMV Real</span>
