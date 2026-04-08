@@ -231,6 +231,11 @@ export function SupplyChainMode({
       return;
     }
     
+    // Aplicar canal selecionado às saídas
+    if (canalImportMov) {
+      novas = novas.map(m => m.tipo === 'saida' ? { ...m, canal: canalImportMov } : m);
+    }
+    
     const movExistentes = data.movimentacoes || [];
     const { resultado: todasMovimentacoes, novasAdicionadas, duplicatasIgnoradas } = deduplicarMovimentacoes(movExistentes, novas);
     const demandaMap = calcularDemandaSemanalPorItem(todasMovimentacoes);
