@@ -586,6 +586,7 @@ export interface SupplyExports {
   receitaBrutaSupply?: number;  // Receita bruta (soma ValorSaída)
   skuData?: { nome: string; qtdVendida: number; receitaTotal: number; custoUnitario: number }[];
   forecast?: SupplyForecast;
+  movimentacoes?: MovimentacaoEstoque[];
 }
 
 // ============= Ficha Técnica (BOM) =============
