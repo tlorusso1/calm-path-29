@@ -269,6 +269,7 @@ export function ConciliacaoSection({
   onConciliar,
   onCreateFornecedor,
   onUpdateFornecedor,
+  onUpdateMultipleContas,
   isOpen,
   onToggle,
   mapeamentos = [],
