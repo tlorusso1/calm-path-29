@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -6,9 +6,11 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { ChevronDown, ChevronUp, BarChart3, Calendar as CalendarIcon, Download } from 'lucide-react';
-import { ContaFluxo, Fornecedor } from '@/types/focus-mode';
-import { ORDEM_MODALIDADES_DRE, findCategoria, getTipoByModalidade } from '@/data/categorias-dre';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ChevronDown, ChevronUp, BarChart3, Calendar as CalendarIcon, Download, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ContaFluxo, ContaFluxoTipo, Fornecedor, MapeamentoDescricaoFornecedor, extrairPadraoDescricao } from '@/types/focus-mode';
+import { ORDEM_MODALIDADES_DRE, CATEGORIAS_DRE, findCategoria, getTipoByModalidade } from '@/data/categorias-dre';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
 import { parseISO, format, startOfMonth, endOfMonth, subMonths, isWithinInterval, startOfYear, endOfYear, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -24,15 +26,18 @@ interface CMVGerencialData {
 interface DRESectionProps {
   lancamentos: ContaFluxo[];
   fornecedores: Fornecedor[];
-  cmvSupply?: number;
   cmvGerencialData?: CMVGerencialData;
   isOpen: boolean;
   onToggle: () => void;
+  onUpdateLancamentos?: (updates: { id: string; changes: Partial<ContaFluxo> }[]) => void;
+  onAddMapeamento?: (mapeamento: MapeamentoDescricaoFornecedor) => void;
+  mapeamentos?: MapeamentoDescricaoFornecedor[];
 }
 
 interface DRELinha {
   categoria: string;
   valor: number;
+  lancamentoIds: string[];
 }
 
 interface DREGrupo {
@@ -65,7 +70,6 @@ function getDataLancamento(l: ContaFluxo): Date | null {
   }
 }
 
-// Classify a lancamento into categoria, respecting tipo constraints
 function classificarLancamento(
   lanc: ContaFluxo,
   fornecedores: Fornecedor[]
@@ -76,7 +80,6 @@ function classificarLancamento(
 
   const isReceita = lanc.tipo === 'receber';
 
-  // Fallback for receitas without category
   if (!categoria && isReceita) {
     const desc = (lanc.descricao || '').toUpperCase();
     const contaOrigem = (lanc.contaOrigem || '').toUpperCase();
@@ -96,16 +99,12 @@ function classificarLancamento(
     }
   }
 
-  // Fallback: unclassified
   if (!categoria) {
     categoria = isReceita ? 'Entradas a Reclassificar' : 'Saídas a Reclassificar';
   }
 
   const catDRE = findCategoria(categoria);
 
-  // CRITICAL: enforce tipo consistency
-  // If lanc is 'receber' but category maps to DESPESAS tipo → force reclassify
-  // If lanc is 'pagar' but category maps to RECEITAS tipo → force reclassify
   if (catDRE) {
     const catTipo = catDRE.tipo;
     if (isReceita && catTipo === 'DESPESAS') {
@@ -117,7 +116,6 @@ function classificarLancamento(
     return { modalidade: catDRE.modalidade, grupo: catDRE.grupo, categoria };
   }
 
-  // No catDRE found
   if (isReceita) {
     return { modalidade: 'RECEITAS', grupo: 'Receitas Diretas', categoria };
   }
@@ -128,7 +126,7 @@ function calcularDRE(
   lancamentosPeriodo: ContaFluxo[],
   fornecedores: Fornecedor[]
 ): DREModalidade[] {
-  const modalidadesMap = new Map<string, Map<string, Map<string, number>>>();
+  const modalidadesMap = new Map<string, Map<string, Map<string, { valor: number; ids: string[] }>>>();
 
   for (const lanc of lancamentosPeriodo) {
     const { modalidade, grupo, categoria } = classificarLancamento(lanc, fornecedores);
@@ -138,8 +136,10 @@ function calcularDRE(
     if (!gruposMap.has(grupo)) gruposMap.set(grupo, new Map());
     const categoriasMap = gruposMap.get(grupo)!;
 
-    const valorAtual = categoriasMap.get(categoria) || 0;
-    categoriasMap.set(categoria, valorAtual + parseValorFlexivel(lanc.valor));
+    const atual = categoriasMap.get(categoria) || { valor: 0, ids: [] };
+    atual.valor += parseValorFlexivel(lanc.valor);
+    atual.ids.push(lanc.id);
+    categoriasMap.set(categoria, atual);
   }
 
   const resultado: DREModalidade[] = [];
@@ -153,9 +153,9 @@ function calcularDRE(
     for (const [grupo, categoriasMap] of gruposMap) {
       const categorias: DRELinha[] = [];
       let totalGrupo = 0;
-      for (const [categoria, valor] of categoriasMap) {
-        categorias.push({ categoria, valor });
-        totalGrupo += valor;
+      for (const [categoria, data] of categoriasMap) {
+        categorias.push({ categoria, valor: data.valor, lancamentoIds: data.ids });
+        totalGrupo += data.valor;
       }
       grupos.push({ grupo, categorias: categorias.sort((a, b) => b.valor - a.valor), total: totalGrupo });
       totalModalidade += totalGrupo;
@@ -171,7 +171,7 @@ function calcularDRE(
   return resultado;
 }
 
-function calcularTotais(dre: DREModalidade[], cmvSupply?: number) {
+function calcularTotais(dre: DREModalidade[]) {
   let receitas = 0;
   let deducoes = 0;
   let cpv = 0;
@@ -181,8 +181,6 @@ function calcularTotais(dre: DREModalidade[], cmvSupply?: number) {
     if (mod.modalidade === 'RECEITAS' || mod.modalidade === 'RECEITAS FINANCEIRAS') {
       receitas += mod.total;
     } else if (mod.modalidade === 'OUTRAS RECEITAS/DESPESAS') {
-      // Split: entries with tipo RECEITAS go to receitas, DESPESAS go to despesas
-      // We know from classification: 'Outras Entradas' = receitas, 'Outras Saídas' = despesas
       for (const g of mod.grupos) {
         if (g.grupo === 'Outras Entradas') {
           receitas += g.total;
@@ -199,13 +197,11 @@ function calcularTotais(dre: DREModalidade[], cmvSupply?: number) {
     }
   }
 
-  if (cmvSupply && cmvSupply > 0) cpv = cmvSupply;
-
   const receitaLiquida = receitas - deducoes;
   const lucroBruto = receitaLiquida - cpv;
   const resultadoOperacional = lucroBruto - despesas;
 
-  return { receitas, deducoes, receitaLiquida, cpv, lucroBruto, despesas, resultadoOperacional, usandoCmvSupply: !!(cmvSupply && cmvSupply > 0) };
+  return { receitas, deducoes, receitaLiquida, cpv, lucroBruto, despesas, resultadoOperacional };
 }
 
 const MESES_LABEL = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -213,10 +209,12 @@ const MESES_LABEL = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Se
 export function DRESection({
   lancamentos,
   fornecedores,
-  cmvSupply,
   cmvGerencialData,
   isOpen,
   onToggle,
+  onUpdateLancamentos,
+  onAddMapeamento,
+  mapeamentos,
 }: DRESectionProps) {
   const hoje = new Date();
   const [mesAno, setMesAno] = useState(() => format(hoje, 'yyyy-MM'));
@@ -224,6 +222,13 @@ export function DRESection({
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
   const [anoSelecionado, setAnoSelecionado] = useState(() => hoje.getFullYear().toString());
+
+  // Bulk reclassify modal
+  const [reclassModalOpen, setReclassModalOpen] = useState(false);
+  const [reclassLancamentos, setReclassLancamentos] = useState<ContaFluxo[]>([]);
+  const [reclassSelected, setReclassSelected] = useState<Set<string>>(new Set());
+  const [reclassCategoria, setReclassCategoria] = useState('');
+  const [reclassTipo, setReclassTipo] = useState<'receber' | 'pagar'>('receber');
 
   const mesesDisponiveis = useMemo(() => {
     const meses = [];
@@ -272,7 +277,7 @@ export function DRESection({
   }, [lancamentosFiltrados, mesAno, viewMode, customFrom, customTo, anoSelecionado]);
 
   const dre = useMemo(() => calcularDRE(lancamentosPeriodo, fornecedores), [lancamentosPeriodo, fornecedores]);
-  const totais = useMemo(() => calcularTotais(dre, cmvSupply), [dre, cmvSupply]);
+  const totais = useMemo(() => calcularTotais(dre), [dre]);
 
   const lancamentosExcluidos = useMemo(() => {
     return lancamentos.filter(l => l.pago && TIPOS_EXCLUIDOS_DRE.includes(l.tipo)).length;
@@ -282,7 +287,63 @@ export function DRESection({
     return lancamentosPeriodo.filter(l => l.tipo === 'receber' && !l.categoria && !l.fornecedorId).length;
   }, [lancamentosPeriodo]);
 
-  // Helper to download a string as file
+  // Get categorias for reclassify based on tipo
+  const categoriasParaReclassificar = useMemo(() => {
+    if (reclassTipo === 'receber') {
+      return CATEGORIAS_DRE.filter(c => c.tipo === 'RECEITAS');
+    }
+    return CATEGORIAS_DRE.filter(c => c.tipo === 'DESPESAS');
+  }, [reclassTipo]);
+
+  // Open reclassify modal with specific lancamento ids
+  const openReclassModal = useCallback((lancamentoIds: string[], tipo: 'receber' | 'pagar') => {
+    const lancs = lancamentosPeriodo.filter(l => lancamentoIds.includes(l.id));
+    if (lancs.length === 0) return;
+    setReclassLancamentos(lancs);
+    setReclassSelected(new Set(lancamentoIds));
+    setReclassTipo(tipo);
+    setReclassCategoria('');
+    setReclassModalOpen(true);
+  }, [lancamentosPeriodo]);
+
+  // Apply bulk reclassification
+  const applyReclassification = useCallback(() => {
+    if (!reclassCategoria || reclassSelected.size === 0 || !onUpdateLancamentos) return;
+
+    const updates = Array.from(reclassSelected).map(id => ({
+      id,
+      changes: { categoria: reclassCategoria } as Partial<ContaFluxo>,
+    }));
+    onUpdateLancamentos(updates);
+
+    // Save learning: for each unique description pattern, save the mapping
+    if (onAddMapeamento) {
+      const seenPatterns = new Set<string>();
+      for (const lanc of reclassLancamentos) {
+        if (!reclassSelected.has(lanc.id)) continue;
+        const padrao = extrairPadraoDescricao(lanc.descricao || '');
+        if (padrao && !seenPatterns.has(padrao)) {
+          seenPatterns.add(padrao);
+          // Check if already mapped
+          const jaExiste = (mapeamentos || []).some(m => m.padrao === padrao);
+          if (!jaExiste) {
+            onAddMapeamento({
+              padrao,
+              fornecedorId: '',
+              categoria: reclassCategoria,
+              criadoEm: new Date().toISOString(),
+              ultimoUso: new Date().toISOString(),
+              confianca: 1,
+            });
+          }
+        }
+      }
+    }
+
+    toast.success(`${reclassSelected.size} lançamento(s) reclassificado(s) como "${reclassCategoria}"`);
+    setReclassModalOpen(false);
+  }, [reclassCategoria, reclassSelected, reclassLancamentos, onUpdateLancamentos, onAddMapeamento, mapeamentos]);
+
   const downloadFile = (content: string, filename: string, mimeType: string) => {
     const blob = new Blob(['\ufeff' + content], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -352,7 +413,6 @@ export function DRESection({
 
   const exportarAnualCSV = () => {
     const ano = parseInt(anoSelecionado);
-    // Compute DRE for each month
     const dresMensais: { dre: DREModalidade[]; totais: ReturnType<typeof calcularTotais> }[] = [];
     for (let m = 0; m < 12; m++) {
       const inicio = startOfMonth(new Date(ano, m, 1));
@@ -362,10 +422,9 @@ export function DRESection({
         return d ? isWithinInterval(d, { start: inicio, end: fim }) : false;
       });
       const dreMes = calcularDRE(lancMes, fornecedores);
-      dresMensais.push({ dre: dreMes, totais: calcularTotais(dreMes, cmvSupply) });
+      dresMensais.push({ dre: dreMes, totais: calcularTotais(dreMes) });
     }
 
-    // Collect all unique categories across all months grouped by modalidade
     const allCategorias: { modalidade: string; grupo: string; categoria: string }[] = [];
     const seen = new Set<string>();
     for (const { dre: dreMes } of dresMensais) {
@@ -385,7 +444,6 @@ export function DRESection({
     const header = `DRE Anual ${ano};` + MESES_LABEL.join(';') + ';Total Anual';
     const linhas: string[] = [header];
 
-    // Helper: get value for a category in a month's DRE
     const getVal = (dreMes: DREModalidade[], mod: string, cat: string): number => {
       const m = dreMes.find(x => x.modalidade === mod);
       if (!m) return 0;
@@ -397,7 +455,6 @@ export function DRESection({
       return 0;
     };
 
-    // Summary row helper
     const summaryRow = (label: string, getter: (t: ReturnType<typeof calcularTotais>) => number, negate = false) => {
       const vals = dresMensais.map(d => {
         const v = getter(d.totais);
@@ -408,8 +465,6 @@ export function DRESection({
     };
 
     linhas.push(summaryRow('RECEITAS BRUTAS', t => t.receitas));
-
-    // Detail rows for receitas
     for (const c of allCategorias.filter(x => x.modalidade === 'RECEITAS' || x.modalidade === 'RECEITAS FINANCEIRAS')) {
       const vals = dresMensais.map(d => getVal(d.dre, c.modalidade, c.categoria));
       const total = vals.reduce((a, b) => a + b, 0);
@@ -422,7 +477,6 @@ export function DRESection({
     linhas.push(summaryRow('LUCRO BRUTO', t => t.lucroBruto));
     linhas.push(summaryRow('(-) DESPESAS OPERACIONAIS', t => t.despesas, true));
 
-    // Detail rows for despesas
     for (const c of allCategorias.filter(x => x.modalidade !== 'RECEITAS' && x.modalidade !== 'RECEITAS FINANCEIRAS' && x.modalidade !== 'DEDUÇÕES' && x.modalidade !== 'CUSTOS DE PRODUTO VENDIDO')) {
       const vals = dresMensais.map(d => getVal(d.dre, c.modalidade, c.categoria));
       const total = vals.reduce((a, b) => a + b, 0);
@@ -437,7 +491,28 @@ export function DRESection({
     downloadFile(linhas.join('\n'), `DRE_Anual_${ano}.csv`, 'text/csv;charset=utf-8;');
   };
 
+  // Render a clickable "a reclassificar" item
+  const renderReclassificarItem = (cat: DRELinha, tipo: 'receber' | 'pagar') => (
+    <div
+      key={cat.categoria}
+      className="flex justify-between text-[11px] text-amber-600 cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded px-1 py-0.5 transition-colors group"
+      onClick={() => openReclassModal(cat.lancamentoIds, tipo)}
+    >
+      <span className="flex items-center gap-1">
+        ⚠ {cat.categoria}
+        <span className="text-[9px] opacity-0 group-hover:opacity-100 transition-opacity">
+          ({cat.lancamentoIds.length} itens → clique p/ classificar)
+        </span>
+      </span>
+      <span className="flex items-center gap-1">
+        {formatCurrency(cat.valor)}
+        <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+      </span>
+    </div>
+  );
+
   return (
+    <>
     <Collapsible open={isOpen} onOpenChange={onToggle}>
       <Card>
         <CollapsibleTrigger asChild>
@@ -530,7 +605,6 @@ export function DRESection({
                 </div>
               </div>
 
-              {/* Custom period date pickers */}
               {viewMode === 'custom' && (
                 <div className="flex items-center gap-2 flex-wrap">
                   <Popover>
@@ -571,9 +645,9 @@ export function DRESection({
                 {dre
                   .filter(m => m.modalidade === 'RECEITAS' || m.modalidade === 'RECEITAS FINANCEIRAS')
                   .map(mod => (
-                    <DREModalidadeRow key={mod.modalidade} modalidade={mod} />
+                    <DREModalidadeRow key={mod.modalidade} modalidade={mod} onReclassify={openReclassModal} />
                   ))}
-                {/* Outras Entradas (reclassificar) */}
+                {/* Outras Entradas (reclassificar) - CLICKABLE */}
                 {dre
                   .filter(m => m.modalidade === 'OUTRAS RECEITAS/DESPESAS')
                   .map(mod => {
@@ -581,12 +655,7 @@ export function DRESection({
                     if (entradas.length === 0) return null;
                     return entradas.map(g => (
                       <div key={g.grupo} className="pl-2">
-                        {g.categorias.map(cat => (
-                          <div key={cat.categoria} className="flex justify-between text-[11px] text-amber-600">
-                            <span>⚠ {cat.categoria}</span>
-                            <span>{formatCurrency(cat.valor)}</span>
-                          </div>
-                        ))}
+                        {g.categorias.map(cat => renderReclassificarItem(cat, 'receber'))}
                       </div>
                     ));
                   })}
@@ -601,7 +670,7 @@ export function DRESection({
                 {dre
                   .filter(m => m.modalidade === 'DEDUÇÕES')
                   .map(mod => (
-                    <DREModalidadeRow key={mod.modalidade} modalidade={mod} />
+                    <DREModalidadeRow key={mod.modalidade} modalidade={mod} onReclassify={openReclassModal} />
                   ))}
               </div>
 
@@ -617,26 +686,16 @@ export function DRESection({
               <div className="space-y-1">
                 <div className="flex justify-between font-medium text-amber-600 border-b pb-1">
                   <span className="flex flex-col">
-                    <span className="flex items-center gap-1">
-                      (-) CUSTOS DE PRODUTO VENDIDO
-                      {totais.usandoCmvSupply && (
-                        <span className="text-[9px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 px-1 py-0.5 rounded">SUPPLY</span>
-                      )}
-                    </span>
-                    <span className="text-[9px] font-normal text-muted-foreground">CMV Produto (custo MP + embalagem + industrialização)</span>
+                    <span>(-) CUSTOS DE PRODUTO VENDIDO</span>
+                    <span className="text-[9px] font-normal text-muted-foreground">CPV dos lançamentos do período</span>
                   </span>
                   <span>{formatCurrency(-totais.cpv)}</span>
                 </div>
-                {!totais.usandoCmvSupply && dre
+                {dre
                   .filter(m => m.modalidade === 'CUSTOS DE PRODUTO VENDIDO')
                   .map(mod => (
-                    <DREModalidadeRow key={mod.modalidade} modalidade={mod} />
+                    <DREModalidadeRow key={mod.modalidade} modalidade={mod} onReclassify={openReclassModal} />
                   ))}
-                {totais.usandoCmvSupply && (
-                  <p className="text-[10px] text-muted-foreground pl-2">
-                    CMV calculado: qtde saída × custo unitário real
-                  </p>
-                )}
               </div>
 
               {/* Lucro Bruto */}
@@ -659,8 +718,20 @@ export function DRESection({
                     !['DEDUÇÕES', 'CUSTOS DE PRODUTO VENDIDO'].includes(m.modalidade)
                   )
                   .map(mod => (
-                    <DREModalidadeRow key={mod.modalidade} modalidade={mod} />
+                    <DREModalidadeRow key={mod.modalidade} modalidade={mod} onReclassify={openReclassModal} />
                   ))}
+                {/* Saídas a reclassificar - CLICKABLE */}
+                {dre
+                  .filter(m => m.modalidade === 'OUTRAS RECEITAS/DESPESAS')
+                  .map(mod => {
+                    const saidas = mod.grupos.filter(g => g.grupo === 'Outras Saídas');
+                    if (saidas.length === 0) return null;
+                    return saidas.map(g => (
+                      <div key={g.grupo} className="pl-2">
+                        {g.categorias.map(cat => renderReclassificarItem(cat, 'pagar'))}
+                      </div>
+                    ));
+                  })}
               </div>
 
               {/* Resultado Operacional */}
@@ -685,7 +756,7 @@ export function DRESection({
                     <span>{formatCurrency(cmvGerencialData.cmvGerencialTotal)}</span>
                   </div>
                   <p className="text-[10px] text-purple-600/70 dark:text-purple-400/70">
-                    CMV Produto + Impostos ({((cmvGerencialData.receitaBruta > 0 ? (cmvGerencialData.cmvGerencialTotal - (cmvSupply || 0)) / cmvGerencialData.receitaBruta * 100 : 0)).toFixed(0)}% variáveis) + Fulfillment + Materiais
+                    CMV Produto + Impostos + Fulfillment + Materiais (visão gerencial, não filtrado por período)
                   </p>
                   <div className="flex justify-between text-xs text-purple-600 dark:text-purple-400">
                     <span>Margem após CMV Real</span>
@@ -720,10 +791,101 @@ export function DRESection({
         </CollapsibleContent>
       </Card>
     </Collapsible>
+
+    {/* Bulk Reclassify Modal */}
+    <Dialog open={reclassModalOpen} onOpenChange={setReclassModalOpen}>
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-sm flex items-center gap-2">
+            📋 Reclassificar Lançamentos ({reclassLancamentos.length})
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {/* Select all / none */}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={reclassSelected.size === reclassLancamentos.length}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  setReclassSelected(new Set(reclassLancamentos.map(l => l.id)));
+                } else {
+                  setReclassSelected(new Set());
+                }
+              }}
+            />
+            <span className="text-xs text-muted-foreground">
+              Selecionar todos ({reclassSelected.size}/{reclassLancamentos.length})
+            </span>
+          </div>
+
+          {/* List of lancamentos */}
+          <div className="space-y-1 max-h-[200px] overflow-y-auto border rounded p-2">
+            {reclassLancamentos.map(l => (
+              <div key={l.id} className="flex items-start gap-2 text-[11px] py-1 border-b last:border-0">
+                <Checkbox
+                  checked={reclassSelected.has(l.id)}
+                  onCheckedChange={(checked) => {
+                    const next = new Set(reclassSelected);
+                    if (checked) next.add(l.id); else next.delete(l.id);
+                    setReclassSelected(next);
+                  }}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{l.descricao || 'Sem descrição'}</p>
+                  <p className="text-muted-foreground">
+                    {l.dataVencimento?.slice(0, 10)} • {formatCurrency(parseValorFlexivel(l.valor))}
+                    {l.contaOrigem && <span> • {l.contaOrigem}</span>}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Category selector */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Nova categoria DRE:</label>
+            <Select value={reclassCategoria} onValueChange={setReclassCategoria}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Selecione a categoria..." />
+              </SelectTrigger>
+              <SelectContent>
+                {categoriasParaReclassificar.map(c => (
+                  <SelectItem key={`${c.modalidade}-${c.categoria}`} value={c.categoria} className="text-xs">
+                    <span className="text-muted-foreground">{c.modalidade}</span> → {c.categoria}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {onAddMapeamento && (
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3 text-green-500" />
+              O padrão da descrição será salvo para classificar automaticamente lançamentos futuros
+            </p>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => setReclassModalOpen(false)}>
+            Cancelar
+          </Button>
+          <Button
+            size="sm"
+            disabled={reclassSelected.size === 0 || !reclassCategoria}
+            onClick={applyReclassification}
+          >
+            Reclassificar {reclassSelected.size} item(s)
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
-function DREModalidadeRow({ modalidade }: { modalidade: DREModalidade }) {
+function DREModalidadeRow({ modalidade, onReclassify }: { modalidade: DREModalidade; onReclassify?: (ids: string[], tipo: 'receber' | 'pagar') => void }) {
   const [open, setOpen] = useState(false);
 
   return (
