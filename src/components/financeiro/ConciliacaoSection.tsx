@@ -774,6 +774,57 @@ export function ConciliacaoSection({
     toast.info('Lançamento ignorado');
   };
 
+  // Detectar pares intercompany cross-conta
+  const handleDetectarIntercompany = () => {
+    if (!onUpdateMultipleContas) return;
+    
+    const contas = contasExistentes.filter(c => c.pago && c.contaOrigem && c.tipo !== 'intercompany');
+    const updates: { id: string; changes: Partial<ContaFluxo> }[] = [];
+    const matched = new Set<string>();
+
+    for (let i = 0; i < contas.length; i++) {
+      if (matched.has(contas[i].id)) continue;
+      const a = contas[i];
+      const valorA = parseValorFlexivel(a.valor);
+      const tiposSaida = ['pagar', 'cartao'];
+      const aEhSaida = tiposSaida.includes(a.tipo);
+
+      for (let j = i + 1; j < contas.length; j++) {
+        if (matched.has(contas[j].id)) continue;
+        const b = contas[j];
+        if (a.contaOrigem === b.contaOrigem) continue; // mesma conta → não é intercompany
+
+        const valorB = parseValorFlexivel(b.valor);
+        if (Math.abs(valorA - valorB) > 0.01) continue; // valor diferente
+
+        const bEhSaida = tiposSaida.includes(b.tipo);
+        // Um deve ser entrada e outro saída
+        if (aEhSaida === bEhSaida && a.tipo === b.tipo) continue;
+
+        // Verificar datas ± 1 dia
+        try {
+          const dataA = parseISO(a.dataVencimento);
+          const dataB = parseISO(b.dataVencimento);
+          if (Math.abs(differenceInDays(dataA, dataB)) > 1) continue;
+        } catch { continue; }
+
+        // Par encontrado!
+        matched.add(a.id);
+        matched.add(b.id);
+        updates.push({ id: a.id, changes: { tipo: 'intercompany' as ContaFluxoTipo } });
+        updates.push({ id: b.id, changes: { tipo: 'intercompany' as ContaFluxoTipo } });
+        break;
+      }
+    }
+
+    if (updates.length > 0) {
+      onUpdateMultipleContas(updates);
+      toast.success(`🔁 ${updates.length / 2} par(es) intercompany detectados e marcados!`);
+    } else {
+      toast.info('Nenhum par intercompany encontrado entre contas diferentes.');
+    }
+  };
+
   return (
     <Collapsible open={isOpen} onOpenChange={onToggle}>
       <Card>
