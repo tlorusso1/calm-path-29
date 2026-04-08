@@ -232,8 +232,9 @@ export function SupplyChainMode({
     }
     
     // Aplicar canal selecionado às saídas
-    if (canalImportMov) {
-      novas = novas.map(m => m.tipo === 'saida' ? { ...m, canal: canalImportMov } : m);
+    if (canalImportMov && canalImportMov !== '' && canalImportMov !== 'all') {
+      const canal = canalImportMov as CanalVenda;
+      novas = novas.map(m => m.tipo === 'saida' ? { ...m, canal } : m);
     }
     
     const movExistentes = data.movimentacoes || [];
