@@ -526,6 +526,15 @@ export interface SupplyResumo {
 }
 
 // Movimentações de Estoque (Entradas e Saídas)
+export type CanalVenda = 'b2b' | 'ecomNuvem' | 'ecomShopee' | 'ecomAssinaturas';
+
+export const CANAIS_VENDA: { value: CanalVenda; label: string }[] = [
+  { value: 'b2b', label: 'B2B' },
+  { value: 'ecomNuvem', label: 'ECOM-NUVEM' },
+  { value: 'ecomShopee', label: 'ECOM-SHOPEE' },
+  { value: 'ecomAssinaturas', label: 'ECOM-ASSINATURAS' },
+];
+
 export interface MovimentacaoEstoque {
   id: string;
   tipo: 'entrada' | 'saida';
@@ -535,6 +544,7 @@ export interface MovimentacaoEstoque {
   lote?: string;
   dataValidade?: string;
   data: string;                 // ISO date
+  canal?: CanalVenda;           // Canal de venda (para saídas)
 }
 
 // Exports para outros módulos (Pre-Reunião Geral, Score)
