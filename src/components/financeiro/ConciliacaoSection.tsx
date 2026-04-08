@@ -774,41 +774,70 @@ export function ConciliacaoSection({
     toast.info('Lançamento ignorado');
   };
 
-  // Detectar pares intercompany cross-conta
+  // Padrões para detectar intercompany por descrição
+  const INTERCOMPANY_DESC_PATTERNS = [
+    /NICE FOODS ECOM/i,
+    /NICE FOODS LTDA/i,
+    /NICE ECOM/i,
+    /25\.?153\.?380/,  // CNPJ Nice Foods Ecommerce
+    /32\.?738\.?782/,  // CNPJ Nice Foods Ltda
+    /SISPAG\s+NICE/i,
+    /TED.*NICE\s+FOODS/i,
+    /PIX.*NICE\s+FOODS/i,
+    /TRANSF.*NICE/i,
+    /RECEBIMENTOS?\s+NICE/i,
+  ];
+
+  const isIntercompanyByDesc = (desc: string) => 
+    INTERCOMPANY_DESC_PATTERNS.some(p => p.test(desc));
+
+  // Detectar intercompany: por padrão de descrição + cross-conta por valor
   const handleDetectarIntercompany = () => {
     if (!onUpdateMultipleContas) return;
     
-    const contas = contasExistentes.filter(c => c.pago && c.contaOrigem && c.tipo !== 'intercompany');
     const updates: { id: string; changes: Partial<ContaFluxo> }[] = [];
     const matched = new Set<string>();
 
-    for (let i = 0; i < contas.length; i++) {
-      if (matched.has(contas[i].id)) continue;
-      const a = contas[i];
+    // 1. Detecção por padrão de descrição (CNPJ/nome da empresa)
+    for (const conta of contasExistentes) {
+      if (conta.tipo === 'intercompany') continue;
+      if (conta.tipo === 'aplicacao' || conta.tipo === 'resgate' || conta.tipo === 'cartao') continue;
+      const desc = conta.descricao || '';
+      if (isIntercompanyByDesc(desc)) {
+        matched.add(conta.id);
+        updates.push({ id: conta.id, changes: { tipo: 'intercompany' as ContaFluxoTipo } });
+      }
+    }
+
+    // 2. Detecção cross-conta por valor (para contas com contaOrigem diferente)
+    const contasCross = contasExistentes.filter(c => 
+      c.pago && c.contaOrigem && !matched.has(c.id) && c.tipo !== 'intercompany'
+    );
+    
+    for (let i = 0; i < contasCross.length; i++) {
+      if (matched.has(contasCross[i].id)) continue;
+      const a = contasCross[i];
       const valorA = parseValorFlexivel(a.valor);
       const tiposSaida = ['pagar', 'cartao'];
       const aEhSaida = tiposSaida.includes(a.tipo);
 
-      for (let j = i + 1; j < contas.length; j++) {
-        if (matched.has(contas[j].id)) continue;
-        const b = contas[j];
-        if (a.contaOrigem === b.contaOrigem) continue; // mesma conta → não é intercompany
+      for (let j = i + 1; j < contasCross.length; j++) {
+        if (matched.has(contasCross[j].id)) continue;
+        const b = contasCross[j];
+        if (a.contaOrigem === b.contaOrigem) continue;
 
         const valorB = parseValorFlexivel(b.valor);
-        if (Math.abs(valorA - valorB) > 0.01) continue; // valor diferente
+        if (Math.abs(valorA - valorB) > 0.01) continue;
 
         const bEhSaida = tiposSaida.includes(b.tipo);
-        // Um deve ser entrada e outro saída
         if (aEhSaida === bEhSaida && a.tipo === b.tipo) continue;
 
-        // Verificar datas ± 1 dia
         try {
           const dataA = parseISO(a.dataVencimento);
           const dataB = parseISO(b.dataVencimento);
           if (Math.abs(differenceInDays(dataA, dataB)) > 1) continue;
         } catch { continue; }
 
-        // Par encontrado!
         matched.add(a.id);
         matched.add(b.id);
         updates.push({ id: a.id, changes: { tipo: 'intercompany' as ContaFluxoTipo } });
@@ -819,9 +848,9 @@ export function ConciliacaoSection({
 
     if (updates.length > 0) {
       onUpdateMultipleContas(updates);
-      toast.success(`🔁 ${updates.length / 2} par(es) intercompany detectados e marcados!`);
+      toast.success(`🔁 ${updates.length} lançamento(s) marcados como intercompany!`);
     } else {
-      toast.info('Nenhum par intercompany encontrado entre contas diferentes.');
+      toast.info('Nenhum intercompany encontrado.');
     }
   };
 

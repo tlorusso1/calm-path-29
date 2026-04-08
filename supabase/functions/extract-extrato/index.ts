@@ -164,7 +164,22 @@ async function processarChunk(texto: string, mesAno: string, apiKey: string): Pr
           else if (/TRUST/i.test(desc)) subtipo = "trust";
         }
 
-        // Intercompany é detectado por pós-processamento (pares de mesmo valor)
+        // Detectar intercompany por padrão de descrição (transferências entre CNPJs do grupo)
+        const INTERCOMPANY_PATTERNS = [
+          /NICE FOODS ECOM/i,
+          /NICE FOODS LTDA/i,
+          /NICE ECOM/i,
+          /25\.?153\.?380/,  // CNPJ Nice Foods Ecommerce
+          /32\.?738\.?782/,  // CNPJ Nice Foods Ltda
+          /SISPAG\s+NICE/i,
+          /TED.*NICE\s+FOODS/i,
+          /PIX.*NICE\s+FOODS/i,
+          /TRANSF.*NICE/i,
+          /RECEBIMENTOS?\s+NICE/i,
+        ];
+        if (INTERCOMPANY_PATTERNS.some(p => p.test(desc)) && tipo !== "aplicacao" && tipo !== "resgate" && tipo !== "cartao") {
+          tipo = "intercompany";
+        }
         
         // Detectar pagamento consolidado de cartão de crédito
         if (/BUSINESS \d{4}-\d{4}/i.test(desc)) {
