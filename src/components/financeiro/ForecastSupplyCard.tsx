@@ -45,7 +45,7 @@ export function ForecastSupplyCard({ forecast, receitaBruta, cmvMensal, faturame
         {/* Projeção de Receita */}
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <p className="text-[10px] text-muted-foreground">Receita proj. 30d</p>
+            <p className="text-[10px] text-muted-foreground">Proj 30d (média móvel 90d)</p>
             <p className="text-sm font-bold text-green-600">
               {formatCurrency(forecast.receitaProjetada30d)}
             </p>
@@ -72,7 +72,7 @@ export function ForecastSupplyCard({ forecast, receitaBruta, cmvMensal, faturame
         {receitaReal4sem > 0 && (
           <div className="p-2.5 rounded-lg border border-border/60 bg-muted/30">
             <div className="flex items-center justify-between text-xs mb-1">
-              <span className="text-muted-foreground font-medium">Forecast vs Real (4 sem)</span>
+              <span className="text-muted-foreground font-medium">Proj 30d vs Real últimas 4 sem (~28d)</span>
               <span className={cn(
                 "font-bold",
                 receitaReal4sem >= forecast.receitaProjetada30d * 0.9 ? "text-green-600" :
@@ -175,7 +175,7 @@ export function ForecastSupplyCard({ forecast, receitaBruta, cmvMensal, faturame
         )}
 
         <p className="text-[10px] text-muted-foreground italic">
-          Projeção baseada na velocidade real de saída dos últimos 90 dias.
+          📦 Dados de movimentações de estoque. Projeção = média móvel de até 90d × (30/7).
         </p>
 
         {/* Investimento em Produção */}
