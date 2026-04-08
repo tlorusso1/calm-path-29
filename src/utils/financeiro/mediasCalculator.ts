@@ -4,11 +4,11 @@ import { parseISO, subDays, isWithinInterval, startOfDay } from 'date-fns';
 
 // Custos variáveis padrão do negócio
 export const CUSTOS_VARIAVEIS = {
-  taxaCartao: 0.06,        // 6% do valor da venda
   imposto: 0.16,           // 16% do valor da venda
   fulfillment: 4.90,       // R$ por pedido
   devolucoes: 0.02,        // 2% do valor da venda
   embalagem: 5.00,         // R$ por envio
+  // taxaCartao removida: extrato bancário já mostra valor líquido (pós-taxa gateway)
   // Frete: calculado via conciliação (soma Jadlog+Mandae)
 } as const;
 
@@ -110,13 +110,12 @@ export function calcularCMVReal(params: {
   const numPedidos = ticketMedio > 0 ? receitaBruta / ticketMedio : 0;
 
   const impostos = receitaBruta * cv.imposto;
-  const taxaCartaoValor = receitaBruta * cv.taxaCartao;
   const devolucoesValor = receitaBruta * cv.devolucoes;
   const fulfillmentTotal = numPedidos * cv.fulfillment;
   const embalagemTotal = numPedidos * cv.embalagem;
   const freteTotal = numPedidos * fretePorPedido;
 
-  const totalVariaveis = impostos + taxaCartaoValor + devolucoesValor + fulfillmentTotal + embalagemTotal + freteTotal;
+  const totalVariaveis = impostos + devolucoesValor + fulfillmentTotal + embalagemTotal + freteTotal;
   const cmvRealTotal = cmvProduto + totalVariaveis;
   const margemContribuicao = receitaBruta - cmvRealTotal;
   const margemPercentual = margemContribuicao / receitaBruta;
@@ -125,7 +124,6 @@ export function calcularCMVReal(params: {
     receitaBruta,
     cmvProduto,
     impostos,
-    taxaCartaoValor,
     devolucoesValor,
     fulfillmentTotal,
     embalagemTotal,

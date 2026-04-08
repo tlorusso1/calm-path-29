@@ -11,12 +11,10 @@ interface CMVGerencialCardProps {
   cmvProduto: number;
   ticketMedio: number;
   impostoPercentual: number;
-  taxaCartaoPercentual?: number;
   fulfillmentPorPedido?: number;
   materiaisPorPedido?: number;
   fretePorPedido?: number;
   onConfigChange?: (config: {
-    taxaCartaoPercentual: number;
     fulfillmentPorPedido: number;
     materiaisPorPedido: number;
   }) => void;
@@ -35,14 +33,12 @@ export function CMVGerencialCard({
   cmvProduto,
   ticketMedio,
   impostoPercentual,
-  taxaCartaoPercentual: taxaCartaoInit = CUSTOS_VARIAVEIS.taxaCartao,
   fulfillmentPorPedido: fulfillmentInit = CUSTOS_VARIAVEIS.fulfillment,
   materiaisPorPedido: materiaisInit = CUSTOS_VARIAVEIS.embalagem,
   fretePorPedido = 0,
   onConfigChange,
 }: CMVGerencialCardProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [taxaCartao, setTaxaCartao] = useState(taxaCartaoInit);
   const [fulfillment, setFulfillment] = useState(fulfillmentInit);
   const [materiais, setMateriais] = useState(materiaisInit);
 
@@ -50,19 +46,17 @@ export function CMVGerencialCard({
     if (receitaBruta <= 0) return null;
 
     const impostos = receitaBruta * impostoPercentual;
-    const taxaCartaoValor = receitaBruta * taxaCartao;
     const devolucoesValor = receitaBruta * CUSTOS_VARIAVEIS.devolucoes;
     const numPedidos = ticketMedio > 0 ? receitaBruta / ticketMedio : 0;
     const fulfillmentTotal = numPedidos * fulfillment;
     const materiaisTotal = numPedidos * materiais;
     const freteTotal = numPedidos * fretePorPedido;
 
-    const cmvGerencialTotal = cmvProduto + impostos + taxaCartaoValor + devolucoesValor + fulfillmentTotal + materiaisTotal + freteTotal;
+    const cmvGerencialTotal = cmvProduto + impostos + devolucoesValor + fulfillmentTotal + materiaisTotal + freteTotal;
     const margemGerencial = (receitaBruta - cmvGerencialTotal) / receitaBruta;
 
     return {
       impostos,
-      taxaCartaoValor,
       devolucoesValor,
       numPedidos: Math.round(numPedidos),
       fulfillmentTotal,
@@ -71,11 +65,10 @@ export function CMVGerencialCard({
       cmvGerencialTotal,
       margemGerencial,
     };
-  }, [receitaBruta, cmvProduto, ticketMedio, impostoPercentual, taxaCartao, fulfillment, materiais, fretePorPedido]);
+  }, [receitaBruta, cmvProduto, ticketMedio, impostoPercentual, fulfillment, materiais, fretePorPedido]);
 
   const handleConfigUpdate = (field: string, value: number) => {
     const newConfig = {
-      taxaCartaoPercentual: taxaCartao,
       fulfillmentPorPedido: fulfillment,
       materiaisPorPedido: materiais,
       [field]: value,
@@ -147,14 +140,6 @@ export function CMVGerencialCard({
               </div>
 
               <div className="flex justify-between text-muted-foreground pl-4">
-                <span>Meio de Pagamento</span>
-                <span className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground/70">({formatPercent(taxaCartao)})</span>
-                  {formatCurrency(-calculo.taxaCartaoValor)}
-                </span>
-              </div>
-
-              <div className="flex justify-between text-muted-foreground pl-4">
                 <span>Devoluções/Reembolsos</span>
                 <span className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground/70">({formatPercent(CUSTOS_VARIAVEIS.devolucoes)})</span>
@@ -179,6 +164,11 @@ export function CMVGerencialCard({
                 </div>
               )}
 
+              <div className="flex justify-between text-[10px] text-muted-foreground/60 pl-4 italic">
+                <span>Taxa cartão</span>
+                <span>já descontada no extrato</span>
+              </div>
+
               <div className={cn(
                 "flex justify-between font-bold p-2 rounded-lg border mt-2",
                 calculo.margemGerencial >= 0.15 
@@ -194,21 +184,7 @@ export function CMVGerencialCard({
 
             <div className="border-t pt-3 space-y-2">
               <p className="text-[10px] font-medium text-muted-foreground uppercase">Parâmetros ajustáveis</p>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] text-muted-foreground">Taxa Cartão %</label>
-                  <Input
-                    type="number"
-                    step="0.5"
-                    value={(taxaCartao * 100).toFixed(1)}
-                    onChange={(e) => {
-                      const v = parseFloat(e.target.value) / 100;
-                      setTaxaCartao(v);
-                      handleConfigUpdate('taxaCartaoPercentual', v);
-                    }}
-                    className="h-7 text-xs text-right"
-                  />
-                </div>
+              <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className="text-[10px] text-muted-foreground">Fulfillment/ped</label>
                   <Input
@@ -241,7 +217,8 @@ export function CMVGerencialCard({
               <p className="text-[9px] text-muted-foreground">
                 Ticket médio: {formatCurrency(ticketMedio)} · Impostos: {formatPercent(impostoPercentual)} · 
                 Frete/ped: {formatCurrency(fretePorPedido)} (conciliação) · 
-                Devoluções: {formatPercent(CUSTOS_VARIAVEIS.devolucoes)}
+                Devoluções: {formatPercent(CUSTOS_VARIAVEIS.devolucoes)} ·
+                Taxa cartão: já descontada no extrato bancário
               </p>
             </div>
           </CardContent>
