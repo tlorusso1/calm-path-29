@@ -126,6 +126,7 @@ export interface ContaFluxo {
   descricao: string;
   valor: string;
   dataVencimento: string;  // ISO date (YYYY-MM-DD)
+  dataPagamento?: string;  // ISO date - data efetiva do pagamento (extrato bancário)
   pago?: boolean;
   agendado?: boolean;  // Indica se foi agendado no banco (auto-baixa no vencimento)
   // Novos campos para DRE/Conciliação
