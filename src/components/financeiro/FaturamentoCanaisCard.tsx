@@ -15,6 +15,7 @@ interface FaturamentoCanais {
 interface FaturamentoCanaisCardProps {
   faturamentoCanais: FaturamentoCanais;
   onUpdate: (canais: FaturamentoCanais) => void;
+  receitaBrutaMovimentacoes?: number;
 }
 
 interface CanalInfo {
@@ -43,6 +44,7 @@ function formatCurrency(valor: number): string {
 export function FaturamentoCanaisCard({
   faturamentoCanais,
   onUpdate,
+  receitaBrutaMovimentacoes,
 }: FaturamentoCanaisCardProps) {
   const hoje = new Date();
   const diaDoMes = hoje.getDate();
@@ -152,6 +154,16 @@ export function FaturamentoCanaisCard({
         
         {/* Insights */}
         <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+          {receitaBrutaMovimentacoes && receitaBrutaMovimentacoes > 0 && (
+            <p className="text-xs text-muted-foreground">
+              📦 <strong>Receita Supply (mov.):</strong> {formatCurrency(receitaBrutaMovimentacoes)}
+              {calculos.totalAtual > 0 && (
+                <span className="ml-1 text-[10px]">
+                  (dif: {formatCurrency(Math.abs(receitaBrutaMovimentacoes - calculos.totalAtual))})
+                </span>
+              )}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             💡 <strong>Projeção:</strong> Baseada na média diária atual ({diaDoMes} dias)
           </p>
