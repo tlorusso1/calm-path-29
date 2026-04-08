@@ -57,6 +57,12 @@ export function parseFornecedoresCSV(csvText: string): Fornecedor[] {
   return fornecedores;
 }
 
+// Nomes genéricos que não devem ganhar de matches mais específicos
+const NOMES_GENERICOS = new Set([
+  'pagamento', 'pagamentos', 'transferencia', 'pix', 'ted', 'doc',
+  'debito', 'credito', 'saldo', 'tarifa', 'compra',
+]);
+
 // Match de fornecedor por descrição
 export function matchFornecedor(
   descricao: string, 
@@ -81,27 +87,39 @@ export function matchFornecedor(
     if (match) return match;
   }
 
-  // Segundo: match direto
+  // Segundo: coletar todos os matches e escolher o mais específico (nome mais longo)
+  type MatchResult = { fornecedor: Fornecedor; matchLength: number };
+  const matches: MatchResult[] = [];
+
   for (const f of fornecedores) {
     const nomeNorm = f.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     
-    // Match exato ou parcial
     if (descNorm.includes(nomeNorm) || nomeNorm.includes(descNorm)) {
-      return f;
+      matches.push({ fornecedor: f, matchLength: nomeNorm.length });
     }
     
-    // Check aliases
     if (f.aliases) {
       for (const alias of f.aliases) {
         const aliasNorm = alias.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         if (descNorm.includes(aliasNorm) || aliasNorm.includes(descNorm)) {
-          return f;
+          matches.push({ fornecedor: f, matchLength: aliasNorm.length });
         }
       }
     }
   }
 
-  return null;
+  if (matches.length === 0) return null;
+
+  // Filtrar matches genéricos se há matches mais específicos
+  const specificMatches = matches.filter(m => 
+    !NOMES_GENERICOS.has(m.fornecedor.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+  );
+
+  const pool = specificMatches.length > 0 ? specificMatches : matches;
+
+  // Retornar o match com nome mais longo (mais específico)
+  pool.sort((a, b) => b.matchLength - a.matchLength);
+  return pool[0].fornecedor;
 }
 
 // Fornecedores padrão do CSV fornecido

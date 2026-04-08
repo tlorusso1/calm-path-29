@@ -100,38 +100,49 @@ function classificarLancamento(
   }
 
   // Auto-classificação de saídas por palavras-chave na descrição
-  if (!categoria && !isReceita) {
+  // Roda tanto para sem categoria quanto para corrigir categorias genéricas erradas
+  if (!isReceita) {
     const desc = (lanc.descricao || '').toUpperCase();
+    const CATEGORIAS_GENERICAS = ['Material de Uso e Consumo', 'Saídas a Reclassificar', 'a classificar'];
+    const precisaOverride = !categoria || CATEGORIAS_GENERICAS.includes(categoria);
     
-    // Impostos → DEDUÇÕES
-    if (desc.includes('DAS') || desc.includes('SIMPLES NACIONAL'))
-      categoria = 'Simples Nacional (DAS)';
-    else if (desc.includes('DARF') && desc.includes('INSS'))
-      categoria = 'INSS';
-    else if (desc.includes('ICMS'))
-      categoria = 'ICMS';
-    else if (desc.includes('PIS') || desc.includes('COFINS'))
-      categoria = 'PIS E COFINS';
-    
-    // Pessoal
-    else if (desc.includes('FOLHA') || desc.includes('SALARIO'))
-      categoria = 'Salários CLT';
-    else if (desc.includes('FGTS'))
-      categoria = 'FGTS';
-    else if (desc.includes('PRO LABORE') || desc.includes('PRÓ-LABORE'))
-      categoria = 'Pro Labore';
-    
-    // Frete
-    else if (desc.includes('JADLOG') || desc.includes('MANDAE'))
-      categoria = 'Frete Venda';
-    
-    // Empréstimos
-    else if (desc.includes('EMPRESTIMO') || desc.includes('FINANCIAMENTO'))
-      categoria = 'Pagamento da Parcela Principal';
-    
-    // Tarifas bancárias
-    else if (desc.includes('TARIFA') || desc.includes('IOF'))
-      categoria = 'Tarifas Bancárias';
+    if (precisaOverride) {
+      // Impostos → DEDUÇÕES
+      if (desc.includes('SIMPLES NACIONAL'))
+        categoria = 'Simples Nacional (DAS)';
+      else if (desc.includes('DAS') && (desc.includes('TRIB') || desc.includes('COD BARRAS') || desc.includes('PAGAMENTO')))
+        categoria = 'Simples Nacional (DAS)';
+      else if (desc.includes('DARF') && desc.includes('INSS'))
+        categoria = 'INSS';
+      else if (desc.includes('DARF'))
+        categoria = 'DARF';
+      else if (desc.includes('ICMS'))
+        categoria = 'ICMS';
+      else if (desc.includes('PIS') || desc.includes('COFINS'))
+        categoria = 'PIS E COFINS';
+      
+      // Pessoal
+      else if (desc.includes('FOLHA') || desc.includes('SALARIO'))
+        categoria = 'Salários CLT';
+      else if (desc.includes('FGTS'))
+        categoria = 'FGTS';
+      else if (desc.includes('INSS'))
+        categoria = 'INSS';
+      else if (desc.includes('PRO LABORE') || desc.includes('PRÓ-LABORE'))
+        categoria = 'Pro Labore';
+      
+      // Frete
+      else if (desc.includes('JADLOG') || desc.includes('MANDAE'))
+        categoria = 'Frete Venda';
+      
+      // Empréstimos
+      else if (desc.includes('EMPRESTIMO') || desc.includes('FINANCIAMENTO'))
+        categoria = 'Pagamento da Parcela Principal';
+      
+      // Tarifas bancárias
+      else if (desc.includes('TARIFA') || desc.includes('IOF'))
+        categoria = 'Tarifas Bancárias';
+    }
   }
 
   if (!categoria) {
