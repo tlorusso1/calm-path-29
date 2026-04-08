@@ -164,23 +164,9 @@ async function processarChunk(texto: string, mesAno: string, apiKey: string): Pr
           else if (/TRUST/i.test(desc)) subtipo = "trust";
         }
 
-        // Detectar intercompany por padrão de descrição (transferências entre CNPJs do grupo)
-        const INTERCOMPANY_PATTERNS = [
-          /NICE FOODS ECOM/i,
-          /NICE FOODS LTDA/i,
-          /NICE ECOM/i,
-          /25\.?153\.?380/,  // CNPJ Nice Foods Ecommerce
-          /32\.?738\.?782/,  // CNPJ Nice Foods Ltda
-          /SISPAG\s+NICE/i,
-          /TED.*NICE\s+FOODS/i,
-          /PIX.*NICE\s+FOODS/i,
-          /TRANSF.*NICE/i,
-          /RECEBIMENTOS?\s+NICE/i,
-        ];
-        if (INTERCOMPANY_PATTERNS.some(p => p.test(desc)) && tipo !== "aplicacao" && tipo !== "resgate" && tipo !== "cartao") {
-          tipo = "intercompany";
-        }
-        
+        // Intercompany só é detectado no pós-processamento, quando existir um par
+        // de entrada/saída com mesmo valor na mesma data e referência a NICE FOODS.
+
         // Detectar pagamento consolidado de cartão de crédito
         if (/BUSINESS \d{4}-\d{4}/i.test(desc)) {
           tipo = "cartao";
@@ -205,8 +191,18 @@ async function processarChunk(texto: string, mesAno: string, apiKey: string): Pr
     .filter(Boolean);
 }
 
-// Detecta intercompany por pares: 2 lançamentos de mesmo valor absoluto (±0.01),
-// um sendo saída (pagar/cartao) e outro entrada (receber), são marcados como intercompany.
+function descricaoPareceIntercompany(desc: string): boolean {
+  return [
+    /NICE\s+FOODS/i,
+    /NICE\s+ECOM/i,
+    /NICE FOODS ECOMMERCE/i,
+    /25\.?153\.?380/i,
+    /32\.?738\.?782/i,
+  ].some((pattern) => pattern.test(desc || ""));
+}
+
+// Detecta intercompany por pares: mesmo valor (±0.01), mesma data,
+// um sendo saída e outro entrada, e ambos referenciando NICE FOODS/CNPJs do grupo.
 function detectarIntercompany(lancamentos: any[]): any[] {
   const usados = new Set<number>();
 
@@ -215,19 +211,24 @@ function detectarIntercompany(lancamentos: any[]): any[] {
     const a = lancamentos[i];
     const valA = Math.abs(parseFloat(a.valor) || 0);
     const tipoA = a.tipo;
+    const descA = a.descricao || "";
 
     for (let j = i + 1; j < lancamentos.length; j++) {
       if (usados.has(j)) continue;
       const b = lancamentos[j];
       const valB = Math.abs(parseFloat(b.valor) || 0);
       const tipoB = b.tipo;
+      const descB = b.descricao || "";
 
-      const mesmovalor = Math.abs(valA - valB) <= 0.01;
+      const mesmoValor = Math.abs(valA - valB) <= 0.01;
+      const mesmaData = a.dataVencimento === b.dataVencimento;
       const parSaidaEntrada =
-        (["pagar", "cartao"].includes(tipoA) && tipoB === "receber") ||
-        (["pagar", "cartao"].includes(tipoB) && tipoA === "receber");
+        (tipoA === "pagar" && tipoB === "receber") ||
+        (tipoB === "pagar" && tipoA === "receber");
+      const referenciasValidas =
+        descricaoPareceIntercompany(descA) && descricaoPareceIntercompany(descB);
 
-      if (mesmovalor && parSaidaEntrada) {
+      if (mesmoValor && mesmaData && parSaidaEntrada && referenciasValidas) {
         lancamentos[i].tipo = "intercompany";
         lancamentos[j].tipo = "intercompany";
         usados.add(i);

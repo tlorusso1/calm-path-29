@@ -71,7 +71,13 @@ export function UnitEconomicsSKU({ skus, ticketMedio, fretePorPedido }: UnitEcon
 
   if (!dados.length) return null;
 
-  const margemMedia = dados.reduce((s, d) => s + d.margemPct, 0) / dados.length;
+  const margemMedia = useMemo(() => {
+    const totalReceita = dados.reduce((sum, d) => sum + (d.precoMedio * d.qtd), 0);
+    if (totalReceita <= 0) return 0;
+
+    const totalMargem = dados.reduce((sum, d) => sum + (d.margemRS * d.qtd), 0);
+    return totalMargem / totalReceita;
+  }, [dados]);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>

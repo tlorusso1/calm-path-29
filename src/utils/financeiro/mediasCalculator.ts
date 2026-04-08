@@ -41,7 +41,8 @@ export interface MediasConciliadas {
  */
 export function calcularMediasConciliadas(
   contasFluxo: ContaFluxo[],
-  diasJanela: number = 90
+  diasJanela: number = 90,
+  ticketMedioAproximado: number = 0
 ): MediasConciliadas {
   const hoje = startOfDay(new Date());
   const inicio = subDays(hoje, diasJanela);
@@ -66,7 +67,6 @@ export function calcularMediasConciliadas(
       totalEntradas += valor;
     } else if (TIPOS_SAIDA.includes(lanc.tipo)) {
       totalSaidas += valor;
-      // Detectar frete
       const desc = lanc.descricao || '';
       if (PATTERNS_FRETE.some(p => p.test(desc))) {
         freteTotalPeriodo += valor;
@@ -77,10 +77,10 @@ export function calcularMediasConciliadas(
   const diasComDados = new Set(lancamentosPagos.map(l => l.dataVencimento)).size;
   const diasParaMedia = Math.max(diasComDados, 30);
 
-  // Estimar pedidos do período (entradas / ticket médio aprox)
-  // Fallback: usar contagem de entradas tipo 'receber'
-  const numEntradas = lancamentosPagos.filter(l => l.tipo === 'receber').length;
-  const fretePorPedido = numEntradas > 0 ? freteTotalPeriodo / numEntradas : 0;
+  // Estimar pedidos pelo faturamento líquido conciliado / ticket médio.
+  // Se não houver ticket confiável, zera o frete por pedido para evitar distorções absurdas.
+  const pedidosEstimados = ticketMedioAproximado > 0 ? totalEntradas / ticketMedioAproximado : 0;
+  const fretePorPedido = pedidosEstimados > 0 ? freteTotalPeriodo / pedidosEstimados : 0;
 
   return {
     mediaEntradaDia: totalEntradas / diasParaMedia,
