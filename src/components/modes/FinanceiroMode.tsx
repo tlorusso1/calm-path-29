@@ -859,10 +859,23 @@ export function FinanceiroMode({
           <DRESection
             lancamentos={data.contasFluxo || []}
             fornecedores={data.fornecedores || []}
-            cmvSupply={cmvSupply}
             cmvGerencialData={cmvGerencialCalc || undefined}
             isOpen={openSections.dre || false}
             onToggle={() => toggleSection('dre')}
+            onUpdateLancamentos={(updates) => {
+              const contasAtualizadas = (data.contasFluxo || []).map(c => {
+                const upd = updates.find(u => u.id === c.id);
+                return upd ? { ...c, ...upd.changes } : c;
+              });
+              onUpdateFinanceiroData({ contasFluxo: contasAtualizadas });
+              flushSave?.();
+            }}
+            onAddMapeamento={(novoMapeamento: MapeamentoDescricaoFornecedor) => {
+              onUpdateFinanceiroData({
+                mapeamentosDescricao: [...(data.mapeamentosDescricao || []), novoMapeamento],
+              });
+            }}
+            mapeamentos={data.mapeamentosDescricao || []}
           />
           
           <CMVGerencialCard

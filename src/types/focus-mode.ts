@@ -284,7 +284,10 @@ export interface FinanceiroStage {
 export interface MapeamentoDescricaoFornecedor {
   padrao: string;        // Padrão normalizado da descrição (ex: "BOLETO PAGO RNX FIDC")
   fornecedorId: string;  // ID do fornecedor associado
+  categoria?: string;    // Categoria DRE direta (quando não há fornecedor)
   criadoEm: string;      // ISO date
+  ultimoUso?: string;    // ISO date do último uso
+  confianca?: number;    // Quantas vezes o padrão foi confirmado
 }
 
 // Helpers para mapeamento de descrições
