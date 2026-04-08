@@ -1,46 +1,35 @@
 
 
-## Automatizar Faturamento por Canal: Conciliação + Movimentações
+## Simplificar Faturamento por Canal: Prioridade Estoque + Override Manual
 
-### Objetivo
-Substituir inputs manuais por dados reais, usando duas fontes complementares:
-- **Conciliação bancária** (contasFluxo `tipo === 'receber'`): faturamento líquido real por canal, classificado via `contaOrigem`
-- **Movimentações de estoque** (saídas): faturamento bruto por canal, com novo campo `canal` na importação
+### Problema
+- O banco não separa bem por canal (vários canais caem na mesma conta)
+- As movimentações de estoque têm o canal correto (selecionado na importação)
+- Precisa manter override manual para ajustes
 
-### Mudanças
+### Mudanças em `FaturamentoCanaisCard.tsx`
 
-#### A. Adicionar campo `canal` nas movimentações (`src/types/focus-mode.ts`)
-- Novo campo opcional em `MovimentacaoEstoque`: `canal?: 'b2b' | 'ecomNuvem' | 'ecomShopee' | 'ecomAssinaturas'`
+1. **Inverter prioridade**: Movimentações (bruto) → Banco (líquido) → Manual
+   - Estoque é a fonte primária porque tem o canal correto
+   - Banco serve como fallback/complemento
+   - Manual serve como override final (se preenchido, sobrescreve tudo)
 
-#### B. Seletor de canal na importação de movimentações (`SupplyChainMode.tsx`)
-- Na aba "Mov.", adicionar um `Select` para o usuário escolher o canal antes de importar
-- O canal selecionado é aplicado a todas as movimentações daquela importação
+2. **Simplificar grid**: Canal | Realizado | Override | Projeção
+   - Coluna "Realizado" mostra o valor da fonte primária disponível com ícone da fonte (📦/🏦)
+   - Coluna "Override" mantém o input manual (compacto, sempre visível)
+   - Remover a separação confusa de duas colunas Líquido/Bruto
 
-#### C. Classificação automática via contaOrigem (`FaturamentoCanaisCard.tsx`)
-Regras de mapeamento das `contasFluxo` (entradas, `tipo === 'receber'`, mês atual):
-| contaOrigem | Canal |
-|---|---|
-| `ITAU - NICE FOODS` (sem "ECOM") | B2B |
-| `ITAU - NICE ECOM`, `Pagar.me`, `Nuvemshop` | ECOM-NUVEM |
-| `MERCADO LIVRE` | ECOM-SHOPEE |
-| `Asaas` | ECOM-ASSINATURAS |
+3. **Lógica de valor final**:
+   ```
+   se manual > 0 → usa manual (✏️)
+   senão se movimentações > 0 → usa movimentações (📦)  
+   senão se banco > 0 → usa banco (🏦)
+   ```
 
-#### D. Refatorar `FaturamentoCanaisCard` para modo automático
-- Receber `contasFluxo` e `movimentacoes` como props (além dos inputs manuais existentes)
-- Calcular valores automáticos por canal a partir das duas fontes
-- Mostrar **duas linhas por canal**: "Líquido (banco)" e "Bruto (mov.)" 
-- Manter inputs manuais como override opcional (se preenchido, usa manual; senão, automático)
-- Projeção mensal baseada nos dados automáticos quando disponíveis
+4. **Legenda** no rodapé: "📦 = movimentações · 🏦 = banco · ✏️ = override manual"
 
-#### E. Passar dados no `FinanceiroMode.tsx`
-- Passar `contasFluxo` e `supplyExports.movimentacoes` para o `FaturamentoCanaisCard`
-
-### Arquivos alterados
+### Arquivo alterado
 | Arquivo | Mudança |
 |---------|---------|
-| `src/types/focus-mode.ts` | `canal` em MovimentacaoEstoque |
-| `src/components/modes/SupplyChainMode.tsx` | Select de canal na importação de movimentações |
-| `src/utils/movimentacoesParser.ts` | Aceitar canal como parâmetro no parse |
-| `src/components/financeiro/FaturamentoCanaisCard.tsx` | Lógica automática via contaOrigem + movimentações, dual view |
-| `src/components/modes/FinanceiroMode.tsx` | Passar contasFluxo e movimentações ao card |
+| `src/components/financeiro/FaturamentoCanaisCard.tsx` | Grid simplificada, prioridade invertida (estoque primeiro), override manual mantido |
 
