@@ -15,9 +15,10 @@ interface FaturamentoCanais {
 interface FaturamentoCanaisCardProps {
   faturamentoCanais: FaturamentoCanais;
   onUpdate: (canais: FaturamentoCanais) => void;
-  receitaBrutaMovimentacoes?: number;
   contasFluxo?: ContaFluxo[];
   movimentacoes?: MovimentacaoEstoque[];
+  forecastMensal?: number;
+  forecastSemanal?: number;
 }
 
 interface CanalInfo {
@@ -57,9 +58,10 @@ function formatCurrency(valor: number): string {
 export function FaturamentoCanaisCard({
   faturamentoCanais,
   onUpdate,
-  receitaBrutaMovimentacoes,
   contasFluxo,
   movimentacoes,
+  forecastMensal,
+  forecastSemanal,
 }: FaturamentoCanaisCardProps) {
   const hoje = new Date();
   const diaDoMes = hoje.getDate();
@@ -68,7 +70,7 @@ export function FaturamentoCanaisCard({
   const mesAtual = hoje.getMonth();
   const anoAtual = hoje.getFullYear();
 
-  // Banco (líquido) por canal
+  // Banco (líquido) por canal - mês atual
   const liquidoPorCanal = useMemo(() => {
     const result: Record<CanalVenda, number> = { b2b: 0, ecomNuvem: 0, ecomShopee: 0, ecomAssinaturas: 0 };
     if (!contasFluxo) return result;
@@ -87,7 +89,7 @@ export function FaturamentoCanaisCard({
     return result;
   }, [contasFluxo, mesAtual, anoAtual]);
 
-  // Movimentações (bruto) por canal
+  // Movimentações (bruto) por canal - mês atual
   const brutoPorCanal = useMemo(() => {
     const result: Record<CanalVenda, number> = { b2b: 0, ecomNuvem: 0, ecomShopee: 0, ecomAssinaturas: 0 };
     if (!movimentacoes) return result;
@@ -105,7 +107,7 @@ export function FaturamentoCanaisCard({
     return result;
   }, [movimentacoes, mesAtual, anoAtual]);
 
-  // Cálculos com prioridade: manual > movimentações > banco
+  // Prioridade: manual > movimentações > banco
   const calculos = useMemo(() => {
     const resultado = CANAIS.map(canal => {
       const manualVal = parseCurrency(faturamentoCanais[canal.key]);
@@ -216,15 +218,45 @@ export function FaturamentoCanaisCard({
           </div>
         </div>
 
-        {/* Legenda */}
-        <div className="bg-muted/50 rounded-lg p-2 space-y-1">
-          {receitaBrutaMovimentacoes && receitaBrutaMovimentacoes > 0 && (
-            <p className="text-[10px] text-muted-foreground">
-              📦 <strong>Receita Supply (total):</strong> {formatCurrency(receitaBrutaMovimentacoes)}
+        {/* Forecast de referência (supply 90d) */}
+        {(forecastMensal && forecastMensal > 0) && (
+          <div className="bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800 rounded-lg p-3 space-y-1">
+            <p className="text-[10px] font-medium text-cyan-700 dark:text-cyan-400">
+              📊 Referência Forecast (média 90d Supply)
             </p>
-          )}
+            <div className="flex gap-4">
+              <div>
+                <p className="text-[9px] text-muted-foreground">Mensal</p>
+                <p className="text-xs font-bold text-cyan-700 dark:text-cyan-300">
+                  {formatCurrency(forecastMensal)}
+                </p>
+              </div>
+              {forecastSemanal && (
+                <div>
+                  <p className="text-[9px] text-muted-foreground">Semanal</p>
+                  <p className="text-xs font-bold text-cyan-700 dark:text-cyan-300">
+                    {formatCurrency(forecastSemanal)}
+                  </p>
+                </div>
+              )}
+              {calculos.totalProjecao > 0 && forecastMensal > 0 && (
+                <div>
+                  <p className="text-[9px] text-muted-foreground">Δ Canal vs Forecast</p>
+                  <p className={cn("text-xs font-bold", 
+                    calculos.totalProjecao >= forecastMensal ? "text-green-600" : "text-amber-600"
+                  )}>
+                    {((calculos.totalProjecao / forecastMensal - 1) * 100).toFixed(0)}%
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Legenda */}
+        <div className="bg-muted/50 rounded-lg p-2">
           <p className="text-[9px] text-muted-foreground">
-            📦 movimentações · 🏦 banco · ✏️ override manual · Faltam <strong>{diasRestantes}d</strong>
+            📦 movimentações (mês) · 🏦 banco (mês) · ✏️ override · Faltam <strong>{diasRestantes}d</strong>
           </p>
         </div>
       </CardContent>
