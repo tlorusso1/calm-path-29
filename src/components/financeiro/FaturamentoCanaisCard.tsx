@@ -79,13 +79,12 @@ export function FaturamentoCanaisCard({
     
     for (const conta of contasFluxo) {
       if (conta.tipo !== 'receber') continue;
-      // Filtrar pelo mês atual
-      if (conta.data) {
-        const d = new Date(conta.data + 'T00:00:00');
+      // Filtrar pelo mês atual usando dataPagamento ou dataVencimento
+      const dataRef = conta.dataPagamento || conta.dataVencimento;
+      if (dataRef) {
+        const d = new Date(dataRef + 'T00:00:00');
         if (d.getMonth() !== mesAtual || d.getFullYear() !== anoAtual) continue;
       }
-      // Não contar intercompany
-      if (conta.classificacao === 'intercompany') continue;
       
       const canal = classificarContaOrigem(conta.contaOrigem);
       if (canal) {
