@@ -99,7 +99,7 @@ export function SupplyChainMode({
   const [textoColado, setTextoColado] = useState('');
   const [localizacaoImport, setLocalizacaoImport] = useState('');
   const [textoMovimentacoes, setTextoMovimentacoes] = useState('');
-  const [canalImportMov, setCanalImportMov] = useState<CanalVenda | ''>('');
+  const [canalImportMov, setCanalImportMov] = useState<string>('');
   const [tabAtiva, setTabAtiva] = useState('itens');
   const [filtroTipo, setFiltroTipo] = useState<TipoEstoque | 'todos'>('todos');
   const [filtroLocal, setFiltroLocal] = useState<string>('todos');
