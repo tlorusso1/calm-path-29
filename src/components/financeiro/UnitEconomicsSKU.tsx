@@ -38,16 +38,14 @@ export function UnitEconomicsSKU({ skus, ticketMedio, fretePorPedido }: UnitEcon
         const precoMedio = s.receitaTotal / s.qtdVendida;
         const cp = s.custoUnitario;
 
-        // Despesas variáveis por unidade
-        const meioPgto = precoMedio * CUSTOS_VARIAVEIS.taxaCartao;
+        // Despesas variáveis por unidade (sem taxa cartão — já descontada no extrato)
         const imposto = precoMedio * CUSTOS_VARIAVEIS.imposto;
         const devolucoes = precoMedio * CUSTOS_VARIAVEIS.devolucoes;
-        // Fulfillment e embalagem rateados — simplificação: 1 pedido ≈ 1 unidade
         const fulfillment = CUSTOS_VARIAVEIS.fulfillment;
         const embalagem = CUSTOS_VARIAVEIS.embalagem;
         const frete = fretePorPedido;
 
-        const totalVariaveis = meioPgto + imposto + devolucoes + fulfillment + embalagem + frete;
+        const totalVariaveis = imposto + devolucoes + fulfillment + embalagem + frete;
         const cmvReal = cp + totalVariaveis;
         const margemRS = precoMedio - cmvReal;
         const margemPct = margemRS / precoMedio;
@@ -57,7 +55,6 @@ export function UnitEconomicsSKU({ skus, ticketMedio, fretePorPedido }: UnitEcon
           qtd: s.qtdVendida,
           precoMedio,
           cp,
-          meioPgto,
           imposto,
           devolucoes,
           fulfillment,
@@ -140,7 +137,6 @@ export function UnitEconomicsSKU({ skus, ticketMedio, fretePorPedido }: UnitEcon
                           <tr>
                             <td colSpan={6} className="py-1 px-2">
                               <div className="grid grid-cols-3 gap-1 text-[10px] text-muted-foreground bg-muted/30 rounded p-2">
-                                <span>Meio Pgto: {fmt(d.meioPgto)}</span>
                                 <span>Imposto: {fmt(d.imposto)}</span>
                                 <span>Devoluções: {fmt(d.devolucoes)}</span>
                                 <span>Fulfillment: {fmt(d.fulfillment)}</span>
@@ -160,7 +156,8 @@ export function UnitEconomicsSKU({ skus, ticketMedio, fretePorPedido }: UnitEcon
             <p className="text-[9px] text-muted-foreground">
               Frete/pedido: {fmt(fretePorPedido)} (conciliação Jadlog+Mandae) · 
               Ticket médio: {fmt(ticketMedio)} · 
-              Devoluções: {fmtPct(CUSTOS_VARIAVEIS.devolucoes)}
+              Devoluções: {fmtPct(CUSTOS_VARIAVEIS.devolucoes)} ·
+              Taxa cartão: já descontada no extrato
             </p>
           </CardContent>
         </CollapsibleContent>

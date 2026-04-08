@@ -36,6 +36,7 @@ import { OrcadoRealizadoSection } from '@/components/financeiro/OrcadoRealizadoS
 import { calcularFluxoCaixa } from '@/utils/fluxoCaixaCalculator';
 import { CMVGerencialCard } from '@/components/financeiro/CMVGerencialCard';
 import { UnitEconomicsSKU } from '@/components/financeiro/UnitEconomicsSKU';
+import { FaturamentoCanaisCard } from '@/components/financeiro/FaturamentoCanaisCard';
 import { calcularMediasConciliadas, calcularCMVReal } from '@/utils/financeiro/mediasCalculator';
 import { useWeeklyHistory } from '@/hooks/useWeeklyHistory';
 import { DEFAULT_CUSTOS_FIXOS, calcularTotalCustosFixos, DEFAULT_EMPRESTIMOS } from '@/data/custos-fixos-default';
@@ -806,6 +807,12 @@ export function FinanceiroMode({
             faturamentoMes={data.faturamentoMes}
             fornecedores={data.fornecedores || []}
           />
+          
+          <FaturamentoCanaisCard
+            faturamentoCanais={data.faturamentoCanais || { b2b: '', ecomNuvem: '', ecomShopee: '', ecomAssinaturas: '' }}
+            onUpdate={(canais) => onUpdateFinanceiroData({ faturamentoCanais: canais })}
+            receitaBrutaMovimentacoes={supplyExports?.receitaBrutaSupply}
+          />
         </CardContent>
       </Card>
       
@@ -983,6 +990,14 @@ export function FinanceiroMode({
                     f.id === id ? { ...f, ...updates } : f
                   ),
                 });
+              }}
+              onUpdateMultipleContas={(updates) => {
+                const contasAtualizadas = (data.contasFluxo || []).map(c => {
+                  const upd = updates.find(u => u.id === c.id);
+                  return upd ? { ...c, ...upd.changes } : c;
+                });
+                onUpdateFinanceiroData({ contasFluxo: contasAtualizadas });
+                flushSave?.();
               }}
               isOpen={openSections.conciliacao || false}
               onToggle={() => toggleSection('conciliacao')}

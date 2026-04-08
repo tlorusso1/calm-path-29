@@ -64,8 +64,10 @@ import {
   calcularReceitaBruta,
   topProdutosPorSaida,
   normalizarNomeProduto,
+  calcularDadosPorSKU,
 } from '@/utils/movimentacoesParser';
 import { deduplicarMovimentacoes } from '@/utils/movimentacoesParser';
+import { PrecoMedioSKUCard } from '@/components/PrecoMedioSKUCard';
 
 interface SupplyChainModeProps {
   mode: FocusMode;
@@ -1474,6 +1476,12 @@ export function SupplyChainMode({
 
             {/* ========== ABA ANÁLISE: Saídas por Produto ========== */}
             <TabsContent value="analise" className="space-y-3">
+              {/* Preço Médio por SKU */}
+              {(() => {
+                const skuData = calcularDadosPorSKU(data.movimentacoes || [], 90);
+                return skuData.length > 0 ? <PrecoMedioSKUCard skus={skuData} /> : null;
+              })()}
+
               {/* Gráficos de tendência de saídas */}
               <SaidasChart movimentacoes={data.movimentacoes || []} />
 
