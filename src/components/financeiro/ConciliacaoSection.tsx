@@ -79,6 +79,7 @@ interface ConciliacaoSectionProps {
   onConciliar: (result: ConciliacaoResult) => void;
   onCreateFornecedor?: (fornecedor: Omit<Fornecedor, 'id'>) => string | void;
   onUpdateFornecedor?: (id: string, updates: Partial<Fornecedor>) => void;
+  onUpdateMultipleContas?: (updates: { id: string; changes: Partial<ContaFluxo> }[]) => void;
   isOpen: boolean;
   onToggle: () => void;
   // Mapeamentos descrição→fornecedor
