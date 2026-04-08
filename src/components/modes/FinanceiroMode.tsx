@@ -842,9 +842,10 @@ export function FinanceiroMode({
           <FaturamentoCanaisCard
             faturamentoCanais={data.faturamentoCanais || { b2b: '', ecomNuvem: '', ecomShopee: '', ecomAssinaturas: '' }}
             onUpdate={(canais) => onUpdateFinanceiroData({ faturamentoCanais: canais })}
-            receitaBrutaMovimentacoes={supplyExports?.receitaBrutaSupply}
             contasFluxo={data.contasFluxo}
             movimentacoes={supplyExports?.movimentacoes}
+            forecastMensal={supplyExports?.forecast?.receitaProjetada30d}
+            forecastSemanal={supplyExports?.forecast ? supplyExports.forecast.receitaProjetada30d / (30/7) : undefined}
           />
         </CardContent>
       </Card>
