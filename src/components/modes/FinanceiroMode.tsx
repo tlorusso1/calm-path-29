@@ -893,7 +893,7 @@ export function FinanceiroMode({
             faturamentoMes={data.faturamentoMes}
           />
           
-          <SnapshotsMensais snapshots={data.snapshotsMensais || []} />
+          <SnapshotsMensais snapshots={snapshotsReais} />
         </CardContent>
       </Card>
       

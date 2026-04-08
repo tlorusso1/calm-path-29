@@ -80,41 +80,41 @@ export function DRESection({
   const lancamentosFiltrados = useMemo(() => {
     return lancamentos.filter(l => {
       if (!l.pago) return false;
-      // Excluir tipos que não afetam resultado operacional
       if (TIPOS_EXCLUIDOS_DRE.includes(l.tipo)) return false;
-      return true;
+      return l.tipo === 'receber' || l.tipo === 'pagar';
     });
   }, [lancamentos]);
   
-  // Filtrar por período
+  // Filtrar por período usando a melhor data disponível (dataPagamento > dataVencimento)
   const lancamentosPeriodo = useMemo(() => {
+    const getDataLancamento = (l: ContaFluxo) => {
+      const dataBase = ((l as ContaFluxo & { dataPagamento?: string }).dataPagamento || l.dataVencimento || '').slice(0, 10);
+      try {
+        return parseISO(dataBase);
+      } catch {
+        return null;
+      }
+    };
+
     if (viewMode === 'anual') {
       const anoAtual = hoje.getFullYear();
       const inicio = startOfYear(new Date(anoAtual, 0, 1));
       const fim = endOfYear(new Date(anoAtual, 11, 31));
       
       return lancamentosFiltrados.filter(l => {
-        try {
-          const data = parseISO(l.dataVencimento);
-          return isWithinInterval(data, { start: inicio, end: fim });
-        } catch {
-          return false;
-        }
-      });
-    } else {
-      const [ano, mes] = mesAno.split('-').map(Number);
-      const inicio = startOfMonth(new Date(ano, mes - 1));
-      const fim = endOfMonth(new Date(ano, mes - 1));
-      
-      return lancamentosFiltrados.filter(l => {
-        try {
-          const data = parseISO(l.dataVencimento);
-          return isWithinInterval(data, { start: inicio, end: fim });
-        } catch {
-          return false;
-        }
+        const data = getDataLancamento(l);
+        return data ? isWithinInterval(data, { start: inicio, end: fim }) : false;
       });
     }
+
+    const [ano, mes] = mesAno.split('-').map(Number);
+    const inicio = startOfMonth(new Date(ano, mes - 1));
+    const fim = endOfMonth(new Date(ano, mes - 1));
+    
+    return lancamentosFiltrados.filter(l => {
+      const data = getDataLancamento(l);
+      return data ? isWithinInterval(data, { start: inicio, end: fim }) : false;
+    });
   }, [lancamentosFiltrados, mesAno, viewMode, hoje]);
   
   // Agrupar por categoria DRE
@@ -123,26 +123,45 @@ export function DRESection({
     
     // Inicializar estrutura
     for (const lanc of lancamentosPeriodo) {
-      // Tentar obter categoria do fornecedor ou do lançamento
       let categoria = lanc.categoria;
-      
-      if (!categoria && lanc.fornecedorId) {
-        const fornecedor = fornecedores.find(f => f.id === lanc.fornecedorId);
-        if (fornecedor) {
-          categoria = fornecedor.categoria;
+      let fornecedor = lanc.fornecedorId ? fornecedores.find(f => f.id === lanc.fornecedorId) : undefined;
+
+      if (!categoria && fornecedor) {
+        categoria = fornecedor.categoria;
+      }
+
+      // Fallback de receita por conta de origem / descrição quando a conciliação não preencheu fornecedor
+      if (!categoria && lanc.tipo === 'receber') {
+        const desc = (lanc.descricao || '').toUpperCase();
+        const contaOrigem = (lanc.contaOrigem || '').toUpperCase();
+
+        if (
+          contaOrigem.includes('ITAU - NICE ECOM') ||
+          contaOrigem.includes('MERCADO LIVRE - NICE ECOM') ||
+          desc.includes('ITAUBBA') ||
+          desc.includes('ITAU BBA') ||
+          desc.includes('MERCADO LIVRE') ||
+          desc.includes('MERCADO PAGO') ||
+          desc.includes('SHOPEE') ||
+          desc.includes('SHPP')
+        ) {
+          categoria = 'Clientes Nacionais (B2C)';
+        } else if (
+          contaOrigem.includes('ITAU - NICE FOODS') ||
+          desc.includes('ITAU') ||
+          desc.includes('CONTA CORRENTE')
+        ) {
+          categoria = 'Clientes Nacionais (B2B)';
         }
       }
-      
+
       if (!categoria) {
-        // Categorizar como "a reclassificar"
         categoria = lanc.tipo === 'pagar' ? 'Saídas a Reclassificar' : 'Entradas a Reclassificar';
       }
       
-      // Buscar estrutura DRE da categoria
       const catDRE = findCategoria(categoria);
-      // Entradas sem categoria vão para RECEITAS (não OUTRAS RECEITAS/DESPESAS)
       const modalidadeFallback = lanc.tipo === 'receber' ? 'RECEITAS' : 'OUTRAS RECEITAS/DESPESAS';
-      const grupoFallback = lanc.tipo === 'receber' ? 'Receitas Diretas' : (lanc.tipo === 'pagar' ? 'Outras Saídas' : 'Outras Entradas');
+      const grupoFallback = lanc.tipo === 'receber' ? 'Receitas Diretas' : 'Outras Saídas';
       const modalidade = catDRE?.modalidade || modalidadeFallback;
       const grupo = catDRE?.grupo || grupoFallback;
       
