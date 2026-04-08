@@ -99,6 +99,7 @@ export function SupplyChainMode({
   const [textoColado, setTextoColado] = useState('');
   const [localizacaoImport, setLocalizacaoImport] = useState('');
   const [textoMovimentacoes, setTextoMovimentacoes] = useState('');
+  const [canalImportMov, setCanalImportMov] = useState<CanalVenda | ''>('');
   const [tabAtiva, setTabAtiva] = useState('itens');
   const [filtroTipo, setFiltroTipo] = useState<TipoEstoque | 'todos'>('todos');
   const [filtroLocal, setFiltroLocal] = useState<string>('todos');
@@ -224,7 +225,7 @@ export function SupplyChainMode({
   };
 
   const processarMovimentacoesTexto = (texto: string) => {
-    const novas = parsearMovimentacoes(texto);
+    let novas = parsearMovimentacoes(texto);
     if (novas.length === 0) {
       toast({ title: "Nenhuma movimentação encontrada", description: "Verifique o formato do CSV.", variant: "destructive" });
       return;
