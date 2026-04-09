@@ -109,7 +109,7 @@ function classificarLancamento(
 
   // Auto-classificação de saídas por palavras-chave na descrição
   // Roda tanto para sem categoria quanto para corrigir categorias genéricas erradas
-  if (!isReceita) {
+  if (!isEntradaReal) {
     const desc = (lanc.descricao || '').toUpperCase();
     const CATEGORIAS_GENERICAS = ['Material de Uso e Consumo', 'Saídas a Reclassificar', 'a classificar'];
     const precisaOverride = !categoria || CATEGORIAS_GENERICAS.includes(categoria);
