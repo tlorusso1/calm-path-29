@@ -80,9 +80,15 @@ function classificarLancamento(
   const fornecedor = lanc.fornecedorId ? fornecedores.find(f => f.id === lanc.fornecedorId) : undefined;
   if (!categoria && fornecedor) categoria = fornecedor.categoria;
 
+  // VALIDAÇÃO DE SINAL: o valor determina a direção real do lançamento
+  const valorNum = parseValorFlexivel(lanc.valor);
+  // Se receber com valor negativo → na prática é saída (estorno/chargeback)
+  // Se pagar com valor negativo → na prática é entrada (devolução de fornecedor)
+  const isEntradaReal = lanc.tipo === 'receber' ? valorNum >= 0 : valorNum < 0;
+
   const isReceita = lanc.tipo === 'receber';
 
-  if (!categoria && isReceita) {
+  if (!categoria && isEntradaReal) {
     const desc = (lanc.descricao || '').toUpperCase();
     const contaOrigem = (lanc.contaOrigem || '').toUpperCase();
     if (
@@ -103,7 +109,7 @@ function classificarLancamento(
 
   // Auto-classificação de saídas por palavras-chave na descrição
   // Roda tanto para sem categoria quanto para corrigir categorias genéricas erradas
-  if (!isReceita) {
+  if (!isEntradaReal) {
     const desc = (lanc.descricao || '').toUpperCase();
     const CATEGORIAS_GENERICAS = ['Material de Uso e Consumo', 'Saídas a Reclassificar', 'a classificar'];
     const precisaOverride = !categoria || CATEGORIAS_GENERICAS.includes(categoria);
@@ -158,23 +164,23 @@ function classificarLancamento(
   }
 
   if (!categoria) {
-    categoria = isReceita ? 'Entradas a Reclassificar' : 'Saídas a Reclassificar';
+    categoria = isEntradaReal ? 'Entradas a Reclassificar' : 'Saídas a Reclassificar';
   }
 
   const catDRE = findCategoria(categoria);
 
   if (catDRE) {
     const catTipo = catDRE.tipo;
-    if (isReceita && catTipo === 'DESPESAS') {
+    if (isEntradaReal && catTipo === 'DESPESAS') {
       return { modalidade: 'OUTRAS RECEITAS/DESPESAS', grupo: 'Outras Entradas', categoria: 'Entradas a Reclassificar' };
     }
-    if (!isReceita && catTipo === 'RECEITAS') {
+    if (!isEntradaReal && catTipo === 'RECEITAS') {
       return { modalidade: 'OUTRAS RECEITAS/DESPESAS', grupo: 'Outras Saídas', categoria: 'Saídas a Reclassificar' };
     }
     return { modalidade: catDRE.modalidade, grupo: catDRE.grupo, categoria };
   }
 
-  if (isReceita) {
+  if (isEntradaReal) {
     return { modalidade: 'RECEITAS', grupo: 'Receitas Diretas', categoria };
   }
   return { modalidade: 'OUTRAS RECEITAS/DESPESAS', grupo: 'Outras Saídas', categoria };
@@ -446,11 +452,25 @@ export function DRESection({
 
   // Get categorias for reclassify based on tipo
   const categoriasParaReclassificar = useMemo(() => {
+    // Usa o sinal do valor para determinar categorias permitidas, não o tipo
+    // Isso impede classificar valor negativo como receita e positivo como despesa
+    const valoresNegativos = reclassLancamentos.some(l => reclassSelected.has(l.id) && parseValorFlexivel(l.valor) < 0);
+    const valoresPositivos = reclassLancamentos.some(l => reclassSelected.has(l.id) && parseValorFlexivel(l.valor) >= 0);
+    
+    // Se tem mix de sinais, mostra todas (raro)
+    if (valoresNegativos && valoresPositivos) {
+      return CATEGORIAS_DRE;
+    }
+    // Valores negativos → só categorias de despesa
+    if (valoresNegativos) {
+      return CATEGORIAS_DRE.filter(c => c.tipo === 'DESPESAS');
+    }
+    // Valores positivos → filtrar por tipo do lançamento
     if (reclassTipo === 'receber') {
       return CATEGORIAS_DRE.filter(c => c.tipo === 'RECEITAS');
     }
     return CATEGORIAS_DRE.filter(c => c.tipo === 'DESPESAS');
-  }, [reclassTipo]);
+  }, [reclassTipo, reclassLancamentos, reclassSelected]);
 
   // Open reclassify modal with specific lancamento ids
   const openReclassModal = useCallback((lancamentoIds: string[], tipo: 'receber' | 'pagar') => {
@@ -1013,6 +1033,11 @@ export function DRESection({
                   <p className="text-muted-foreground">
                     {l.dataVencimento?.slice(0, 10)} • {formatCurrency(parseValorFlexivel(l.valor))}
                     {l.contaOrigem && <span> • {l.contaOrigem}</span>}
+                    {/* Alerta de sinal invertido */}
+                    {((l.tipo === 'receber' && parseValorFlexivel(l.valor) < 0) || 
+                      (l.tipo === 'pagar' && parseValorFlexivel(l.valor) < 0)) && (
+                      <span className="text-amber-600 font-medium"> ⚠️ valor negativo</span>
+                    )}
                   </p>
                 </div>
               </div>
