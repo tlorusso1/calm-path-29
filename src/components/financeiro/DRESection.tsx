@@ -452,11 +452,25 @@ export function DRESection({
 
   // Get categorias for reclassify based on tipo
   const categoriasParaReclassificar = useMemo(() => {
+    // Usa o sinal do valor para determinar categorias permitidas, não o tipo
+    // Isso impede classificar valor negativo como receita e positivo como despesa
+    const valoresNegativos = reclassLancamentos.some(l => reclassSelected.has(l.id) && parseValorFlexivel(l.valor) < 0);
+    const valoresPositivos = reclassLancamentos.some(l => reclassSelected.has(l.id) && parseValorFlexivel(l.valor) >= 0);
+    
+    // Se tem mix de sinais, mostra todas (raro)
+    if (valoresNegativos && valoresPositivos) {
+      return CATEGORIAS_DRE;
+    }
+    // Valores negativos → só categorias de despesa
+    if (valoresNegativos) {
+      return CATEGORIAS_DRE.filter(c => c.tipo === 'DESPESAS');
+    }
+    // Valores positivos → filtrar por tipo do lançamento
     if (reclassTipo === 'receber') {
       return CATEGORIAS_DRE.filter(c => c.tipo === 'RECEITAS');
     }
     return CATEGORIAS_DRE.filter(c => c.tipo === 'DESPESAS');
-  }, [reclassTipo]);
+  }, [reclassTipo, reclassLancamentos, reclassSelected]);
 
   // Open reclassify modal with specific lancamento ids
   const openReclassModal = useCallback((lancamentoIds: string[], tipo: 'receber' | 'pagar') => {
