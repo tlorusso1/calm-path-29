@@ -50,6 +50,32 @@ function autoAtribuirFornecedorReceita(
   return null;
 }
 
+// Auto-classificar lançamentos por padrão de descrição (sem fornecedor)
+function autoClassificarPorDescricao(descUp: string): { tipo: string; categoria: string } | null {
+  // Intercompany: TBI ou transferências entre contas NICE FOODS
+  if (/TBI\s+\d{4}\.\d{5}/.test(descUp) || 
+      (/NICE\s*FOODS/.test(descUp) && (/PIX\s+ENVIADO/.test(descUp) || /TED/.test(descUp) || /TRANSF/.test(descUp)))) {
+    return { tipo: 'intercompany', categoria: 'Transferência Intercompany' };
+  }
+  // Empréstimos / parcelas de giro
+  if (/PARCELA\s+GIRO/i.test(descUp) || /EMPRESTIMO/i.test(descUp) || /FINANCIAMENTO/i.test(descUp)) {
+    return { tipo: 'pagar', categoria: 'Pagamento da Parcela Principal' };
+  }
+  // Seguro
+  if (/DEBITO\s+SEGURO/i.test(descUp)) {
+    return { tipo: 'pagar', categoria: 'Seguros' };
+  }
+  // Tarifas
+  if (/^TAR\s+/i.test(descUp) || /TARIFA/i.test(descUp)) {
+    return { tipo: 'pagar', categoria: 'Tarifas Bancárias' };
+  }
+  // Claro/telefonia
+  if (/DA\s+CLARO/i.test(descUp) || /VIVO/i.test(descUp) || /TELEFONICA/i.test(descUp)) {
+    return { tipo: 'pagar', categoria: 'Telefonia / Internet' };
+  }
+  return null;
+}
+
 const BATCH_SIZE = 80; // Linhas por lote (seguro para timeout)
 import { FornecedorSelect } from './FornecedorSelect';
 
