@@ -575,13 +575,38 @@ export function ConciliacaoSection({
         if (autoReceita) {
           novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, fornecedorId: autoReceita.fornecedorId, categoria: autoReceita.categoria, conciliado: true, contaOrigem: contaOrigem || undefined });
         } else {
-          const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
+          // Try to extract supplier from "BOLETO PAGO SUPPLIER CNPJ" pattern
+          const descUp = (lanc.descricao || '').toUpperCase();
+          let fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
+          
+          // If no match, try extracting name from BOLETO PAGO pattern
+          if (!fornecedorMatch) {
+            const boletoPagoMatch = lanc.descricao.match(/BOLETO\s+PAGO\s+(.+?)\s+\d{2}\.\d{3}\.\d{3}/i);
+            if (boletoPagoMatch) {
+              fornecedorMatch = matchFornecedor(boletoPagoMatch[1].trim(), fornecedores);
+              // If still no match, create the fornecedor
+              if (!fornecedorMatch && onCreateFornecedor) {
+                const nomeForn = boletoPagoMatch[1].trim();
+                const newId = onCreateFornecedor({ nome: nomeForn, modalidade: 'a classificar', grupo: 'a classificar', categoria: 'a classificar' });
+                if (typeof newId === 'string') {
+                  fornecedorMatch = { id: newId, nome: nomeForn, modalidade: 'a classificar', grupo: 'a classificar', categoria: 'a classificar' };
+                }
+              }
+            }
+          }
+          
           if (fornecedorMatch) {
             novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, fornecedorId: fornecedorMatch.id, categoria: fornecedorMatch.categoria, conciliado: true, contaOrigem: contaOrigem || undefined });
-          } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
-            paraRevisar.push({ ...lanc, needsReview: true });
           } else {
-            novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, conciliado: true, contaOrigem: contaOrigem || undefined });
+            // Auto-classify known patterns instead of sending to review
+            const autoCategoria = autoClassificarPorDescricao(descUp);
+            if (autoCategoria) {
+              novos.push({ tipo: autoCategoria.tipo as ContaFluxoTipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, categoria: autoCategoria.categoria, conciliado: true, contaOrigem: contaOrigem || undefined });
+            } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
+              paraRevisar.push({ ...lanc, needsReview: true });
+            } else {
+              novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, conciliado: true, contaOrigem: contaOrigem || undefined });
+            }
           }
         }
       }
