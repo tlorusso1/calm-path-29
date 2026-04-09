@@ -1,33 +1,55 @@
 
 
-## Fix: Mapear corretamente impostos do Simples Nacional no DRE
+## Enriquecer lançamentos SISPAG com fornecedor real via planilha de conciliação
 
 ### Problema
+Lançamentos do extrato bancário com descrição genérica ("SISPAG TRIB/COD BARRAS", "SISPAG FORNECEDORES" etc.) ficam sem fornecedor identificado → caem em "a reclassificar" no DRE. A planilha `conciliacao_completa.xlsx` tem o detalhamento real (fornecedor, data, valor) que permite cruzar e identificar quem é quem.
 
-O auto-classificador atribui `categoria = 'DARF'` para DARFs genéricos (linha 118), mas essa categoria **não existe** em `categorias-dre.ts`. O `findCategoria('DARF')` retorna `undefined` → o lançamento cai em "Outras Saídas" em vez de DEDUÇÕES. Por isso os impostos parecem baixos.
+### Solução
+Adicionar na Conciliação Bancária a opção de importar um arquivo XLSX de conciliação detalhada. O sistema cruza cada lançamento existente sem fornecedor (SISPAG etc.) com as linhas da planilha por **data + valor (±R$0,01)**, atribuindo automaticamente o fornecedor real.
 
-Além disso, com a explicação do usuário, agora sabemos que:
-- **DAS** = imposto principal do Simples Nacional (unifica IRPJ, CSLL, PIS, COFINS, IPI, ICMS, ISS, CPP) → vai para **DEDUÇÕES > Simples Nacional (DAS)**
-- **FGTS** = despesa de pessoal (já mapeado corretamente)
-- **INSS retido** = despesa de pessoal (já mapeado corretamente)
-- **DARF genérico** = no Simples Nacional, DARF normalmente é INSS/FGTS sobre folha. Deve ir para **DESPESAS DE PESSOAL** como fallback, não ficar perdido em "Outras Saídas"
-- **DIFAL / ICMS-ST** = eventuais, devem ir para DEDUÇÕES
+### Fluxo
 
-### Mudanças
+1. **Upload XLSX** — Botão "📋 Importar Conciliação Detalhada (XLSX)" na seção de conciliação
+2. **Parse no frontend** — Usar `xlsx` (SheetJS) para ler a planilha, extrair colunas: fornecedor/beneficiário, data, valor
+3. **Cross-reference** — Para cada lançamento existente em `contasFluxo` que:
+   - Não tem `fornecedorId`, OU
+   - Tem descrição genérica (SISPAG, PIX ENVIADO sem nome claro)
+   - Fazer match por `data === dataVencimento` E `|valor_planilha - valor_conta| <= 0.01`
+4. **Match → Atribuir fornecedor** — Encontrado match:
+   - Buscar fornecedor na lista por nome (fuzzy via `matchFornecedor`)
+   - Se não existe, criar novo fornecedor automaticamente
+   - Atribuir `fornecedorId` + `categoria` do fornecedor ao lançamento
+   - Salvar mapeamento descrição→fornecedor (aprendizado)
+5. **Feedback** — Toast: "✅ 87 lançamentos enriquecidos, 12 fornecedores criados, 5 sem match"
 
-**1. `src/data/categorias-dre.ts`**
-- Adicionar `DIFAL` e `ICMS-ST` em DEDUÇÕES
-- **Não** adicionar `DARF` como categoria — DARF é um tipo de guia, não um imposto. Reclassificar no auto-classificador.
+### Detalhes técnicos
 
-**2. `src/components/financeiro/DRESection.tsx`**
-- Linha 118: mudar `categoria = 'DARF'` → `categoria = 'INSS'` (no Simples Nacional, DARF genérico é quase sempre encargo sobre folha)
-- Adicionar regras para DIFAL e ICMS-ST
-- Adicionar `desc.includes('DAS')` sem exigir `TRIB/COD BARRAS/PAGAMENTO` — DAS sozinho no contexto de saída já é suficiente para classificar como Simples Nacional
+**Novo componente ou lógica em `ConciliacaoSection.tsx`**:
+- Adicionar input file `.xlsx` separado do TXT/CSV de extrato
+- Instalar/usar `xlsx` (SheetJS) para parse client-side
+- Função `processarConciliacaoXLSX(rows, contasFluxo, fornecedores)`:
+  - Para cada row da planilha, normalizar data e valor
+  - Buscar em `contasFluxo` por match exato (data + valor)
+  - Se match, resolver fornecedor via `matchFornecedor` ou criar novo
+  - Retornar lista de updates `{ id, changes: { fornecedorId, categoria } }`
+- Chamar `onUpdateMultipleContas(updates)` para aplicar em batch
 
-### Arquivos
+**Adaptação da planilha**:
+- Detectar automaticamente as colunas relevantes (fornecedor/beneficiário, data, valor) por header ou posição
+- Suportar formatos de data DD/MM/YYYY e YYYY-MM-DD
+- Suportar valores com vírgula decimal (padrão BR)
+
+### Arquivos alterados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/data/categorias-dre.ts` | Adicionar DIFAL e ICMS-ST em DEDUÇÕES |
-| `src/components/financeiro/DRESection.tsx` | DARF genérico → INSS (pessoal); DAS mais flexível; DIFAL/ICMS-ST |
+| `src/components/financeiro/ConciliacaoSection.tsx` | Botão upload XLSX + lógica de cross-reference por data+valor |
+| `package.json` | Adicionar `xlsx` (SheetJS) como dependência |
+
+### Resultado esperado
+- Os ~246 lançamentos genéricos (SISPAG) são automaticamente vinculados ao fornecedor real
+- O DRE passa a classificar corretamente essas despesas
+- Novos fornecedores são criados conforme necessário
+- Mapeamentos são salvos para futuras importações
 
