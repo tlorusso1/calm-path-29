@@ -164,7 +164,7 @@ function classificarLancamento(
   }
 
   if (!categoria) {
-    categoria = isReceita ? 'Entradas a Reclassificar' : 'Saídas a Reclassificar';
+    categoria = isEntradaReal ? 'Entradas a Reclassificar' : 'Saídas a Reclassificar';
   }
 
   const catDRE = findCategoria(categoria);
