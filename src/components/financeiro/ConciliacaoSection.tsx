@@ -854,50 +854,77 @@ export function ConciliacaoSection({
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
-      // Columns: DATA_SISPAG, VALOR_SISPAG, MÉTODO, Modalidade, Grupo, Categoria, STATUS
+      // Columns: DATA_SISPAG, VALOR_SISPAG, DATA_FIN, VALOR_FIN, MÉTODO, Modalidade, Grupo, Categoria, STATUS
       let enriched = 0;
       let created = 0;
       let noMatch = 0;
       const updates: { id: string; changes: Partial<ContaFluxo> }[] = [];
 
+      // Helper: normalize any date value to YYYY-MM-DD string
+      const normalizeDate = (val: any): string => {
+        if (!val) return '';
+        if (val instanceof Date && !isNaN(val.getTime())) return val.toISOString().slice(0, 10);
+        const ds = String(val);
+        const mIso = ds.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (mIso) return mIso[0];
+        const mBr = ds.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+        if (mBr) return `${mBr[3]}-${mBr[2]}-${mBr[1]}`;
+        return '';
+      };
+
+      // Descriptions that indicate generic/unclassified entries eligible for enrichment
+      const isGenericDesc = (desc: string) => {
+        const d = (desc || '').toUpperCase();
+        return d.includes('SISPAG') || d.includes('PIX ENVIADO') || d.includes('TED') || d.includes('PAGAMENTO') || d.includes('DOC');
+      };
+
+      // Only process MATCH rows (have MÉTODO) — skip ONLY_SISPAG and ONLY_FIN
       for (const row of rows) {
-        const dataSispag = row['DATA_SISPAG'];
-        const valorSispag = row['VALOR_SISPAG'];
         const metodo = (row['MÉTODO'] || '').toString().trim();
         const modalidade = (row['Modalidade'] || '').toString().trim();
         const grupo = (row['Grupo'] || '').toString().trim();
         const categoria = (row['Categoria'] || '').toString().trim();
+        const status = (row['STATUS'] || '').toString().trim();
 
-        if (!dataSispag || !valorSispag || !metodo) continue;
+        if (!metodo) continue; // Skip rows without supplier info
 
-        // Normalize date
-        let dataStr = '';
-        if (dataSispag instanceof Date && !isNaN(dataSispag.getTime())) {
-          dataStr = dataSispag.toISOString().slice(0, 10);
-        } else {
-          const ds = String(dataSispag);
-          const m = ds.match(/(\d{4})-(\d{2})-(\d{2})/);
-          if (m) dataStr = m[0];
-          else {
-            const m2 = ds.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-            if (m2) dataStr = `${m2[3]}-${m2[2]}-${m2[1]}`;
-          }
-        }
-        if (!dataStr) continue;
+        // Get both dates for matching: DATA_SISPAG (bank date) and DATA_FIN (financial date)
+        const dataSispag = normalizeDate(row['DATA_SISPAG']);
+        const dataFin = normalizeDate(row['DATA_FIN']);
+        if (!dataSispag && !dataFin) continue;
 
-        const valorXlsx = typeof valorSispag === 'number' ? valorSispag : parseValorFlexivel(String(valorSispag));
-        if (!valorXlsx || valorXlsx <= 0) continue;
+        // Get both values
+        const valorSispagRaw = row['VALOR_SISPAG'];
+        const valorFinRaw = row['VALOR_FIN'];
+        const valorSispag = valorSispagRaw ? (typeof valorSispagRaw === 'number' ? valorSispagRaw : parseValorFlexivel(String(valorSispagRaw))) : 0;
+        const valorFin = valorFinRaw ? (typeof valorFinRaw === 'number' ? valorFinRaw : parseValorFlexivel(String(valorFinRaw))) : 0;
+        
+        if (valorSispag <= 0 && valorFin <= 0) continue;
 
-        // Find matching conta without fornecedor
+        // Try to find matching conta: value ± 0.02 AND date ± 3 days
+        // Prioritize entries without fornecedor or with generic descriptions
         const conta = contasExistentes.find(c => {
-          if (c.fornecedorId && c.categoria && c.categoria !== 'a classificar') return false;
-          const valorConta = parseValorFlexivel(c.valor);
-          if (Math.abs(valorConta - valorXlsx) > 0.02) return false;
-          const dataConta = (c.dataVencimento || '').slice(0, 10);
-          if (dataConta !== dataStr) return false;
-          // Don't match if already updated in this batch
+          // Skip if already updated in this batch
           if (updates.some(u => u.id === c.id)) return false;
-          return true;
+          // Allow enrichment if: no fornecedor, or generic category, or generic description
+          const hasRealFornecedor = c.fornecedorId && c.categoria && c.categoria !== 'a classificar';
+          if (hasRealFornecedor && !isGenericDesc(c.descricao)) return false;
+
+          const valorConta = parseValorFlexivel(c.valor);
+          const dataConta = (c.dataVencimento || '').slice(0, 10);
+          if (!dataConta) return false;
+
+          // Try matching against both SISPAG and FIN date/value pairs
+          const tryMatch = (dateStr: string, valor: number) => {
+            if (!dateStr || valor <= 0) return false;
+            if (Math.abs(valorConta - valor) > 0.02) return false;
+            try {
+              const diff = Math.abs(differenceInDays(parseISO(dataConta), parseISO(dateStr)));
+              return diff <= 3;
+            } catch { return false; }
+          };
+
+          return tryMatch(dataSispag, valorSispag) || tryMatch(dataFin, valorFin);
         });
 
         if (!conta) {
