@@ -279,6 +279,65 @@ function calcularTotais(dre: DREModalidade[], faturamentoBruto?: number) {
 
 const MESES_LABEL = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
+function CategoriaSearchSelect({
+  categorias,
+  value,
+  onChange,
+}: {
+  categorias: { modalidade: string; categoria: string }[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = categorias.find(c => c.categoria === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full h-8 justify-between text-xs font-normal"
+        >
+          {selected ? (
+            <span className="truncate">
+              <span className="text-muted-foreground">{selected.modalidade}</span> → {selected.categoria}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">Buscar categoria...</span>
+          )}
+          <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[320px] p-0 z-[200]" align="start">
+        <Command>
+          <CommandInput placeholder="Digitar para buscar..." className="h-8 text-xs" />
+          <CommandList>
+            <CommandEmpty className="text-xs p-2 text-center">Nenhuma categoria encontrada</CommandEmpty>
+            <CommandGroup className="max-h-[200px]">
+              {categorias.map(c => (
+                <CommandItem
+                  key={`${c.modalidade}-${c.categoria}`}
+                  value={`${c.modalidade} ${c.categoria}`}
+                  onSelect={() => {
+                    onChange(c.categoria);
+                    setOpen(false);
+                  }}
+                  className="text-xs"
+                >
+                  <Check className={cn("mr-1 h-3 w-3", value === c.categoria ? "opacity-100" : "opacity-0")} />
+                  <span className="text-muted-foreground mr-1">{c.modalidade}</span>→ {c.categoria}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function DRESection({
   lancamentos,
   fornecedores,
