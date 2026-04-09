@@ -473,6 +473,9 @@ export function DRESection({
     }
 
     linhas.push(`(-) DEDUÇÕES;;;${(-totais.deducoes).toFixed(2)}`);
+    if (totais.taxasTransacao > 0) {
+      linhas.push(`DEDUÇÕES;Deduções da receita;Taxas meios de pagamento (bruto-líquido);${(-totais.taxasTransacao).toFixed(2)}`);
+    }
     for (const mod of dre.filter(m => m.modalidade === 'DEDUÇÕES')) {
       for (const g of mod.grupos) {
         for (const cat of g.categorias) {
