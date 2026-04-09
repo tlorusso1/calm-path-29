@@ -30,6 +30,8 @@ export const CATEGORIAS_DRE: CategoriaDRE[] = [
   { tipo: 'DESPESAS', modalidade: 'DEDUÇÕES', grupo: 'Deduções da receita', categoria: 'Simples Nacional (DAS)' },
   { tipo: 'DESPESAS', modalidade: 'DEDUÇÕES', grupo: 'Deduções da receita', categoria: 'PIS E COFINS' },
   { tipo: 'DESPESAS', modalidade: 'DEDUÇÕES', grupo: 'Deduções da receita', categoria: 'Taxas sobre vendas' },
+  { tipo: 'DESPESAS', modalidade: 'DEDUÇÕES', grupo: 'Deduções da receita', categoria: 'DIFAL' },
+  { tipo: 'DESPESAS', modalidade: 'DEDUÇÕES', grupo: 'Deduções da receita', categoria: 'ICMS-ST' },
   
   // ============= CUSTOS DE PRODUTO VENDIDO =============
   { tipo: 'DESPESAS', modalidade: 'CUSTOS DE PRODUTO VENDIDO', grupo: 'Estoque/Custos', categoria: 'Compra de Matéria Prima' },
