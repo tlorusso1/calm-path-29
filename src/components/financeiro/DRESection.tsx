@@ -342,7 +342,7 @@ export function DRESection({
   }, [lancamentosFiltrados, mesAno, viewMode, customFrom, customTo, anoSelecionado]);
 
   const dre = useMemo(() => calcularDRE(lancamentosPeriodo, fornecedores), [lancamentosPeriodo, fornecedores]);
-  const totais = useMemo(() => calcularTotais(dre), [dre]);
+  const totais = useMemo(() => calcularTotais(dre, faturamentoBrutoPeriodo), [dre, faturamentoBrutoPeriodo]);
 
   const lancamentosExcluidos = useMemo(() => {
     return lancamentos.filter(l => l.pago && TIPOS_EXCLUIDOS_DRE.includes(l.tipo)).length;
