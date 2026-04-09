@@ -1116,7 +1116,7 @@ export function ConciliacaoSection({
 
             {/* Botão Detectar Intercompany Cross-Conta */}
             {onUpdateMultipleContas && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
@@ -1126,8 +1126,29 @@ export function ConciliacaoSection({
                   <Link2 className="h-3 w-3" />
                   🔁 Detectar Intercompany Cross-Conta
                 </Button>
+                <input
+                  ref={xlsxInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={handleXlsxUpload}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => xlsxInputRef.current?.click()}
+                  disabled={xlsxProcessing}
+                  className="gap-1 text-xs"
+                >
+                  {xlsxProcessing ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-3 w-3" />
+                  )}
+                  📋 Importar Conciliação XLSX
+                </Button>
                 <span className="text-[10px] text-muted-foreground">
-                  Encontra pares entrada↔saída entre contas diferentes (mesmo valor, ±1 dia)
+                  Cruza data+valor p/ enriquecer lançamentos SISPAG com fornecedor real
                 </span>
               </div>
             )}
