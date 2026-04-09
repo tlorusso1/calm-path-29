@@ -16,6 +16,7 @@ import { parseISO, format, startOfMonth, endOfMonth, subMonths, isWithinInterval
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { FATURAMENTO_HISTORICO } from '@/data/faturamento-historico';
 
 interface CMVGerencialData {
   margemGerencial: number;
