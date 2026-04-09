@@ -274,7 +274,6 @@ export function DRESection({
   lancamentos,
   fornecedores,
   cmvGerencialData,
-  faturamentoBrutoPeriodo,
   isOpen,
   onToggle,
   onUpdateLancamentos,
