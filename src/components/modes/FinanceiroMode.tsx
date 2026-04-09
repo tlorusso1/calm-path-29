@@ -395,25 +395,32 @@ export function FinanceiroMode({
     }
   }, [data.faturamentoEsperado30d, onUpdateTimestamp]);
 
-  // Auto-sincronizar faturamento esperado com forecast supply diariamente
+  // Auto-sincronizar faturamento esperado com real últimas 4 semanas (ritmo real)
   const forecastAutoAppliedRef = useRef(false);
   useEffect(() => {
     if (
-      supplyExports?.forecast?.receitaProjetada30d &&
-      supplyExports.forecast.receitaProjetada30d > 0 &&
+      supplyExports?.forecast?.breakdownSemanal &&
+      supplyExports.forecast.breakdownSemanal.length >= 4 &&
       !forecastAutoAppliedRef.current
     ) {
-      const hoje = new Date().toISOString().split('T')[0];
-      const jaSincronizouHoje = data.forecastSyncDate === hoje;
+      const breakdown = supplyExports.forecast.breakdownSemanal;
+      const ultimas4 = breakdown.slice(-4);
+      const receitaReal4sem = ultimas4.reduce((s, w) => s + w.receitaReal, 0);
+      const receitaProjetada30d = receitaReal4sem * (30 / 28); // extrapola 28d → 30d
       
-      if (!jaSincronizouHoje) {
-        forecastAutoAppliedRef.current = true;
-        const valor = supplyExports.forecast.receitaProjetada30d
-          .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        onUpdateFinanceiroData({ faturamentoEsperado30d: valor, forecastSyncDate: hoje });
+      if (receitaProjetada30d > 0) {
+        const hoje = new Date().toISOString().split('T')[0];
+        const jaSincronizouHoje = data.forecastSyncDate === hoje;
+        
+        if (!jaSincronizouHoje) {
+          forecastAutoAppliedRef.current = true;
+          const valor = receitaProjetada30d
+            .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          onUpdateFinanceiroData({ faturamentoEsperado30d: valor, forecastSyncDate: hoje });
+        }
       }
     }
-  }, [supplyExports?.forecast?.receitaProjetada30d, data.forecastSyncDate]);
+  }, [supplyExports?.forecast?.breakdownSemanal, data.forecastSyncDate]);
 
   // Ritmo: Get task status for contextual alerts
   const getCaixaStatus = () => ritmoExpectativa?.tarefasHoje.find(t => t.id === 'caixa')?.status ?? 'ok';
@@ -751,10 +758,13 @@ export function FinanceiroMode({
                     size="sm"
                     className="h-6 text-[10px] px-2 text-primary hover:text-primary"
                     onClick={() => {
-                      const valor = supplyExports!.forecast!.receitaProjetada30d
+                      const breakdown = supplyExports!.forecast!.breakdownSemanal;
+                      const ultimas4 = breakdown.slice(-4);
+                      const receitaReal4sem = ultimas4.reduce((s: number, w: any) => s + w.receitaReal, 0);
+                      const valor = (receitaReal4sem * (30 / 28))
                         .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                       onUpdateFinanceiroData({ faturamentoEsperado30d: valor });
-                      toast.success('Faturamento esperado atualizado pelo Forecast Supply');
+                      toast.success('Faturamento esperado atualizado pelo ritmo real (últimas 4 semanas)');
                     }}
                   >
                     Usar este valor
