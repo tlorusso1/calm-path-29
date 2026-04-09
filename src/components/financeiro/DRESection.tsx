@@ -8,7 +8,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ChevronDown, ChevronUp, BarChart3, Calendar as CalendarIcon, Download, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, BarChart3, Calendar as CalendarIcon, Download, ArrowRight, CheckCircle2, ChevronsUpDown, Check } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { ContaFluxo, ContaFluxoTipo, Fornecedor, MapeamentoDescricaoFornecedor, extrairPadraoDescricao } from '@/types/focus-mode';
 import { ORDEM_MODALIDADES_DRE, CATEGORIAS_DRE, findCategoria, getTipoByModalidade } from '@/data/categorias-dre';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
