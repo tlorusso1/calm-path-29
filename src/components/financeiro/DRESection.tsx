@@ -135,16 +135,24 @@ function classificarLancamento(
         categoria = 'Pro Labore';
       
       // Frete
-      else if (desc.includes('JADLOG') || desc.includes('MANDAE'))
+      else if (desc.includes('JADLOG') || desc.includes('MANDAE') || desc.includes('CROSSDO'))
         categoria = 'Frete Venda';
       
-      // Empréstimos
-      else if (desc.includes('EMPRESTIMO') || desc.includes('FINANCIAMENTO'))
+      // Empréstimos / Giro
+      else if (desc.includes('PARCELA GIRO') || desc.includes('EMPRESTIMO') || desc.includes('FINANCIAMENTO'))
         categoria = 'Pagamento da Parcela Principal';
       
+      // Seguro
+      else if (desc.includes('DEBITO SEGURO'))
+        categoria = 'Seguros';
+      
       // Tarifas bancárias
-      else if (desc.includes('TARIFA') || desc.includes('IOF'))
+      else if (desc.includes('TARIFA') || desc.includes('IOF') || desc.startsWith('TAR '))
         categoria = 'Tarifas Bancárias';
+      
+      // Telefonia
+      else if (desc.includes('DA CLARO') || desc.includes('VIVO') || desc.includes('TELEFONICA'))
+        categoria = 'Telefonia / Internet';
     }
   }
 
