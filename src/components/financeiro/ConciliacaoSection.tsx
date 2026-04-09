@@ -960,6 +960,7 @@ export function ConciliacaoSection({
   };
 
   return (
+    <Collapsible open={isOpen} onOpenChange={onToggle}>
       <Card>
         <CollapsibleTrigger asChild>
           <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 rounded-t-lg transition-colors">
