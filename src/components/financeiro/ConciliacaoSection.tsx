@@ -50,6 +50,32 @@ function autoAtribuirFornecedorReceita(
   return null;
 }
 
+// Auto-classificar lançamentos por padrão de descrição (sem fornecedor)
+function autoClassificarPorDescricao(descUp: string): { tipo: string; categoria: string } | null {
+  // Intercompany: TBI ou transferências entre contas NICE FOODS
+  if (/TBI\s+\d{4}\.\d{5}/.test(descUp) || 
+      (/NICE\s*FOODS/.test(descUp) && (/PIX\s+ENVIADO/.test(descUp) || /TED/.test(descUp) || /TRANSF/.test(descUp)))) {
+    return { tipo: 'intercompany', categoria: 'Transferência Intercompany' };
+  }
+  // Empréstimos / parcelas de giro
+  if (/PARCELA\s+GIRO/i.test(descUp) || /EMPRESTIMO/i.test(descUp) || /FINANCIAMENTO/i.test(descUp)) {
+    return { tipo: 'pagar', categoria: 'Pagamento da Parcela Principal' };
+  }
+  // Seguro
+  if (/DEBITO\s+SEGURO/i.test(descUp)) {
+    return { tipo: 'pagar', categoria: 'Seguros' };
+  }
+  // Tarifas
+  if (/^TAR\s+/i.test(descUp) || /TARIFA/i.test(descUp)) {
+    return { tipo: 'pagar', categoria: 'Tarifas Bancárias' };
+  }
+  // Claro/telefonia
+  if (/DA\s+CLARO/i.test(descUp) || /VIVO/i.test(descUp) || /TELEFONICA/i.test(descUp)) {
+    return { tipo: 'pagar', categoria: 'Telefonia / Internet' };
+  }
+  return null;
+}
+
 const BATCH_SIZE = 80; // Linhas por lote (seguro para timeout)
 import { FornecedorSelect } from './FornecedorSelect';
 
@@ -575,13 +601,38 @@ export function ConciliacaoSection({
         if (autoReceita) {
           novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, fornecedorId: autoReceita.fornecedorId, categoria: autoReceita.categoria, conciliado: true, contaOrigem: contaOrigem || undefined });
         } else {
-          const fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
+          // Try to extract supplier from "BOLETO PAGO SUPPLIER CNPJ" pattern
+          const descUp = (lanc.descricao || '').toUpperCase();
+          let fornecedorMatch = matchFornecedor(lanc.descricao, fornecedores);
+          
+          // If no match, try extracting name from BOLETO PAGO pattern
+          if (!fornecedorMatch) {
+            const boletoPagoMatch = lanc.descricao.match(/BOLETO\s+PAGO\s+(.+?)\s+\d{2}\.\d{3}\.\d{3}/i);
+            if (boletoPagoMatch) {
+              fornecedorMatch = matchFornecedor(boletoPagoMatch[1].trim(), fornecedores);
+              // If still no match, create the fornecedor
+              if (!fornecedorMatch && onCreateFornecedor) {
+                const nomeForn = boletoPagoMatch[1].trim();
+                const newId = onCreateFornecedor({ nome: nomeForn, modalidade: 'a classificar', grupo: 'a classificar', categoria: 'a classificar' });
+                if (typeof newId === 'string') {
+                  fornecedorMatch = { id: newId, nome: nomeForn, modalidade: 'a classificar', grupo: 'a classificar', categoria: 'a classificar' };
+                }
+              }
+            }
+          }
+          
           if (fornecedorMatch) {
             novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, fornecedorId: fornecedorMatch.id, categoria: fornecedorMatch.categoria, conciliado: true, contaOrigem: contaOrigem || undefined });
-          } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
-            paraRevisar.push({ ...lanc, needsReview: true });
           } else {
-            novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, conciliado: true, contaOrigem: contaOrigem || undefined });
+            // Auto-classify known patterns instead of sending to review
+            const autoCategoria = autoClassificarPorDescricao(descUp);
+            if (autoCategoria) {
+              novos.push({ tipo: autoCategoria.tipo as ContaFluxoTipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, categoria: autoCategoria.categoria, conciliado: true, contaOrigem: contaOrigem || undefined });
+            } else if (lanc.tipo === 'pagar' || lanc.tipo === 'cartao' || lanc.tipo === 'receber') {
+              paraRevisar.push({ ...lanc, needsReview: true });
+            } else {
+              novos.push({ tipo: lanc.tipo, subtipo: lanc.subtipo, descricao: lanc.descricao, valor: lanc.valor, dataVencimento: lanc.dataVencimento, pago: true, conciliado: true, contaOrigem: contaOrigem || undefined });
+            }
           }
         }
       }
