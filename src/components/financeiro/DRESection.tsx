@@ -88,7 +88,7 @@ function classificarLancamento(
 
   const isReceita = lanc.tipo === 'receber';
 
-  if (!categoria && isReceita) {
+  if (!categoria && isEntradaReal) {
     const desc = (lanc.descricao || '').toUpperCase();
     const contaOrigem = (lanc.contaOrigem || '').toUpperCase();
     if (
