@@ -911,6 +911,7 @@ export function ConciliacaoSection({
       let lotesSplit = 0;
       const updates: { id: string; changes: Partial<ContaFluxo> }[] = [];
       const novosFromSplit: Omit<ContaFluxo, 'id'>[] = [];
+      const reviewKeysToRemove = new Set<string>();
 
       const normalizeDate = (val: any): string => {
         if (!val) return '';
@@ -923,12 +924,17 @@ export function ConciliacaoSection({
         return '';
       };
 
+      const makeLancKey = (descricao: string, valor: string | number, dataVencimento: string) => {
+        const valorNum = typeof valor === 'number' ? valor : parseValorFlexivel(String(valor || 0));
+        return `${(descricao || '').trim().toUpperCase()}|${valorNum.toFixed(2)}|${(dataVencimento || '').slice(0, 10)}`;
+      };
+
+      const isSispagDesc = (desc: string) => (desc || '').toUpperCase().includes('SISPAG');
       const isGenericDesc = (desc: string) => {
         const d = (desc || '').toUpperCase();
         return d.includes('SISPAG') || d.includes('PIX ENVIADO') || d.includes('TED') || d.includes('PAGAMENTO') || d.includes('DOC');
       };
 
-      // Pre-parse all XLSX rows with MÉTODO
       interface ParsedXlsxRow {
         metodo: string;
         modalidade: string;
@@ -940,7 +946,13 @@ export function ConciliacaoSection({
         valorFin: number;
         used: boolean;
       }
+
       const parsedRows: ParsedXlsxRow[] = [];
+      const lotCounts = new Map<string, number>();
+      const getLotKey = (dataSispag: string, valorSispag: number) =>
+        dataSispag && valorSispag > 0 ? `${dataSispag}|${valorSispag.toFixed(2)}` : '';
+      const getLineValue = (row: ParsedXlsxRow) => row.valorFin > 0 ? row.valorFin : row.valorSispag;
+
       for (const row of rows) {
         const metodo = (row['MÉTODO'] || '').toString().trim();
         if (!metodo) continue;
@@ -952,38 +964,59 @@ export function ConciliacaoSection({
         const valorSispag = valorSispagRaw ? (typeof valorSispagRaw === 'number' ? valorSispagRaw : parseValorFlexivel(String(valorSispagRaw))) : 0;
         const valorFin = valorFinRaw ? (typeof valorFinRaw === 'number' ? valorFinRaw : parseValorFlexivel(String(valorFinRaw))) : 0;
         if (valorSispag <= 0 && valorFin <= 0) continue;
+
         parsedRows.push({
           metodo,
           modalidade: (row['Modalidade'] || '').toString().trim(),
           grupo: (row['Grupo'] || '').toString().trim(),
           categoria: (row['Categoria'] || '').toString().trim(),
-          dataSispag, dataFin, valorSispag, valorFin, used: false,
+          dataSispag,
+          dataFin,
+          valorSispag,
+          valorFin,
+          used: false,
         });
+
+        const lotKey = getLotKey(dataSispag, valorSispag);
+        if (lotKey) lotCounts.set(lotKey, (lotCounts.get(lotKey) || 0) + 1);
       }
 
-      // === PASS 1: 1:1 matching (existing logic) ===
+      // PASS 1: só faz 1:1 quando NÃO parece lote SISPAG repetido
       for (const pr of parsedRows) {
         const conta = contasExistentes.find(c => {
           if (updates.some(u => u.id === c.id)) return false;
           const hasRealFornecedor = c.fornecedorId && c.categoria && c.categoria !== 'a classificar';
           if (hasRealFornecedor && !isGenericDesc(c.descricao)) return false;
+
           const valorConta = parseValorFlexivel(c.valor);
           const dataConta = (c.dataVencimento || '').slice(0, 10);
           if (!dataConta) return false;
+
           const tryMatch = (dateStr: string, valor: number) => {
             if (!dateStr || valor <= 0) return false;
             if (Math.abs(valorConta - valor) > 0.02) return false;
             try {
               const diff = Math.abs(differenceInDays(parseISO(dataConta), parseISO(dateStr)));
               return diff <= 3;
-            } catch { return false; }
+            } catch {
+              return false;
+            }
           };
+
+          if (isSispagDesc(c.descricao)) {
+            const repeatedLot = (lotCounts.get(getLotKey(pr.dataSispag, pr.valorSispag)) || 0) > 1;
+            if (repeatedLot) return false;
+            return false;
+          }
+
           return tryMatch(pr.dataSispag, pr.valorSispag) || tryMatch(pr.dataFin, pr.valorFin);
         });
 
         if (!conta) continue;
 
         pr.used = true;
+        reviewKeysToRemove.add(makeLancKey(conta.descricao, conta.valor, conta.dataVencimento));
+
         let fornecedor = matchFornecedor(pr.metodo, fornecedores);
         if (!fornecedor && onCreateFornecedor) {
           const newId = onCreateFornecedor({
@@ -997,6 +1030,7 @@ export function ConciliacaoSection({
             created++;
           }
         }
+
         const changes: Partial<ContaFluxo> = {};
         if (fornecedor) {
           changes.fornecedorId = fornecedor.id;
@@ -1004,6 +1038,7 @@ export function ConciliacaoSection({
         } else {
           changes.categoria = pr.categoria || undefined;
         }
+
         if (Object.keys(changes).length > 0) {
           updates.push({ id: conta.id, changes });
           enriched++;
@@ -1019,42 +1054,33 @@ export function ConciliacaoSection({
         }
       }
 
-      // === PASS 2: Combination matching for SISPAG lotes ===
-      // Find SISPAG entries that weren't matched 1:1
+      // PASS 2: combinação para lotes SISPAG usando linhas com MESMO VALOR_SISPAG do lote
       const unmatchedSispags = contasExistentes.filter(c => {
         if (updates.some(u => u.id === c.id)) return false;
-        const d = (c.descricao || '').toUpperCase();
-        return d.includes('SISPAG') && (!c.fornecedorId || c.categoria === 'a classificar' || isGenericDesc(c.descricao));
+        return isSispagDesc(c.descricao) && (!c.fornecedorId || c.categoria === 'a classificar' || isGenericDesc(c.descricao));
       });
 
-      const unusedRows = parsedRows.filter(r => !r.used);
-
-      // Subset-sum finder: find combination of rows that sum to target (±tolerance)
       function findCombination(
         candidates: ParsedXlsxRow[],
         target: number,
         tolerance: number,
         maxDepth: number = 8,
       ): ParsedXlsxRow[] | null {
-        // Sort descending for faster pruning
-        const sorted = [...candidates].sort((a, b) => (b.valorFin || b.valorSispag) - (a.valorFin || a.valorSispag));
-        
+        const sorted = [...candidates].sort((a, b) => getLineValue(b) - getLineValue(a));
         let bestCombo: ParsedXlsxRow[] | null = null;
 
         function search(idx: number, remaining: number, combo: ParsedXlsxRow[]) {
-          if (bestCombo) return; // found one already
+          if (bestCombo) return;
           if (Math.abs(remaining) <= tolerance) {
-            if (combo.length > 0) { bestCombo = [...combo]; }
+            if (combo.length > 0) bestCombo = [...combo];
             return;
           }
-          if (remaining < -tolerance) return; // overshot
-          if (combo.length >= maxDepth) return;
-          if (idx >= sorted.length) return;
+          if (remaining < -tolerance || combo.length >= maxDepth || idx >= sorted.length) return;
 
           for (let i = idx; i < sorted.length; i++) {
             const row = sorted[i];
-            const val = row.valorFin > 0 ? row.valorFin : row.valorSispag;
-            if (val > remaining + tolerance) continue; // too large
+            const val = getLineValue(row);
+            if (val > remaining + tolerance) continue;
             combo.push(row);
             search(i + 1, remaining - val, combo);
             if (bestCombo) return;
@@ -1071,40 +1097,49 @@ export function ConciliacaoSection({
         const dataSispag = (sispag.dataVencimento || '').slice(0, 10);
         if (!dataSispag || valorSispag <= 0) continue;
 
-        // Filter unused XLSX rows within ±1 day of this SISPAG
-        const candidates = unusedRows.filter(r => {
+        const lotKey = getLotKey(dataSispag, valorSispag);
+        const candidates = parsedRows.filter(r => {
           if (r.used) return false;
+          if (lotKey && getLotKey(r.dataSispag, r.valorSispag) === lotKey) return true;
           try {
             const refDate = r.dataSispag || r.dataFin;
             if (!refDate) return false;
             const diff = Math.abs(differenceInDays(parseISO(dataSispag), parseISO(refDate)));
-            return diff <= 1;
-          } catch { return false; }
+            return diff <= 1 && Math.abs(r.valorSispag - valorSispag) <= 0.02;
+          } catch {
+            return false;
+          }
         });
 
-        if (candidates.length === 0) continue;
+        if (candidates.length === 0) {
+          noMatch++;
+          continue;
+        }
 
-        const combo = findCombination(candidates, valorSispag, 0.50);
-        if (!combo || combo.length === 0) continue;
+        const combo = findCombination(candidates, valorSispag, 0.05);
+        if (!combo || combo.length === 0) {
+          noMatch++;
+          continue;
+        }
 
-        // Found a combination! Split the SISPAG into individual entries.
-        // Mark original as "Lote Conciliado" with valor 0
+        reviewKeysToRemove.add(makeLancKey(sispag.descricao, sispag.valor, sispag.dataVencimento));
+
         const supplierNames = combo.map(r => r.metodo).join(', ');
         updates.push({
           id: sispag.id,
           changes: {
             descricao: `[LOTE CONCILIADO] ${sispag.descricao} → ${combo.length} pgtos: ${supplierNames.slice(0, 120)}`,
             valor: '0',
-            tipo: 'intercompany' as ContaFluxoTipo, // neutralize from DRE
+            tipo: 'intercompany' as ContaFluxoTipo,
             categoria: 'Lote Conciliado (desmembrado)',
+            conciliado: true,
           },
         });
 
-        // Create individual entries for each part of the combination
         for (const part of combo) {
           part.used = true;
-          const val = part.valorFin > 0 ? part.valorFin : part.valorSispag;
-          const dateStr = part.dataFin || part.dataSispag;
+          const val = getLineValue(part);
+          const dateStr = part.dataFin || part.dataSispag || dataSispag;
 
           let fornecedor = matchFornecedor(part.metodo, fornecedores);
           if (!fornecedor && onCreateFornecedor) {
@@ -1133,35 +1168,22 @@ export function ConciliacaoSection({
             categoria: part.categoria || fornecedor?.categoria || 'a classificar',
             contaOrigem: sispag.contaOrigem,
           });
-
-          if (fornecedor && onAddMapeamento) {
-            const padrao = extrairPadraoDescricao(sispag.descricao);
-            if (padrao.length >= 5) {
-              const jaExiste = mapeamentos.some(m => m.padrao === padrao);
-              if (!jaExiste) {
-                onAddMapeamento({ padrao, fornecedorId: fornecedor.id, criadoEm: new Date().toISOString() });
-              }
-            }
-          }
         }
 
         lotesSplit++;
         enriched += combo.length;
       }
 
-      // Apply updates
       if (updates.length > 0) {
         onUpdateMultipleContas(updates);
       }
 
-      // Create split entries via onConciliar
       if (novosFromSplit.length > 0) {
-        onConciliar({
-          conciliados: [],
-          novos: novosFromSplit,
-          ignorados: 0,
-          paraRevisar: [],
-        });
+        onConciliar({ conciliados: [], novos: novosFromSplit, ignorados: 0, paraRevisar: [] });
+      }
+
+      if (reviewKeysToRemove.size > 0) {
+        setLancamentosParaRevisar(prev => prev.filter(l => !reviewKeysToRemove.has(makeLancKey(l.descricao, l.valor, l.dataVencimento))));
       }
 
       const parts = [`${enriched} enriquecidos`];
