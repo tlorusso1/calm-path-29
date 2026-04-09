@@ -110,12 +110,14 @@ function classificarLancamento(
       // Impostos → DEDUÇÕES
       if (desc.includes('SIMPLES NACIONAL'))
         categoria = 'Simples Nacional (DAS)';
-      else if (desc.includes('DAS') && (desc.includes('TRIB') || desc.includes('COD BARRAS') || desc.includes('PAGAMENTO')))
+      else if (desc.includes('DAS'))
         categoria = 'Simples Nacional (DAS)';
-      else if (desc.includes('DARF') && desc.includes('INSS'))
-        categoria = 'INSS';
       else if (desc.includes('DARF'))
-        categoria = 'DARF';
+        categoria = 'INSS';
+      else if (desc.includes('DIFAL'))
+        categoria = 'DIFAL';
+      else if (desc.includes('ICMS-ST') || desc.includes('ICMS ST'))
+        categoria = 'ICMS-ST';
       else if (desc.includes('ICMS'))
         categoria = 'ICMS';
       else if (desc.includes('PIS') || desc.includes('COFINS'))
