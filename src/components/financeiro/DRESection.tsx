@@ -959,21 +959,14 @@ export function DRESection({
             ))}
           </div>
 
-          {/* Category selector */}
+          {/* Category selector with search */}
           <div className="space-y-1">
             <label className="text-xs font-medium">Nova categoria DRE:</label>
-            <Select value={reclassCategoria} onValueChange={setReclassCategoria}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Selecione a categoria..." />
-              </SelectTrigger>
-              <SelectContent>
-                {categoriasParaReclassificar.map(c => (
-                  <SelectItem key={`${c.modalidade}-${c.categoria}`} value={c.categoria} className="text-xs">
-                    <span className="text-muted-foreground">{c.modalidade}</span> → {c.categoria}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <CategoriaSearchSelect
+              categorias={categoriasParaReclassificar}
+              value={reclassCategoria}
+              onChange={setReclassCategoria}
+            />
           </div>
 
           {onAddMapeamento && (
