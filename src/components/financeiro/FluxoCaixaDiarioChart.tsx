@@ -90,7 +90,7 @@ export function FluxoCaixaDiarioChart({
   const [viewMode, setViewMode] = useState<'passado' | 'futuro'>('futuro');
   
   // Calcular média diária dos últimos 90 dias
-  const { mediaEntrada, mediaSaida } = useMemo(
+  const { mediaEntrada, mediaSaida, diasReais } = useMemo(
     () => calcularMediaDiaria90d(contasFluxo),
     [contasFluxo]
   );
