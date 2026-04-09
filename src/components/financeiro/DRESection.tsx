@@ -341,6 +341,31 @@ export function DRESection({
   }, [lancamentosFiltrados, mesAno, viewMode, customFrom, customTo, anoSelecionado]);
 
   const dre = useMemo(() => calcularDRE(lancamentosPeriodo, fornecedores), [lancamentosPeriodo, fornecedores]);
+
+  // Faturamento bruto do período (planilha histórica)
+  const faturamentoBrutoPeriodo = useMemo(() => {
+    if (viewMode === 'mensal') {
+      const hist = FATURAMENTO_HISTORICO[mesAno];
+      if (!hist) return undefined;
+      const r = hist.realizado;
+      const total = (r.b2b || 0) + (r.ecomNuvem || 0) + (r.ecomShopee || 0) + (r.ecomAssinaturas || 0);
+      return total > 0 ? total : undefined;
+    }
+    if (viewMode === 'anual') {
+      let total = 0;
+      for (let m = 0; m < 12; m++) {
+        const key = `${anoSelecionado}-${String(m + 1).padStart(2, '0')}`;
+        const hist = FATURAMENTO_HISTORICO[key];
+        if (hist) {
+          const r = hist.realizado;
+          total += (r.b2b || 0) + (r.ecomNuvem || 0) + (r.ecomShopee || 0) + (r.ecomAssinaturas || 0);
+        }
+      }
+      return total > 0 ? total : undefined;
+    }
+    return undefined;
+  }, [viewMode, mesAno, anoSelecionado]);
+
   const totais = useMemo(() => calcularTotais(dre, faturamentoBrutoPeriodo), [dre, faturamentoBrutoPeriodo]);
 
   const lancamentosExcluidos = useMemo(() => {
