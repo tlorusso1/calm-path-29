@@ -1,9 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { TrendingUp, Calendar } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { TrendingUp, Calendar, ChevronLeft, ChevronRight, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ContaFluxo, MovimentacaoEstoque, CanalVenda } from '@/types/focus-mode';
+import { FATURAMENTO_HISTORICO, FaturamentoMensal } from '@/data/faturamento-historico';
+import { format, subMonths, addMonths } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface FaturamentoCanais {
   b2b: string;
@@ -32,7 +36,7 @@ const CANAIS: CanalInfo[] = [
   { key: 'b2b', canalKey: 'b2b', label: 'B2B', color: 'bg-blue-500' },
   { key: 'ecomNuvem', canalKey: 'ecomNuvem', label: 'ECOM-NUVEM', color: 'bg-purple-500' },
   { key: 'ecomShopee', canalKey: 'ecomShopee', label: 'ECOM-SHOPEE', color: 'bg-orange-500' },
-  { key: 'ecomAssinaturas', canalKey: 'ecomAssinaturas', label: 'ECOM-ASSINATURAS', color: 'bg-green-500' },
+  { key: 'ecomAssinaturas', canalKey: 'ecomAssinaturas', label: 'ASSINATURAS', color: 'bg-green-500' },
 ];
 
 function classificarContaOrigem(contaOrigem?: string): CanalVenda | null {
@@ -64,74 +68,79 @@ export function FaturamentoCanaisCard({
   forecastSemanal,
 }: FaturamentoCanaisCardProps) {
   const hoje = new Date();
+  const mesAtualKey = format(hoje, 'yyyy-MM');
+  
+  const [selectedDate, setSelectedDate] = useState(hoje);
+  const selectedKey = format(selectedDate, 'yyyy-MM');
+  const isMesAtual = selectedKey === mesAtualKey;
+  
   const diaDoMes = hoje.getDate();
   const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
   const diasRestantes = diasNoMes - diaDoMes;
-  const mesAtual = hoje.getMonth();
-  const anoAtual = hoje.getFullYear();
 
-  // Banco (líquido) por canal - mês atual
-  const liquidoPorCanal = useMemo(() => {
-    const result: Record<CanalVenda, number> = { b2b: 0, ecomNuvem: 0, ecomShopee: 0, ecomAssinaturas: 0 };
-    if (!contasFluxo) return result;
-    for (const conta of contasFluxo) {
-      if (conta.tipo !== 'receber') continue;
-      const dataRef = conta.dataPagamento || conta.dataVencimento;
-      if (dataRef) {
-        const d = new Date(dataRef + 'T00:00:00');
-        if (d.getMonth() !== mesAtual || d.getFullYear() !== anoAtual) continue;
-      }
-      const canal = classificarContaOrigem(conta.contaOrigem);
-      if (canal) {
-        result[canal] += Math.abs(parseCurrency(conta.valor));
+  // Live data for current month (from contasFluxo + movimentações)
+  const liveData = useMemo(() => {
+    const mesRef = selectedDate.getMonth();
+    const anoRef = selectedDate.getFullYear();
+
+    const liquido: Record<CanalVenda, number> = { b2b: 0, ecomNuvem: 0, ecomShopee: 0, ecomAssinaturas: 0 };
+    if (contasFluxo) {
+      for (const conta of contasFluxo) {
+        if (conta.tipo !== 'receber') continue;
+        const dataRef = conta.dataPagamento || conta.dataVencimento;
+        if (dataRef) {
+          const d = new Date(dataRef + 'T00:00:00');
+          if (d.getMonth() !== mesRef || d.getFullYear() !== anoRef) continue;
+        }
+        const canal = classificarContaOrigem(conta.contaOrigem);
+        if (canal) liquido[canal] += Math.abs(parseCurrency(conta.valor));
       }
     }
-    return result;
-  }, [contasFluxo, mesAtual, anoAtual]);
 
-  // Movimentações (bruto) por canal - mês atual
-  const brutoPorCanal = useMemo(() => {
-    const result: Record<CanalVenda, number> = { b2b: 0, ecomNuvem: 0, ecomShopee: 0, ecomAssinaturas: 0 };
-    if (!movimentacoes) return result;
-    for (const mov of movimentacoes) {
-      if (mov.tipo !== 'saida' || !mov.canal) continue;
-      if (mov.data) {
-        const d = new Date(mov.data + 'T00:00:00');
-        if (d.getMonth() !== mesAtual || d.getFullYear() !== anoAtual) continue;
-      }
-      const receita = (mov.valorUnitarioVenda || 0) * mov.quantidade;
-      if (receita > 0) {
-        result[mov.canal] += receita;
+    const bruto: Record<CanalVenda, number> = { b2b: 0, ecomNuvem: 0, ecomShopee: 0, ecomAssinaturas: 0 };
+    if (movimentacoes) {
+      for (const mov of movimentacoes) {
+        if (mov.tipo !== 'saida' || !mov.canal) continue;
+        if (mov.data) {
+          const d = new Date(mov.data + 'T00:00:00');
+          if (d.getMonth() !== mesRef || d.getFullYear() !== anoRef) continue;
+        }
+        const receita = (mov.valorUnitarioVenda || 0) * mov.quantidade;
+        if (receita > 0) bruto[mov.canal] += receita;
       }
     }
-    return result;
-  }, [movimentacoes, mesAtual, anoAtual]);
 
-  // Prioridade: manual > movimentações > banco
+    return { liquido, bruto };
+  }, [contasFluxo, movimentacoes, selectedDate]);
+
+  // Historical data from spreadsheet
+  const historicoMes: FaturamentoMensal | null = FATURAMENTO_HISTORICO[selectedKey] || null;
+
+  // Build final per-channel values
   const calculos = useMemo(() => {
     const resultado = CANAIS.map(canal => {
-      const manualVal = parseCurrency(faturamentoCanais[canal.key]);
-      const brutoVal = brutoPorCanal[canal.canalKey];
-      const liquidoVal = liquidoPorCanal[canal.canalKey];
+      let valorFinal = 0;
+      let fonte: 'manual' | 'mov' | 'banco' | 'historico' | 'projetado' | 'none' = 'none';
 
-      let valorFinal: number;
-      let fonte: 'manual' | 'mov' | 'banco' | 'none';
+      if (isMesAtual) {
+        // Current month: manual > movimentações > banco
+        const manualVal = parseCurrency(faturamentoCanais[canal.key]);
+        const brutoVal = liveData.bruto[canal.canalKey];
+        const liquidoVal = liveData.liquido[canal.canalKey];
 
-      if (manualVal > 0) {
-        valorFinal = manualVal;
-        fonte = 'manual';
-      } else if (brutoVal > 0) {
-        valorFinal = brutoVal;
-        fonte = 'mov';
-      } else if (liquidoVal > 0) {
-        valorFinal = liquidoVal;
-        fonte = 'banco';
-      } else {
-        valorFinal = 0;
-        fonte = 'none';
+        if (manualVal > 0) { valorFinal = manualVal; fonte = 'manual'; }
+        else if (brutoVal > 0) { valorFinal = brutoVal; fonte = 'mov'; }
+        else if (liquidoVal > 0) { valorFinal = liquidoVal; fonte = 'banco'; }
+      } else if (historicoMes) {
+        // Past/future month: use historical data
+        const realVal = historicoMes.realizado[canal.canalKey] || 0;
+        const projVal = historicoMes.projetado?.[canal.canalKey] || 0;
+        
+        if (realVal > 0) { valorFinal = realVal; fonte = 'historico'; }
+        else if (projVal > 0) { valorFinal = projVal; fonte = 'projetado'; }
       }
 
-      const projecaoMes = diaDoMes > 0 ? (valorFinal / diaDoMes) * diasNoMes : 0;
+      const projecaoMes = isMesAtual && diaDoMes > 0 ? (valorFinal / diaDoMes) * diasNoMes : 0;
 
       return { ...canal, valorFinal, fonte, projecaoMes };
     });
@@ -140,18 +149,38 @@ export function FaturamentoCanaisCard({
     const totalProjecao = resultado.reduce((a, c) => a + c.projecaoMes, 0);
 
     return { canais: resultado, totalRealizado, totalProjecao };
-  }, [faturamentoCanais, brutoPorCanal, liquidoPorCanal, diaDoMes, diasNoMes]);
+  }, [faturamentoCanais, liveData, historicoMes, isMesAtual, diaDoMes, diasNoMes]);
+
+  // YoY comparison
+  const yoyData = useMemo(() => {
+    const mesAnoAnterior = format(subMonths(selectedDate, 12), 'yyyy-MM');
+    const anterior = FATURAMENTO_HISTORICO[mesAnoAnterior];
+    if (!anterior) return null;
+    const totalAnterior = Object.values(anterior.realizado).reduce((a, b) => a + (b || 0), 0);
+    if (totalAnterior <= 0) return null;
+    return { totalAnterior, delta: calculos.totalRealizado > 0 ? ((calculos.totalRealizado / totalAnterior) - 1) * 100 : null };
+  }, [selectedDate, calculos.totalRealizado]);
 
   const handleChange = (key: keyof FaturamentoCanais, value: string) => {
     onUpdate({ ...faturamentoCanais, [key]: value });
   };
 
   const fonteIcon = (fonte: string) => {
-    if (fonte === 'banco') return '🏦';
-    if (fonte === 'mov') return '📦';
-    if (fonte === 'manual') return '✏️';
-    return '';
+    switch (fonte) {
+      case 'banco': return '🏦';
+      case 'mov': return '📦';
+      case 'manual': return '✏️';
+      case 'historico': return '📊';
+      case 'projetado': return '🔮';
+      default: return '';
+    }
   };
+
+  const navigateMonth = (delta: number) => {
+    setSelectedDate(prev => delta > 0 ? addMonths(prev, 1) : subMonths(prev, 1));
+  };
+
+  const monthLabel = format(selectedDate, "MMM ''yy", { locale: ptBR });
 
   return (
     <Card>
@@ -161,25 +190,56 @@ export function FaturamentoCanaisCard({
             <TrendingUp className="h-4 w-4" />
             📈 Faturamento por Canal
           </span>
-          <span className="text-xs font-normal text-muted-foreground flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            Dia {diaDoMes}/{diasNoMes}
-          </span>
+          {isMesAtual && (
+            <span className="text-xs font-normal text-muted-foreground flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              Dia {diaDoMes}/{diasNoMes}
+            </span>
+          )}
         </CardTitle>
+        {/* Month navigator */}
+        <div className="flex items-center justify-center gap-2 pt-1">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => navigateMonth(-1)}>
+            <ChevronLeft className="h-3 w-3" />
+          </Button>
+          <button
+            onClick={() => setSelectedDate(hoje)}
+            className={cn(
+              "text-xs font-semibold px-3 py-1 rounded-full transition-colors",
+              isMesAtual ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"
+            )}
+          >
+            {monthLabel.toUpperCase()}
+          </button>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => navigateMonth(1)}>
+            <ChevronRight className="h-3 w-3" />
+          </Button>
+          {!isMesAtual && (
+            <Button variant="outline" size="sm" className="h-6 text-[9px] gap-1" onClick={() => setSelectedDate(hoje)}>
+              <History className="h-3 w-3" /> Hoje
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Header */}
-        <div className="grid grid-cols-[1fr,90px,80px,80px] gap-1 text-[9px] text-muted-foreground font-medium px-1">
+        <div className={cn(
+          "grid gap-1 text-[9px] text-muted-foreground font-medium px-1",
+          isMesAtual ? "grid-cols-[1fr,90px,80px,80px]" : "grid-cols-[1fr,100px]"
+        )}>
           <span>Canal</span>
-          <span className="text-right">Realizado</span>
-          <span className="text-right">Override</span>
-          <span className="text-right">Projeção</span>
+          <span className="text-right">{isMesAtual ? 'Realizado' : 'Valor'}</span>
+          {isMesAtual && <span className="text-right">Override</span>}
+          {isMesAtual && <span className="text-right">Projeção</span>}
         </div>
 
         {/* Canais */}
         <div className="space-y-2">
           {calculos.canais.map(canal => (
-            <div key={canal.key} className="grid grid-cols-[1fr,90px,80px,80px] gap-1 items-center">
+            <div key={canal.key} className={cn(
+              "grid gap-1 items-center",
+              isMesAtual ? "grid-cols-[1fr,90px,80px,80px]" : "grid-cols-[1fr,100px]"
+            )}>
               <div className="flex items-center gap-1.5">
                 <div className={cn("w-2 h-2 rounded-full shrink-0", canal.color)} />
                 <span className="text-[10px] font-medium truncate">{canal.label}</span>
@@ -189,37 +249,58 @@ export function FaturamentoCanaisCard({
                   <>{fonteIcon(canal.fonte)} {formatCurrency(canal.valorFinal)}</>
                 ) : '-'}
               </span>
-              <div className="relative">
-                <Input
-                  value={faturamentoCanais[canal.key]}
-                  onChange={(e) => handleChange(canal.key, e.target.value)}
-                  placeholder="R$"
-                  className="h-6 text-[9px] text-right px-1"
-                />
-              </div>
-              <span className="text-[10px] text-right text-primary font-medium">
-                {canal.projecaoMes > 0 ? formatCurrency(canal.projecaoMes) : '-'}
-              </span>
+              {isMesAtual && (
+                <div className="relative">
+                  <Input
+                    value={faturamentoCanais[canal.key]}
+                    onChange={(e) => handleChange(canal.key, e.target.value)}
+                    placeholder="R$"
+                    className="h-6 text-[9px] text-right px-1"
+                  />
+                </div>
+              )}
+              {isMesAtual && (
+                <span className="text-[10px] text-right text-primary font-medium">
+                  {canal.projecaoMes > 0 ? formatCurrency(canal.projecaoMes) : '-'}
+                </span>
+              )}
             </div>
           ))}
         </div>
 
         {/* Total */}
         <div className="border-t pt-3">
-          <div className="grid grid-cols-[1fr,90px,80px,80px] gap-1 items-center">
+          <div className={cn(
+            "grid gap-1 items-center",
+            isMesAtual ? "grid-cols-[1fr,90px,80px,80px]" : "grid-cols-[1fr,100px]"
+          )}>
             <span className="text-sm font-bold">TOTAL</span>
             <span className="text-[10px] font-bold text-right">
               {calculos.totalRealizado > 0 ? formatCurrency(calculos.totalRealizado) : '-'}
             </span>
-            <span />
-            <span className="text-sm font-bold text-right text-primary">
-              {formatCurrency(calculos.totalProjecao)}
-            </span>
+            {isMesAtual && <span />}
+            {isMesAtual && (
+              <span className="text-sm font-bold text-right text-primary">
+                {formatCurrency(calculos.totalProjecao)}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Forecast de referência (supply 90d) */}
-        {(forecastMensal && forecastMensal > 0) && (
+        {/* YoY */}
+        {yoyData && (
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            <span>vs mesmo mês ano anterior: {formatCurrency(yoyData.totalAnterior)}</span>
+            {yoyData.delta !== null && (
+              <span className={cn("font-bold", yoyData.delta >= 0 ? "text-green-600" : "text-red-600")}>
+                {yoyData.delta >= 0 ? '+' : ''}{yoyData.delta.toFixed(0)}%
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Forecast reference (current month only) */}
+        {isMesAtual && forecastMensal && forecastMensal > 0 && (
           <div className="bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800 rounded-lg p-3 space-y-1">
             <p className="text-[10px] font-medium text-cyan-700 dark:text-cyan-400">
               📊 Referência Forecast (média 90d Supply)
@@ -227,22 +308,18 @@ export function FaturamentoCanaisCard({
             <div className="flex gap-4">
               <div>
                 <p className="text-[9px] text-muted-foreground">Mensal</p>
-                <p className="text-xs font-bold text-cyan-700 dark:text-cyan-300">
-                  {formatCurrency(forecastMensal)}
-                </p>
+                <p className="text-xs font-bold text-cyan-700 dark:text-cyan-300">{formatCurrency(forecastMensal)}</p>
               </div>
               {forecastSemanal && (
                 <div>
                   <p className="text-[9px] text-muted-foreground">Semanal</p>
-                  <p className="text-xs font-bold text-cyan-700 dark:text-cyan-300">
-                    {formatCurrency(forecastSemanal)}
-                  </p>
+                  <p className="text-xs font-bold text-cyan-700 dark:text-cyan-300">{formatCurrency(forecastSemanal)}</p>
                 </div>
               )}
               {calculos.totalProjecao > 0 && forecastMensal > 0 && (
                 <div>
-                  <p className="text-[9px] text-muted-foreground">Δ Canal vs Forecast</p>
-                  <p className={cn("text-xs font-bold", 
+                  <p className="text-[9px] text-muted-foreground">Δ vs Forecast</p>
+                  <p className={cn("text-xs font-bold",
                     calculos.totalProjecao >= forecastMensal ? "text-green-600" : "text-amber-600"
                   )}>
                     {((calculos.totalProjecao / forecastMensal - 1) * 100).toFixed(0)}%
@@ -256,7 +333,10 @@ export function FaturamentoCanaisCard({
         {/* Legenda */}
         <div className="bg-muted/50 rounded-lg p-2">
           <p className="text-[9px] text-muted-foreground">
-            📦 movimentações (mês) · 🏦 banco (mês) · ✏️ override · Faltam <strong>{diasRestantes}d</strong>
+            {isMesAtual
+              ? <>📦 movimentações · 🏦 banco · ✏️ override · Faltam <strong>{diasRestantes}d</strong></>
+              : <>📊 realizado histórico · 🔮 projetado (planilha)</>
+            }
           </p>
         </div>
       </CardContent>
