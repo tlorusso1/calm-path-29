@@ -704,7 +704,14 @@ export function DRESection({
               {/* Receitas */}
               <div className="space-y-1">
                 <div className="flex justify-between font-medium text-green-600 border-b pb-1">
-                  <span>RECEITAS BRUTAS</span>
+                  <span className="flex flex-col">
+                    <span>RECEITAS BRUTAS</span>
+                    {totais.taxasTransacao > 0 && (
+                      <span className="text-[9px] font-normal text-muted-foreground">
+                        Faturamento bruto (planilha) · Banco: {formatCurrency(totais.receitasBanco)}
+                      </span>
+                    )}
+                  </span>
                   <span>{formatCurrency(totais.receitas)}</span>
                 </div>
                 {dre
@@ -732,6 +739,16 @@ export function DRESection({
                   <span>(-) DEDUÇÕES</span>
                   <span>{formatCurrency(-totais.deducoes)}</span>
                 </div>
+                {/* Taxas de transação calculadas (bruto - líquido) */}
+                {totais.taxasTransacao > 0 && (
+                  <div className="flex justify-between pl-4 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      💳 Taxas meios de pagamento
+                      <span className="text-[9px]">(bruto − líquido banco)</span>
+                    </span>
+                    <span className="text-orange-600 font-medium">{formatCurrency(-totais.taxasTransacao)}</span>
+                  </div>
+                )}
                 {dre
                   .filter(m => m.modalidade === 'DEDUÇÕES')
                   .map(mod => (
