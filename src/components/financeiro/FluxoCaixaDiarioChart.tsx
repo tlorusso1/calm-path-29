@@ -43,7 +43,7 @@ const TIPOS_ENTRADA = ['receber', 'resgate'];
 // Tipos que afetam caixa como saída
 const TIPOS_SAIDA = ['pagar', 'aplicacao'];
 
-function calcularMediaDiaria90d(contasFluxo: ContaFluxo[]): { mediaEntrada: number; mediaSaida: number } {
+function calcularMediaDiaria90d(contasFluxo: ContaFluxo[]): { mediaEntrada: number; mediaSaida: number; diasReais: number } {
   const hoje = new Date();
   const inicio90d = subDays(hoje, 90);
   
@@ -70,16 +70,15 @@ function calcularMediaDiaria90d(contasFluxo: ContaFluxo[]): { mediaEntrada: numb
     }
   }
   
-  // Calcular dias reais com dados
-  const diasComDados = new Set(
-    lancamentos90d.map(l => l.dataVencimento)
-  ).size;
-  
-  const diasParaMedia = Math.max(diasComDados, 30); // Mínimo 30 dias
+  // Calcular dias reais entre o primeiro lançamento e hoje
+  const datasLanc = lancamentos90d.map(l => parseISO(l.dataVencimento).getTime()).sort((a, b) => a - b);
+  const primeiraData = datasLanc.length > 0 ? datasLanc[0] : inicio90d.getTime();
+  const diasReais = Math.max(Math.round((hoje.getTime() - primeiraData) / (1000 * 60 * 60 * 24)), 1);
   
   return {
-    mediaEntrada: totalEntradas / diasParaMedia,
-    mediaSaida: totalSaidas / diasParaMedia,
+    mediaEntrada: totalEntradas / diasReais,
+    mediaSaida: totalSaidas / diasReais,
+    diasReais,
   };
 }
 
