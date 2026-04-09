@@ -841,8 +841,125 @@ export function ConciliacaoSection({
     }
   };
 
+  // === Importar Conciliação Detalhada (XLSX) ===
+  const handleXlsxUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !onUpdateMultipleContas) return;
+
+    setXlsxProcessing(true);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      // Columns: DATA_SISPAG, VALOR_SISPAG, MÉTODO, Modalidade, Grupo, Categoria, STATUS
+      let enriched = 0;
+      let created = 0;
+      let noMatch = 0;
+      const updates: { id: string; changes: Partial<ContaFluxo> }[] = [];
+
+      for (const row of rows) {
+        const dataSispag = row['DATA_SISPAG'];
+        const valorSispag = row['VALOR_SISPAG'];
+        const metodo = (row['MÉTODO'] || '').toString().trim();
+        const modalidade = (row['Modalidade'] || '').toString().trim();
+        const grupo = (row['Grupo'] || '').toString().trim();
+        const categoria = (row['Categoria'] || '').toString().trim();
+
+        if (!dataSispag || !valorSispag || !metodo) continue;
+
+        // Normalize date
+        let dataStr = '';
+        if (dataSispag instanceof Date && !isNaN(dataSispag.getTime())) {
+          dataStr = dataSispag.toISOString().slice(0, 10);
+        } else {
+          const ds = String(dataSispag);
+          const m = ds.match(/(\d{4})-(\d{2})-(\d{2})/);
+          if (m) dataStr = m[0];
+          else {
+            const m2 = ds.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+            if (m2) dataStr = `${m2[3]}-${m2[2]}-${m2[1]}`;
+          }
+        }
+        if (!dataStr) continue;
+
+        const valorXlsx = typeof valorSispag === 'number' ? valorSispag : parseValorFlexivel(String(valorSispag));
+        if (!valorXlsx || valorXlsx <= 0) continue;
+
+        // Find matching conta without fornecedor
+        const conta = contasExistentes.find(c => {
+          if (c.fornecedorId && c.categoria && c.categoria !== 'a classificar') return false;
+          const valorConta = parseValorFlexivel(c.valor);
+          if (Math.abs(valorConta - valorXlsx) > 0.02) return false;
+          const dataConta = (c.dataVencimento || '').slice(0, 10);
+          if (dataConta !== dataStr) return false;
+          // Don't match if already updated in this batch
+          if (updates.some(u => u.id === c.id)) return false;
+          return true;
+        });
+
+        if (!conta) {
+          noMatch++;
+          continue;
+        }
+
+        // Resolve fornecedor
+        let fornecedor = matchFornecedor(metodo, fornecedores);
+        if (!fornecedor && onCreateFornecedor) {
+          const newId = onCreateFornecedor({
+            nome: metodo,
+            modalidade: modalidade || 'a classificar',
+            grupo: grupo || 'a classificar',
+            categoria: categoria || 'a classificar',
+          });
+          if (typeof newId === 'string') {
+            fornecedor = { id: newId, nome: metodo, modalidade, grupo, categoria };
+            created++;
+          }
+        }
+
+        const changes: Partial<ContaFluxo> = {};
+        if (fornecedor) {
+          changes.fornecedorId = fornecedor.id;
+          changes.categoria = categoria || fornecedor.categoria;
+        } else {
+          changes.categoria = categoria || undefined;
+        }
+
+        if (Object.keys(changes).length > 0) {
+          updates.push({ id: conta.id, changes });
+          enriched++;
+
+          // Save mapping for future auto-classification
+          if (fornecedor && onAddMapeamento) {
+            const padrao = extrairPadraoDescricao(conta.descricao);
+            if (padrao.length >= 5) {
+              const jaExiste = mapeamentos.some(m => m.padrao === padrao);
+              if (!jaExiste) {
+                onAddMapeamento({ padrao, fornecedorId: fornecedor.id, criadoEm: new Date().toISOString() });
+              }
+            }
+          }
+        }
+      }
+
+      if (updates.length > 0) {
+        onUpdateMultipleContas(updates);
+      }
+
+      toast.success(`📋 Conciliação XLSX: ${enriched} enriquecidos, ${created} fornecedores criados, ${noMatch} sem match`, { duration: 8000 });
+    } catch (err: any) {
+      console.error('Erro ao processar XLSX:', err);
+      toast.error(`Erro ao processar XLSX: ${err.message || 'desconhecido'}`);
+    } finally {
+      setXlsxProcessing(false);
+      if (xlsxInputRef.current) xlsxInputRef.current.value = '';
+    }
+  };
+
   return (
-    <Collapsible open={isOpen} onOpenChange={onToggle}>
       <Card>
         <CollapsibleTrigger asChild>
           <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 rounded-t-lg transition-colors">
