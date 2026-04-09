@@ -220,7 +220,7 @@ function calcularDRE(
   return resultado;
 }
 
-function calcularTotais(dre: DREModalidade[]) {
+function calcularTotais(dre: DREModalidade[], faturamentoBruto?: number) {
   let receitas = 0;
   let deducoes = 0;
   let cpv = 0;
@@ -246,11 +246,26 @@ function calcularTotais(dre: DREModalidade[]) {
     }
   }
 
-  const receitaLiquida = receitas - deducoes;
+  // Se temos faturamento bruto (planilha/movimentações), calcular taxa de transação
+  let taxasTransacao = 0;
+  let receitasBrutas = receitas;
+  if (faturamentoBruto && faturamentoBruto > 0 && receitas > 0) {
+    // receitas aqui = líquido recebido no banco
+    // bruto - líquido = taxa cobrada pelos meios de pagamento
+    taxasTransacao = faturamentoBruto - receitas;
+    if (taxasTransacao > 0) {
+      receitasBrutas = faturamentoBruto;
+      deducoes += taxasTransacao;
+    } else {
+      taxasTransacao = 0; // Se negativo, não faz sentido
+    }
+  }
+
+  const receitaLiquida = receitasBrutas - deducoes;
   const lucroBruto = receitaLiquida - cpv;
   const resultadoOperacional = lucroBruto - despesas;
 
-  return { receitas, deducoes, receitaLiquida, cpv, lucroBruto, despesas, resultadoOperacional };
+  return { receitas: receitasBrutas, receitasBanco: receitas, deducoes, receitaLiquida, cpv, lucroBruto, despesas, resultadoOperacional, taxasTransacao };
 }
 
 const MESES_LABEL = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
