@@ -16,6 +16,7 @@ import { parseISO, format, startOfMonth, endOfMonth, subMonths, isWithinInterval
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { FATURAMENTO_HISTORICO } from '@/data/faturamento-historico';
 
 interface CMVGerencialData {
   margemGerencial: number;
@@ -219,7 +220,7 @@ function calcularDRE(
   return resultado;
 }
 
-function calcularTotais(dre: DREModalidade[]) {
+function calcularTotais(dre: DREModalidade[], faturamentoBruto?: number) {
   let receitas = 0;
   let deducoes = 0;
   let cpv = 0;
@@ -245,11 +246,26 @@ function calcularTotais(dre: DREModalidade[]) {
     }
   }
 
-  const receitaLiquida = receitas - deducoes;
+  // Se temos faturamento bruto (planilha/movimentações), calcular taxa de transação
+  let taxasTransacao = 0;
+  let receitasBrutas = receitas;
+  if (faturamentoBruto && faturamentoBruto > 0 && receitas > 0) {
+    // receitas aqui = líquido recebido no banco
+    // bruto - líquido = taxa cobrada pelos meios de pagamento
+    taxasTransacao = faturamentoBruto - receitas;
+    if (taxasTransacao > 0) {
+      receitasBrutas = faturamentoBruto;
+      deducoes += taxasTransacao;
+    } else {
+      taxasTransacao = 0; // Se negativo, não faz sentido
+    }
+  }
+
+  const receitaLiquida = receitasBrutas - deducoes;
   const lucroBruto = receitaLiquida - cpv;
   const resultadoOperacional = lucroBruto - despesas;
 
-  return { receitas, deducoes, receitaLiquida, cpv, lucroBruto, despesas, resultadoOperacional };
+  return { receitas: receitasBrutas, receitasBanco: receitas, deducoes, receitaLiquida, cpv, lucroBruto, despesas, resultadoOperacional, taxasTransacao };
 }
 
 const MESES_LABEL = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -325,7 +341,32 @@ export function DRESection({
   }, [lancamentosFiltrados, mesAno, viewMode, customFrom, customTo, anoSelecionado]);
 
   const dre = useMemo(() => calcularDRE(lancamentosPeriodo, fornecedores), [lancamentosPeriodo, fornecedores]);
-  const totais = useMemo(() => calcularTotais(dre), [dre]);
+
+  // Faturamento bruto do período (planilha histórica)
+  const faturamentoBrutoPeriodo = useMemo(() => {
+    if (viewMode === 'mensal') {
+      const hist = FATURAMENTO_HISTORICO[mesAno];
+      if (!hist) return undefined;
+      const r = hist.realizado;
+      const total = (r.b2b || 0) + (r.ecomNuvem || 0) + (r.ecomShopee || 0) + (r.ecomAssinaturas || 0);
+      return total > 0 ? total : undefined;
+    }
+    if (viewMode === 'anual') {
+      let total = 0;
+      for (let m = 0; m < 12; m++) {
+        const key = `${anoSelecionado}-${String(m + 1).padStart(2, '0')}`;
+        const hist = FATURAMENTO_HISTORICO[key];
+        if (hist) {
+          const r = hist.realizado;
+          total += (r.b2b || 0) + (r.ecomNuvem || 0) + (r.ecomShopee || 0) + (r.ecomAssinaturas || 0);
+        }
+      }
+      return total > 0 ? total : undefined;
+    }
+    return undefined;
+  }, [viewMode, mesAno, anoSelecionado]);
+
+  const totais = useMemo(() => calcularTotais(dre, faturamentoBrutoPeriodo), [dre, faturamentoBrutoPeriodo]);
 
   const lancamentosExcluidos = useMemo(() => {
     return lancamentos.filter(l => l.pago && TIPOS_EXCLUIDOS_DRE.includes(l.tipo)).length;
@@ -432,6 +473,9 @@ export function DRESection({
     }
 
     linhas.push(`(-) DEDUÇÕES;;;${(-totais.deducoes).toFixed(2)}`);
+    if (totais.taxasTransacao > 0) {
+      linhas.push(`DEDUÇÕES;Deduções da receita;Taxas meios de pagamento (bruto-líquido);${(-totais.taxasTransacao).toFixed(2)}`);
+    }
     for (const mod of dre.filter(m => m.modalidade === 'DEDUÇÕES')) {
       for (const g of mod.grupos) {
         for (const cat of g.categorias) {
@@ -687,7 +731,14 @@ export function DRESection({
               {/* Receitas */}
               <div className="space-y-1">
                 <div className="flex justify-between font-medium text-green-600 border-b pb-1">
-                  <span>RECEITAS BRUTAS</span>
+                  <span className="flex flex-col">
+                    <span>RECEITAS BRUTAS</span>
+                    {totais.taxasTransacao > 0 && (
+                      <span className="text-[9px] font-normal text-muted-foreground">
+                        Faturamento bruto (planilha) · Banco: {formatCurrency(totais.receitasBanco)}
+                      </span>
+                    )}
+                  </span>
                   <span>{formatCurrency(totais.receitas)}</span>
                 </div>
                 {dre
@@ -715,6 +766,16 @@ export function DRESection({
                   <span>(-) DEDUÇÕES</span>
                   <span>{formatCurrency(-totais.deducoes)}</span>
                 </div>
+                {/* Taxas de transação calculadas (bruto - líquido) */}
+                {totais.taxasTransacao > 0 && (
+                  <div className="flex justify-between pl-4 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      💳 Taxas meios de pagamento
+                      <span className="text-[9px]">(bruto − líquido banco)</span>
+                    </span>
+                    <span className="text-orange-600 font-medium">{formatCurrency(-totais.taxasTransacao)}</span>
+                  </div>
+                )}
                 {dre
                   .filter(m => m.modalidade === 'DEDUÇÕES')
                   .map(mod => (
