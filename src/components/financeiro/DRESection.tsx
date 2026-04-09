@@ -1033,6 +1033,11 @@ export function DRESection({
                   <p className="text-muted-foreground">
                     {l.dataVencimento?.slice(0, 10)} • {formatCurrency(parseValorFlexivel(l.valor))}
                     {l.contaOrigem && <span> • {l.contaOrigem}</span>}
+                    {/* Alerta de sinal invertido */}
+                    {((l.tipo === 'receber' && parseValorFlexivel(l.valor) < 0) || 
+                      (l.tipo === 'pagar' && parseValorFlexivel(l.valor) < 0)) && (
+                      <span className="text-amber-600 font-medium"> ⚠️ valor negativo</span>
+                    )}
                   </p>
                 </div>
               </div>
