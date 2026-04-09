@@ -80,6 +80,12 @@ function classificarLancamento(
   const fornecedor = lanc.fornecedorId ? fornecedores.find(f => f.id === lanc.fornecedorId) : undefined;
   if (!categoria && fornecedor) categoria = fornecedor.categoria;
 
+  // VALIDAÇÃO DE SINAL: o valor determina a direção real do lançamento
+  const valorNum = parseValorFlexivel(lanc.valor);
+  // Se receber com valor negativo → na prática é saída (estorno/chargeback)
+  // Se pagar com valor negativo → na prática é entrada (devolução de fornecedor)
+  const isEntradaReal = lanc.tipo === 'receber' ? valorNum >= 0 : valorNum < 0;
+
   const isReceita = lanc.tipo === 'receber';
 
   if (!categoria && isReceita) {
