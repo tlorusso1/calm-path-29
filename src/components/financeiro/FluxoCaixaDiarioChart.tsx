@@ -376,24 +376,24 @@ export function FluxoCaixaDiarioChart({
         {/* Resumo */}
         <div className="grid grid-cols-3 gap-3 text-center">
           <div className="p-2 rounded-lg bg-muted/50">
-            <p className="text-[10px] text-muted-foreground">Média entrada/dia</p>
+            <p className="text-[10px] text-muted-foreground">Média entrada/dia ({diasReais}d)</p>
             <p className="text-sm font-medium text-green-600 dark:text-green-500">
               +{formatCurrency(mediaEntrada)}
             </p>
           </div>
           <div className="p-2 rounded-lg bg-muted/50">
-            <p className="text-[10px] text-muted-foreground">Média saída/dia</p>
+            <p className="text-[10px] text-muted-foreground">Média saída/dia ({diasReais}d)</p>
             <p className="text-sm font-medium text-destructive">
               -{formatCurrency(mediaSaida)}
             </p>
           </div>
           <div className="p-2 rounded-lg bg-muted/50">
-            <p className="text-[10px] text-muted-foreground">Saldo em 30d</p>
+            <p className="text-[10px] text-muted-foreground">Delta diário</p>
             <p className={cn(
               "text-sm font-medium",
-              saldoFinal >= caixaMinimo ? "text-green-600 dark:text-green-500" : "text-destructive"
+              (mediaEntrada - mediaSaida) >= 0 ? "text-green-600 dark:text-green-500" : "text-destructive"
             )}>
-              {formatCurrency(saldoFinal)}
+              {(mediaEntrada - mediaSaida) >= 0 ? '+' : ''}{formatCurrency(mediaEntrada - mediaSaida)}
             </p>
           </div>
         </div>
