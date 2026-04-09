@@ -1125,7 +1125,7 @@ export function ConciliacaoSection({
             valor: val.toFixed(2),
             dataVencimento: dateStr,
             tipo: 'pagar',
-            subtipo: 'operacional',
+            subtipo: undefined,
             natureza: 'operacional' as ContaFluxoNatureza,
             pago: true,
             conciliado: true,
