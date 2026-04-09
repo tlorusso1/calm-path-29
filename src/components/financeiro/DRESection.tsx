@@ -27,6 +27,7 @@ interface DRESectionProps {
   lancamentos: ContaFluxo[];
   fornecedores: Fornecedor[];
   cmvGerencialData?: CMVGerencialData;
+  faturamentoBrutoPeriodo?: number;
   isOpen: boolean;
   onToggle: () => void;
   onUpdateLancamentos?: (updates: { id: string; changes: Partial<ContaFluxo> }[]) => void;
