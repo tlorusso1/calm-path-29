@@ -171,16 +171,16 @@ function classificarLancamento(
 
   if (catDRE) {
     const catTipo = catDRE.tipo;
-    if (isReceita && catTipo === 'DESPESAS') {
+    if (isEntradaReal && catTipo === 'DESPESAS') {
       return { modalidade: 'OUTRAS RECEITAS/DESPESAS', grupo: 'Outras Entradas', categoria: 'Entradas a Reclassificar' };
     }
-    if (!isReceita && catTipo === 'RECEITAS') {
+    if (!isEntradaReal && catTipo === 'RECEITAS') {
       return { modalidade: 'OUTRAS RECEITAS/DESPESAS', grupo: 'Outras Saídas', categoria: 'Saídas a Reclassificar' };
     }
     return { modalidade: catDRE.modalidade, grupo: catDRE.grupo, categoria };
   }
 
-  if (isReceita) {
+  if (isEntradaReal) {
     return { modalidade: 'RECEITAS', grupo: 'Receitas Diretas', categoria };
   }
   return { modalidade: 'OUTRAS RECEITAS/DESPESAS', grupo: 'Outras Saídas', categoria };
