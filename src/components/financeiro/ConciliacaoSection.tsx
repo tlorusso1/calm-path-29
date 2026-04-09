@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
 import { parseISO, differenceInDays, format, startOfWeek, endOfWeek } from 'date-fns';
 import { matchFornecedor } from '@/utils/fornecedoresParser';
+import * as XLSX from 'xlsx';
 
 // Auto-atribuir fornecedor para receitas baseado na origem bancária
 // Retorna dados hardcoded de categoria/modalidade para não depender do CSV estar correto
