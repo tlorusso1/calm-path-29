@@ -1,14 +1,15 @@
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, FileText, TrendingUp, BarChart3, ArrowLeftRight } from 'lucide-react';
+import { LayoutDashboard, FileText, TrendingUp, BarChart3, ArrowLeftRight, Settings } from 'lucide-react';
 
-export type FinanceiroTab = 'resumo' | 'contas' | 'projecao' | 'analise' | 'conciliacao';
+export type FinanceiroTab = 'resumo' | 'contas' | 'projecao' | 'analise' | 'conciliacao' | 'config';
 
 const tabs: { id: FinanceiroTab; label: string; icon: React.ElementType }[] = [
   { id: 'resumo', label: 'Resumo', icon: LayoutDashboard },
   { id: 'contas', label: 'Contas', icon: FileText },
   { id: 'projecao', label: 'Projeção', icon: TrendingUp },
   { id: 'analise', label: 'Análise', icon: BarChart3 },
-  { id: 'conciliacao', label: 'Conciliação', icon: ArrowLeftRight },
+  { id: 'conciliacao', label: 'Concil.', icon: ArrowLeftRight },
+  { id: 'config', label: 'Config', icon: Settings },
 ];
 
 interface FinanceiroBottomNavProps {
