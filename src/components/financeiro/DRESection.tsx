@@ -855,7 +855,7 @@ export function DRESection({
                       </span>
                     )}
                   </span>
-                  <span>{formatCurrency(totais.receitas)}</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">{formatCurrency(totais.receitas)}</span>
                 </div>
                 {dre
                   .filter(m => m.modalidade === 'RECEITAS' || m.modalidade === 'RECEITAS FINANCEIRAS')
