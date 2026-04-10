@@ -1043,6 +1043,14 @@ export function DRESection({
                   </span>
                 </div>
               )}
+              {/* ====== PAINEL DE AUDITORIA ====== */}
+              <AuditPanel
+                lancamentosPeriodo={lancamentosPeriodo}
+                lancamentosTodos={lancamentos}
+                fornecedores={fornecedores}
+                totais={totais}
+                dre={dre}
+              />
             </div>
           </CardContent>
         </CollapsibleContent>
