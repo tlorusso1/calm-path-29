@@ -171,11 +171,18 @@ function classificarLancamento(
 
   if (catDRE) {
     const catTipo = catDRE.tipo;
-    if (isEntradaReal && catTipo === 'DESPESAS') {
-      return { modalidade: 'OUTRAS RECEITAS/DESPESAS', grupo: 'Outras Entradas', categoria: 'Entradas a Reclassificar' };
-    }
-    if (!isEntradaReal && catTipo === 'RECEITAS') {
-      return { modalidade: 'OUTRAS RECEITAS/DESPESAS', grupo: 'Outras Saídas', categoria: 'Saídas a Reclassificar' };
+    // Validação de sinal: só reclassificar se NÃO tiver categoria explícita do usuário
+    // (ou seja, se a categoria veio de auto-classificação, não de reclassificação manual)
+    const foiClassificadoManualmente = !!lanc.categoria;
+    if (!foiClassificadoManualmente) {
+      if (isEntradaReal && catTipo === 'DESPESAS') {
+        console.warn('[DRE Sign-Override]', lanc.descricao, '| tipo:', lanc.tipo, '| valor:', valorNum, '| cat:', categoria, '→ Entradas a Reclassificar');
+        return { modalidade: 'OUTRAS RECEITAS/DESPESAS', grupo: 'Outras Entradas', categoria: 'Entradas a Reclassificar' };
+      }
+      if (!isEntradaReal && catTipo === 'RECEITAS') {
+        console.warn('[DRE Sign-Override]', lanc.descricao, '| tipo:', lanc.tipo, '| valor:', valorNum, '| cat:', categoria, '→ Saídas a Reclassificar');
+        return { modalidade: 'OUTRAS RECEITAS/DESPESAS', grupo: 'Outras Saídas', categoria: 'Saídas a Reclassificar' };
+      }
     }
     return { modalidade: catDRE.modalidade, grupo: catDRE.grupo, categoria };
   }
