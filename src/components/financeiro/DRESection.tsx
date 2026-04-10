@@ -57,6 +57,9 @@ interface DREModalidade {
 
 const TIPOS_EXCLUIDOS_DRE = ['intercompany', 'aplicacao', 'resgate', 'cartao'];
 
+// Categorias que devem ser excluídas do DRE (movimentações financeiras, não operacionais)
+const CATEGORIAS_EXCLUIDAS_DRE = ['Transferencias entre contas', 'Emprestimos e Financiamentos'];
+
 function formatCurrency(valor: number): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -202,6 +205,9 @@ function calcularDRE(
   for (const lanc of lancamentosPeriodo) {
     const { modalidade, grupo, categoria } = classificarLancamento(lanc, fornecedores);
 
+    // Excluir categorias que não são operacionais (transferências, empréstimos-entrada)
+    if (CATEGORIAS_EXCLUIDAS_DRE.includes(categoria)) continue;
+
     if (!modalidadesMap.has(modalidade)) modalidadesMap.set(modalidade, new Map());
     const gruposMap = modalidadesMap.get(modalidade)!;
     if (!gruposMap.has(grupo)) gruposMap.set(grupo, new Map());
@@ -244,13 +250,18 @@ function calcularDRE(
 
 function calcularTotais(dre: DREModalidade[], faturamentoBruto?: number) {
   let receitas = 0;
+  let receitasFinanceiras = 0;
   let deducoes = 0;
   let cpv = 0;
   let despesas = 0;
 
   for (const mod of dre) {
-    if (mod.modalidade === 'RECEITAS' || mod.modalidade === 'RECEITAS FINANCEIRAS') {
+    if (mod.modalidade === 'RECEITAS') {
       receitas += mod.total;
+    } else if (mod.modalidade === 'RECEITAS FINANCEIRAS') {
+      // Receitas financeiras (rendimentos) NÃO entram em receita bruta
+      // Aparecem após resultado operacional
+      receitasFinanceiras += mod.total;
     } else if (mod.modalidade === 'OUTRAS RECEITAS/DESPESAS') {
       for (const g of mod.grupos) {
         if (g.grupo === 'Outras Entradas') {
@@ -272,22 +283,21 @@ function calcularTotais(dre: DREModalidade[], faturamentoBruto?: number) {
   let taxasTransacao = 0;
   let receitasBrutas = receitas;
   if (faturamentoBruto && faturamentoBruto > 0 && receitas > 0) {
-    // receitas aqui = líquido recebido no banco
-    // bruto - líquido = taxa cobrada pelos meios de pagamento
     taxasTransacao = faturamentoBruto - receitas;
     if (taxasTransacao > 0) {
       receitasBrutas = faturamentoBruto;
       deducoes += taxasTransacao;
     } else {
-      taxasTransacao = 0; // Se negativo, não faz sentido
+      taxasTransacao = 0;
     }
   }
 
   const receitaLiquida = receitasBrutas - deducoes;
   const lucroBruto = receitaLiquida - cpv;
   const resultadoOperacional = lucroBruto - despesas;
+  const resultadoFinal = resultadoOperacional + receitasFinanceiras;
 
-  return { receitas: receitasBrutas, receitasBanco: receitas, deducoes, receitaLiquida, cpv, lucroBruto, despesas, resultadoOperacional, taxasTransacao };
+  return { receitas: receitasBrutas, receitasBanco: receitas, deducoes, receitaLiquida, cpv, lucroBruto, despesas, resultadoOperacional, receitasFinanceiras, resultadoFinal, taxasTransacao };
 }
 
 const MESES_LABEL = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -450,8 +460,14 @@ export function DRESection({
   const totais = useMemo(() => calcularTotais(dre, faturamentoBrutoPeriodo), [dre, faturamentoBrutoPeriodo]);
 
   const lancamentosExcluidos = useMemo(() => {
-    return lancamentos.filter(l => l.pago && TIPOS_EXCLUIDOS_DRE.includes(l.tipo)).length;
-  }, [lancamentos]);
+    return lancamentos.filter(l => {
+      if (!l.pago) return false;
+      if (TIPOS_EXCLUIDOS_DRE.includes(l.tipo)) return true;
+      // Também excluir por categoria resolvida
+      const { categoria } = classificarLancamento(l, fornecedores);
+      return CATEGORIAS_EXCLUIDAS_DRE.includes(categoria);
+    }).length;
+  }, [lancamentos, fornecedores]);
 
   const receitasSemCategoria = useMemo(() => {
     return lancamentosPeriodo.filter(l => l.tipo === 'receber' && !l.categoria && !l.fornecedorId).length;
@@ -594,6 +610,10 @@ export function DRESection({
 
     linhas.push('');
     linhas.push(`RESULTADO OPERACIONAL;;;${totais.resultadoOperacional.toFixed(2)}`);
+    if (totais.receitasFinanceiras !== 0) {
+      linhas.push(`RECEITAS FINANCEIRAS;;;${totais.receitasFinanceiras.toFixed(2)}`);
+      linhas.push(`RESULTADO FINAL;;;${totais.resultadoFinal.toFixed(2)}`);
+    }
 
     downloadFile(linhas.join('\n'), `DRE_${periodoLabel.replace(/[\s/]/g, '_')}.csv`, 'text/csv;charset=utf-8;');
   };
@@ -713,9 +733,9 @@ export function DRESection({
               <div className="flex items-center gap-2">
                 <span className={cn(
                   "text-sm font-medium",
-                  totais.resultadoOperacional >= 0 ? "text-green-600" : "text-destructive"
+                  totais.resultadoFinal >= 0 ? "text-green-600" : "text-destructive"
                 )}>
-                  {formatCurrency(totais.resultadoOperacional)}
+                  {formatCurrency(totais.resultadoFinal)}
                 </span>
                 {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </div>
@@ -948,6 +968,39 @@ export function DRESection({
                 <span>RESULTADO OPERACIONAL</span>
                 <span>{formatCurrency(totais.resultadoOperacional)}</span>
               </div>
+
+              {/* Receitas Financeiras (após resultado operacional) */}
+              {totais.receitasFinanceiras !== 0 && (
+                <div className="space-y-1 p-2 rounded border bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
+                  <div className="flex justify-between text-sm font-medium text-blue-700 dark:text-blue-400">
+                    <span>RECEITAS FINANCEIRAS</span>
+                    <span>{formatCurrency(totais.receitasFinanceiras)}</span>
+                  </div>
+                  {dre.filter(m => m.modalidade === 'RECEITAS FINANCEIRAS').map(mod =>
+                    mod.grupos.map(g =>
+                      g.categorias.map(cat => (
+                        <div key={cat.categoria} className="flex justify-between text-xs text-muted-foreground pl-2">
+                          <span>{cat.categoria}</span>
+                          <span>{formatCurrency(cat.valor)}</span>
+                        </div>
+                      ))
+                    )
+                  )}
+                </div>
+              )}
+
+              {/* Resultado Final */}
+              {totais.receitasFinanceiras !== 0 && (
+                <div className={cn(
+                  "flex justify-between font-bold p-3 rounded-lg border-2",
+                  totais.resultadoFinal >= 0
+                    ? "bg-green-50 dark:bg-green-900/20 border-green-300 text-green-700"
+                    : "bg-red-50 dark:bg-red-900/20 border-red-300 text-red-700"
+                )}>
+                  <span>RESULTADO FINAL</span>
+                  <span>{formatCurrency(totais.resultadoFinal)}</span>
+                </div>
+              )}
 
               {/* CMV Real (Gerencial) */}
               {cmvGerencialData && cmvGerencialData.receitaBruta > 0 && (
