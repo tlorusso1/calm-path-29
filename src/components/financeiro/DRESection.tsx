@@ -57,6 +57,9 @@ interface DREModalidade {
 
 const TIPOS_EXCLUIDOS_DRE = ['intercompany', 'aplicacao', 'resgate', 'cartao'];
 
+// Categorias que devem ser excluídas do DRE (movimentações financeiras, não operacionais)
+const CATEGORIAS_EXCLUIDAS_DRE = ['Transferencias entre contas', 'Emprestimos e Financiamentos'];
+
 function formatCurrency(valor: number): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
