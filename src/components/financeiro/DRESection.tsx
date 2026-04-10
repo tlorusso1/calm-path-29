@@ -205,6 +205,9 @@ function calcularDRE(
   for (const lanc of lancamentosPeriodo) {
     const { modalidade, grupo, categoria } = classificarLancamento(lanc, fornecedores);
 
+    // Excluir categorias que não são operacionais (transferências, empréstimos-entrada)
+    if (CATEGORIAS_EXCLUIDAS_DRE.includes(categoria)) continue;
+
     if (!modalidadesMap.has(modalidade)) modalidadesMap.set(modalidade, new Map());
     const gruposMap = modalidadesMap.get(modalidade)!;
     if (!gruposMap.has(grupo)) gruposMap.set(grupo, new Map());
@@ -247,13 +250,18 @@ function calcularDRE(
 
 function calcularTotais(dre: DREModalidade[], faturamentoBruto?: number) {
   let receitas = 0;
+  let receitasFinanceiras = 0;
   let deducoes = 0;
   let cpv = 0;
   let despesas = 0;
 
   for (const mod of dre) {
-    if (mod.modalidade === 'RECEITAS' || mod.modalidade === 'RECEITAS FINANCEIRAS') {
+    if (mod.modalidade === 'RECEITAS') {
       receitas += mod.total;
+    } else if (mod.modalidade === 'RECEITAS FINANCEIRAS') {
+      // Receitas financeiras (rendimentos) NÃO entram em receita bruta
+      // Aparecem após resultado operacional
+      receitasFinanceiras += mod.total;
     } else if (mod.modalidade === 'OUTRAS RECEITAS/DESPESAS') {
       for (const g of mod.grupos) {
         if (g.grupo === 'Outras Entradas') {
@@ -275,22 +283,21 @@ function calcularTotais(dre: DREModalidade[], faturamentoBruto?: number) {
   let taxasTransacao = 0;
   let receitasBrutas = receitas;
   if (faturamentoBruto && faturamentoBruto > 0 && receitas > 0) {
-    // receitas aqui = líquido recebido no banco
-    // bruto - líquido = taxa cobrada pelos meios de pagamento
     taxasTransacao = faturamentoBruto - receitas;
     if (taxasTransacao > 0) {
       receitasBrutas = faturamentoBruto;
       deducoes += taxasTransacao;
     } else {
-      taxasTransacao = 0; // Se negativo, não faz sentido
+      taxasTransacao = 0;
     }
   }
 
   const receitaLiquida = receitasBrutas - deducoes;
   const lucroBruto = receitaLiquida - cpv;
   const resultadoOperacional = lucroBruto - despesas;
+  const resultadoFinal = resultadoOperacional + receitasFinanceiras;
 
-  return { receitas: receitasBrutas, receitasBanco: receitas, deducoes, receitaLiquida, cpv, lucroBruto, despesas, resultadoOperacional, taxasTransacao };
+  return { receitas: receitasBrutas, receitasBanco: receitas, deducoes, receitaLiquida, cpv, lucroBruto, despesas, resultadoOperacional, receitasFinanceiras, resultadoFinal, taxasTransacao };
 }
 
 const MESES_LABEL = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
