@@ -460,8 +460,14 @@ export function DRESection({
   const totais = useMemo(() => calcularTotais(dre, faturamentoBrutoPeriodo), [dre, faturamentoBrutoPeriodo]);
 
   const lancamentosExcluidos = useMemo(() => {
-    return lancamentos.filter(l => l.pago && TIPOS_EXCLUIDOS_DRE.includes(l.tipo)).length;
-  }, [lancamentos]);
+    return lancamentos.filter(l => {
+      if (!l.pago) return false;
+      if (TIPOS_EXCLUIDOS_DRE.includes(l.tipo)) return true;
+      // Também excluir por categoria resolvida
+      const { categoria } = classificarLancamento(l, fornecedores);
+      return CATEGORIAS_EXCLUIDAS_DRE.includes(categoria);
+    }).length;
+  }, [lancamentos, fornecedores]);
 
   const receitasSemCategoria = useMemo(() => {
     return lancamentosPeriodo.filter(l => l.tipo === 'receber' && !l.categoria && !l.fornecedorId).length;
