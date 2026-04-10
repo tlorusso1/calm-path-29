@@ -474,8 +474,8 @@ export function FinanceiroMode({
         </div>
       )}
 
-      {/* ========== TAB: CAIXA ========== */}
-      {activeTab === 'caixa' && (
+      {/* ========== TAB: CONTAS ========== */}
+      {activeTab === 'contas' && (
         <div className="space-y-6">
           <Card className="border-l-4 border-l-emerald-500">
             <CardContent className="p-4 space-y-4">
@@ -827,7 +827,7 @@ export function FinanceiroMode({
                 numContas={fluxoCaixa.numContas}
                 fonteHistorico={fluxoCaixa.fonteHistorico}
                 semanasHistorico={fluxoCaixa.semanasHistorico}
-                onAddConta={() => { setActiveTab('caixa'); toggleSection('fluxoContas'); }}
+                onAddConta={() => { setActiveTab('contas'); toggleSection('fluxoContas'); }}
               />
               
               <FluxoCaixaDiarioChart
@@ -943,8 +943,8 @@ export function FinanceiroMode({
         </div>
       )}
 
-      {/* ========== TAB: CONFIG ========== */}
-      {activeTab === 'config' && (
+      {/* ========== TAB: CONCILIAÇÃO ========== */}
+      {activeTab === 'conciliacao' && (
         <div className="space-y-6">
           <Card className="border-l-4 border-l-slate-500">
             <CardContent className="p-4 space-y-4">
