@@ -15,10 +15,8 @@ export function parseFornecedoresCSV(csvText: string): Fornecedor[] {
   const fornecedores: Fornecedor[] = [];
   const seen = new Set<string>();
 
-  // Pular header
   for (let i = 1; i < linhas.length; i++) {
     const linha = linhas[i];
-    // Parse CSV básico (não lida com quotes escapadas, mas funciona para dados simples)
     const cols = linha.split(',').map(c => c.trim());
     
     const nome = cols[0] || '';
@@ -32,15 +30,10 @@ export function parseFornecedoresCSV(csvText: string): Fornecedor[] {
     if (!nome || nome === '-' || seen.has(nome.toLowerCase())) continue;
     seen.add(nome.toLowerCase());
 
-    // Extrair aliases
     const aliases: string[] = [];
     const beneficiario = extrairBeneficiarioFinal(nome);
-    if (beneficiario) {
-      aliases.push(beneficiario);
-    }
-    if (razaoSocial && razaoSocial !== nome) {
-      aliases.push(razaoSocial);
-    }
+    if (beneficiario) aliases.push(beneficiario);
+    if (razaoSocial && razaoSocial !== nome) aliases.push(razaoSocial);
 
     fornecedores.push({
       id: crypto.randomUUID(),
@@ -63,6 +56,27 @@ const NOMES_GENERICOS = new Set([
   'debito', 'credito', 'saldo', 'tarifa', 'compra',
 ]);
 
+// Sufixos societários que atrapalham o match
+const SUFIXOS_SOCIETARIOS = /\b(ltda|s\/?a|me|epp|eireli|s\.a\.|ltd|inc|sa)\b/gi;
+
+// Extrai CNPJ de uma string
+function extrairCNPJ(texto: string): string | null {
+  const m = texto.match(/(\d{2}[\.\s]?\d{3}[\.\s]?\d{3}[\\/\s]?\d{4}[\-\s]?\d{2})/);
+  if (!m) return null;
+  return m[1].replace(/[\.\s\-\/\\]/g, '');
+}
+
+// Normaliza texto removendo acentos, sufixos societários e espaços extras
+function normalizarParaMatch(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(SUFIXOS_SOCIETARIOS, '')
+    .replace(/[.\-\/\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Match de fornecedor por descrição
 export function matchFornecedor(
   descricao: string, 
@@ -70,38 +84,50 @@ export function matchFornecedor(
 ): Fornecedor | null {
   if (!descricao || fornecedores.length === 0) return null;
 
-  const descNorm = descricao.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const descNorm = normalizarParaMatch(descricao);
   
-  // Primeiro: tentar extrair beneficiário final
+  // 1. Tentar match por CNPJ (mais preciso)
+  const cnpjDesc = extrairCNPJ(descricao);
+  if (cnpjDesc) {
+    const matchCnpj = fornecedores.find(f => {
+      if (!f.cnpj) return false;
+      const cnpjForn = f.cnpj.replace(/[\.\s\-\/\\]/g, '');
+      return cnpjForn === cnpjDesc;
+    });
+    if (matchCnpj) return matchCnpj;
+  }
+
+  // 2. Tentar extrair beneficiário final
   const beneficiario = extrairBeneficiarioFinal(descricao);
   if (beneficiario) {
-    const benefNorm = beneficiario.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const benefNorm = normalizarParaMatch(beneficiario);
     const match = fornecedores.find(f => {
-      const nomeNorm = f.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const nomeNorm = normalizarParaMatch(f.nome);
       if (nomeNorm.includes(benefNorm) || benefNorm.includes(nomeNorm)) return true;
       return f.aliases?.some(a => {
-        const aliasNorm = a.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const aliasNorm = normalizarParaMatch(a);
         return aliasNorm.includes(benefNorm) || benefNorm.includes(aliasNorm);
       });
     });
     if (match) return match;
   }
 
-  // Segundo: coletar todos os matches e escolher o mais específico (nome mais longo)
+  // 3. Coletar todos os matches por nome/alias e escolher o mais específico
   type MatchResult = { fornecedor: Fornecedor; matchLength: number };
   const matches: MatchResult[] = [];
 
   for (const f of fornecedores) {
-    const nomeNorm = f.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const nomeNorm = normalizarParaMatch(f.nome);
     
-    if (descNorm.includes(nomeNorm) || nomeNorm.includes(descNorm)) {
+    // Match bidirecional (sem sufixos societários)
+    if (nomeNorm.length >= 3 && (descNorm.includes(nomeNorm) || nomeNorm.includes(descNorm))) {
       matches.push({ fornecedor: f, matchLength: nomeNorm.length });
     }
     
     if (f.aliases) {
       for (const alias of f.aliases) {
-        const aliasNorm = alias.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        if (descNorm.includes(aliasNorm) || aliasNorm.includes(descNorm)) {
+        const aliasNorm = normalizarParaMatch(alias);
+        if (aliasNorm.length >= 3 && (descNorm.includes(aliasNorm) || aliasNorm.includes(descNorm))) {
           matches.push({ fornecedor: f, matchLength: aliasNorm.length });
         }
       }
@@ -112,12 +138,10 @@ export function matchFornecedor(
 
   // Filtrar matches genéricos se há matches mais específicos
   const specificMatches = matches.filter(m => 
-    !NOMES_GENERICOS.has(m.fornecedor.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+    !NOMES_GENERICOS.has(normalizarParaMatch(m.fornecedor.nome))
   );
 
   const pool = specificMatches.length > 0 ? specificMatches : matches;
-
-  // Retornar o match com nome mais longo (mais específico)
   pool.sort((a, b) => b.matchLength - a.matchLength);
   return pool[0].fornecedor;
 }
