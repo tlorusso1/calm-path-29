@@ -48,8 +48,10 @@ export function SnapshotsMensais({ snapshots }: SnapshotsMensaisProps) {
             <div key={s.mesAno} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50">
               <span className="text-sm font-medium">{formatMesAno(s.mesAno)}</span>
               <div className="flex items-center gap-3 text-sm">
-                <span className="text-muted-foreground">
-                  E: {formatCurrency(s.entradas)} · S: {formatCurrency(s.saidas)}
+                <span>
+                  <span className="text-emerald-600 dark:text-emerald-400">+{formatCurrency(s.entradas)}</span>
+                  {' · '}
+                  <span className="text-destructive">-{formatCurrency(s.saidas)}</span>
                 </span>
                 <span className={cn(
                   "font-semibold",

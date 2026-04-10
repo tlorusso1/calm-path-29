@@ -43,6 +43,7 @@ import { DEFAULT_CUSTOS_FIXOS, calcularTotalCustosFixos, DEFAULT_EMPRESTIMOS } f
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { loadFornecedores } from '@/utils/loadFornecedores';
+import { FinanceiroBottomNav, type FinanceiroTab } from '@/components/financeiro/FinanceiroBottomNav';
 
 interface FinanceiroModeProps {
   mode: FocusMode;
@@ -65,6 +66,7 @@ export function FinanceiroMode({
   supplyExports,
   reuniaoAdsData,
 }: FinanceiroModeProps) {
+  const [activeTab, setActiveTab] = useState<FinanceiroTab>('resumo');
   const [openSections, setOpenSections] = useState({
     // Posição Atual (Real)
     contas: false,
@@ -427,7 +429,7 @@ export function FinanceiroMode({
   const getContasHojeStatus = () => ritmoExpectativa?.tarefasHoje.find(t => t.id === 'contas-hoje')?.status ?? 'ok';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       {/* ========== HEADER FIXO — Alertas Contextuais ========== */}
       <div className="space-y-2">
         <div className="text-center">
@@ -437,737 +439,741 @@ export function FinanceiroMode({
         <RitmoContextualAlert taskId="caixa" status={getCaixaStatus()} />
         <RitmoContextualAlert taskId="contas-hoje" status={getContasHojeStatus()} />
       </div>
-      
-      {/* ========== ALERTA DE CAIXA INSUFICIENTE ========== */}
-      <AlertaCaixaInsuficiente 
-        contasFluxo={data.contasFluxo || []}
-        contasBancarias={data.contas}
-      />
-      
-      {/* ========== 1. EXECUTIVE RESUME ========== */}
-      <ExecutiveResume exports={exports} caixaContratado={totaisContas.aReceber} />
-      
-      {/* ========== FORECAST SUPPLY ========== */}
-      {supplyExports?.forecast && (
-        <ForecastSupplyCard 
-          forecast={supplyExports.forecast}
-          receitaBruta={supplyExports.receitaBrutaSupply}
-          cmvMensal={supplyExports.cmvMensal}
-        />
-      )}
-      
-      {/* ========== CAIXA vs A PAGAR 5 DIAS ========== */}
-      <CaixaVsAPagar5d contasFluxo={data.contasFluxo || []} contasBancarias={data.contas} />
-      
-      {/* ========== 2. POSIÇÃO ATUAL — REAL ========== */}
-      <Card className="border-l-4 border-l-emerald-500">
-        <CardContent className="p-4 space-y-4">
-          <SectionHeader 
-            icon="💰" 
-            title="POSIÇÃO ATUAL — REAL"
-            subtitle="(bate com banco. não é projeção.)"
-          />
-          
-          {/* 2.1 Caixa Atual (INPUT principal) */}
-          <div id="ritmo-caixa" className="scroll-mt-20 space-y-1.5">
-            <label className="text-sm font-medium flex items-center gap-1.5">
-              ✏️ Caixa Atual
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
-              <Input
-                placeholder="0,00"
-                value={data.caixaAtual}
-                onChange={(e) => onUpdateFinanceiroData({ caixaAtual: e.target.value })}
-                className="h-11 text-base pl-10 text-right font-medium"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">Atualizar HOJE</p>
-          </div>
-          
-          {/* 2.2 Contas Bancárias [collapse] */}
-          <Collapsible open={openSections.contas} onOpenChange={() => toggleSection('contas')}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="w-full justify-between h-10 px-3 hover:bg-muted/50">
-                <span className="flex items-center gap-2 text-sm">
-                  <Building2 className="h-4 w-4" />
-                  Contas Bancárias
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {formatCurrency(totaisContas.caixaTotal)}
-                  </span>
-                  {openSections.contas ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </div>
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3 space-y-3">
-              {/* ITAÚ NICE FOODS */}
-              <div className="p-3 rounded-lg border bg-muted/30">
-                <p className="text-xs font-medium text-muted-foreground mb-2">ITAÚ NICE FOODS</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Saldo</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                      <Input
-                        placeholder="0,00"
-                        value={data.contas?.itauNiceFoods.saldo || ''}
-                        onChange={(e) => onUpdateFinanceiroData({ 
-                          contas: { 
-                            ...data.contas!, 
-                            itauNiceFoods: { ...data.contas!.itauNiceFoods, saldo: e.target.value } 
-                          } 
-                        })}
-                        className="h-8 text-sm pl-7 text-right"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">CDB</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                      <Input
-                        placeholder="0,00"
-                        value={data.contas?.itauNiceFoods.cdb || ''}
-                        onChange={(e) => onUpdateFinanceiroData({ 
-                          contas: { 
-                            ...data.contas!, 
-                            itauNiceFoods: { ...data.contas!.itauNiceFoods, cdb: e.target.value } 
-                          } 
-                        })}
-                        className="h-8 text-sm pl-7 text-right"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* ITAÚ NICE ECOM */}
-              <div className="p-3 rounded-lg border bg-muted/30">
-                <p className="text-xs font-medium text-muted-foreground mb-2">ITAÚ NICE ECOM</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Saldo</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                      <Input
-                        placeholder="0,00"
-                        value={data.contas?.itauNiceEcom.saldo || ''}
-                        onChange={(e) => onUpdateFinanceiroData({ 
-                          contas: { 
-                            ...data.contas!, 
-                            itauNiceEcom: { ...data.contas!.itauNiceEcom, saldo: e.target.value } 
-                          } 
-                        })}
-                        className="h-8 text-sm pl-7 text-right"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">CDB</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                      <Input
-                        placeholder="0,00"
-                        value={data.contas?.itauNiceEcom.cdb || ''}
-                        onChange={(e) => onUpdateFinanceiroData({ 
-                          contas: { 
-                            ...data.contas!, 
-                            itauNiceEcom: { ...data.contas!.itauNiceEcom, cdb: e.target.value } 
-                          } 
-                        })}
-                        className="h-8 text-sm pl-7 text-right"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* GATEWAYS */}
-              {[
-                { key: 'asaas', label: 'ASAAS' },
-                { key: 'nuvem', label: 'NUVEM' },
-                { key: 'pagarMe', label: 'PAGAR.ME' },
-              ].map(({ key, label }) => (
-                <div key={key} className="p-3 rounded-lg border bg-muted/30">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">{label}</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">Saldo</label>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                        <Input
-                          placeholder="0,00"
-                          value={(data.contas as any)?.[key]?.saldo || ''}
-                          onChange={(e) => onUpdateFinanceiroData({ 
-                            contas: { 
-                              ...data.contas!, 
-                              [key]: { ...(data.contas as any)![key], saldo: e.target.value } 
-                            } 
-                          })}
-                          className="h-8 text-sm pl-7 text-right"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">A receber</label>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                        <Input
-                          placeholder="0,00"
-                          value={(data.contas as any)?.[key]?.aReceber || ''}
-                          onChange={(e) => onUpdateFinanceiroData({ 
-                            contas: { 
-                              ...data.contas!, 
-                              [key]: { ...(data.contas as any)![key], aReceber: e.target.value } 
-                            } 
-                          })}
-                          className="h-8 text-sm pl-7 text-right"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              
-              {/* MERCADO PAGO */}
-              <div className="p-3 rounded-lg border bg-muted/30">
-                <p className="text-xs font-medium text-muted-foreground mb-2">MERCADO PAGO ECOM</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Disponível</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                      <Input
-                        placeholder="0,00"
-                        value={data.contas?.mercadoPagoEcom.disponivel || ''}
-                        onChange={(e) => onUpdateFinanceiroData({ 
-                          contas: { 
-                            ...data.contas!, 
-                            mercadoPagoEcom: { ...data.contas!.mercadoPagoEcom, disponivel: e.target.value } 
-                          } 
-                        })}
-                        className="h-8 text-sm pl-7 text-right"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Saldo total</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                      <Input
-                        placeholder="0,00"
-                        value={data.contas?.mercadoPagoEcom.saldo || ''}
-                        onChange={(e) => onUpdateFinanceiroData({ 
-                          contas: { 
-                            ...data.contas!, 
-                            mercadoPagoEcom: { ...data.contas!.mercadoPagoEcom, saldo: e.target.value } 
-                          } 
-                        })}
-                        className="h-8 text-sm pl-7 text-right"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Totais + Botão */}
-              <Separator />
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="font-medium">Caixa Total</span>
-                  <span className="font-bold text-primary">{formatCurrency(totaisContas.caixaTotal)}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="font-medium">Total A Receber</span>
-                  <span className="font-bold text-emerald-600">{formatCurrency(totaisContas.aReceber)}</span>
-                </div>
-              </div>
-              {totaisContas.caixaTotal > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => onUpdateFinanceiroData({ caixaAtual: formatCurrency(totaisContas.caixaTotal).replace('R$', '').trim() })}
-                >
-                  Usar como Caixa Atual
-                </Button>
-              )}
-            </CollapsibleContent>
-          </Collapsible>
-          
-          {/* 2.3 Contas a Pagar/Receber [collapse] */}
-          <div id="ritmo-contas-hoje" className="scroll-mt-20">
-            <ContasFluxoSection
-              contas={data.contasFluxo || []}
-              fornecedores={data.fornecedores || []}
-              duplicatasDispensadas={data.duplicatasDispensadas || []}
-              onUpdateDuplicatasDispensadas={(keys) => onUpdateFinanceiroData({ duplicatasDispensadas: keys })}
-              onAddConta={handleAddConta}
-              onAddMultipleContas={handleAddMultipleContas}
-              onUpdateConta={handleUpdateConta}
-              onRemoveConta={handleRemoveConta}
-              onTogglePago={handleTogglePago}
-              onToggleAgendado={handleToggleAgendado}
-              isOpen={openSections.fluxoContas}
-              onToggle={() => toggleSection('fluxoContas')}
-            />
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* ========== 3. CAIXA CONTRATADO ========== */}
-      <CaixaContratadoCard 
-        aReceberPorConta={totaisContas.aReceberPorConta}
-        total={totaisContas.aReceber}
-      />
-      
-      {/* ========== 4. PROJEÇÃO — ESTIMADO ========== */}
-      <Card className="border-l-4 border-l-purple-500">
-        <CardContent className="p-4 space-y-4">
-          <SectionHeader 
-            icon="🔮" 
-            title="PROJEÇÃO — ESTIMADO"
-            subtitle="(depende de premissas)"
-          />
-          
-          {/* 4.1 Premissas */}
-          <div className="space-y-3">
-            <div id="ritmo-premissas" className="space-y-1.5 scroll-mt-20">
-              <label className="text-sm font-medium flex items-center gap-1.5">
-                ⚙️ Faturamento esperado (30d)
-                <Info className="h-3.5 w-3.5 text-muted-foreground" />
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
-                <Input
-                  placeholder="0,00"
-                  value={data.faturamentoEsperado30d}
-                  onChange={(e) => onUpdateFinanceiroData({ faturamentoEsperado30d: e.target.value })}
-                  className="h-10 text-base pl-10 text-right"
-                />
-              </div>
-              {supplyExports?.forecast && supplyExports.forecast.receitaProjetada30d > 0 && (
-                <div className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-1.5">
-                  <span className="text-[10px] text-muted-foreground">
-                    📊 Forecast Supply: <strong>{formatCurrency(supplyExports.forecast.receitaProjetada30d)}</strong>
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[10px] px-2 text-primary hover:text-primary"
-                    onClick={() => {
-                      const breakdown = supplyExports!.forecast!.breakdownSemanal;
-                      const ultimas4 = breakdown.slice(-4);
-                      const receitaReal4sem = ultimas4.reduce((s: number, w: any) => s + w.receitaReal, 0);
-                      const valor = (receitaReal4sem * (30 / 28))
-                        .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                      onUpdateFinanceiroData({ faturamentoEsperado30d: valor });
-                      toast.success('Faturamento esperado atualizado pelo ritmo real (últimas 4 semanas)');
-                    }}
-                  >
-                    Usar este valor
-                  </Button>
-                </div>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">⚙️ Margem operacional</label>
-                <div className="relative">
-                  <Input
-                    placeholder="40"
-                    value="40"
-                    readOnly
-                    className="h-8 text-sm text-right bg-muted/50"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">⚙️ Ads base</label>
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                  <Input
-                    placeholder="0,00"
-                    value={data.adsBase}
-                    onChange={(e) => onUpdateFinanceiroData({ adsBase: e.target.value })}
-                    className="h-8 text-sm pl-7 text-right"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* 4.2 Fluxo de Caixa 30d */}
-          <FluxoCaixaChart
-            dados={fluxoCaixa.dados}
-            caixaMinimo={caixaMinimo}
-            modoProjecao={fluxoCaixa.modoProjecao}
-            numContas={fluxoCaixa.numContas}
-            fonteHistorico={fluxoCaixa.fonteHistorico}
-            semanasHistorico={fluxoCaixa.semanasHistorico}
-            onAddConta={() => toggleSection('fluxoContas')}
-          />
-          
-          {/* 4.3 Projeção Diária */}
-          <FluxoCaixaDiarioChart
+
+      {/* ========== TAB: RESUMO ========== */}
+      {activeTab === 'resumo' && (
+        <div className="space-y-6">
+          <AlertaCaixaInsuficiente 
             contasFluxo={data.contasFluxo || []}
-            caixaAtual={parseCurrency(data.caixaAtual || '')}
-            caixaMinimo={caixaMinimo}
+            contasBancarias={data.contas}
           />
-        </CardContent>
-      </Card>
-      
-      {/* ========== 5. METAS — CONSEQUÊNCIA ========== */}
-      <Card className="border-l-4 border-l-amber-500">
-        <CardContent className="p-4 space-y-4">
-          <SectionHeader 
-            icon="🎯" 
-            title="METAS — CONSEQUÊNCIA"
-            subtitle="(calculadas, não opinião)"
-          />
-          
-          <MetaVendasCard contas={data.contasFluxo || []} />
-          
-          <EntradaMediaRealChart
-            contasFluxo={data.contasFluxo || []}
-            custoFixoMensal={totalCustosFixos}
-            marketingEstrutural={parseCurrency(data.marketingEstrutural || data.marketingBase || '')}
-            adsBase={parseCurrency(data.adsBase || '')}
-          />
-          
-          <MetaMensalCard
-            contasFluxo={data.contasFluxo || []}
-            custoFixoMensal={formatCurrency(totalCustosFixos).replace('R$', '').trim()}
-            marketingEstrutural={data.marketingEstrutural || data.marketingBase || ''}
-            adsBase={data.adsBase}
-            faturamentoCanais={data.faturamentoCanais}
-            faturamentoMes={data.faturamentoMes}
-            fornecedores={data.fornecedores || []}
-          />
-          
-          <FaturamentoCanaisCard
-            faturamentoCanais={data.faturamentoCanais || { b2b: '', ecomNuvem: '', ecomShopee: '', ecomAssinaturas: '' }}
-            onUpdate={(canais) => onUpdateFinanceiroData({ faturamentoCanais: canais })}
-            contasFluxo={data.contasFluxo}
-            movimentacoes={supplyExports?.movimentacoes}
-            forecastMensal={supplyExports?.forecast?.receitaProjetada30d}
-            forecastSemanal={supplyExports?.forecast ? supplyExports.forecast.receitaProjetada30d / (30/7) : undefined}
-          />
-        </CardContent>
-      </Card>
-      
-      {/* ========== 6. ANÁLISE ========== */}
-      <Card className="border-l-4 border-l-cyan-500">
-        <CardContent className="p-4 space-y-4">
-          <SectionHeader 
-            icon="📈" 
-            title="ANÁLISE"
-            subtitle="(entender, não agir)"
-          />
-          
-          <DRESection
-            lancamentos={data.contasFluxo || []}
-            fornecedores={data.fornecedores || []}
-            cmvGerencialData={cmvGerencialCalc || undefined}
-            isOpen={openSections.dre || false}
-            onToggle={() => toggleSection('dre')}
-            onUpdateLancamentos={(updates) => {
-              const contasAtualizadas = (data.contasFluxo || []).map(c => {
-                const upd = updates.find(u => u.id === c.id);
-                return upd ? { ...c, ...upd.changes } : c;
-              });
-              onUpdateFinanceiroData({ contasFluxo: contasAtualizadas });
-              flushSave?.();
-            }}
-            onAddMapeamento={(novoMapeamento: MapeamentoDescricaoFornecedor) => {
-              onUpdateFinanceiroData({
-                mapeamentosDescricao: [...(data.mapeamentosDescricao || []), novoMapeamento],
-              });
-            }}
-            mapeamentos={data.mapeamentosDescricao || []}
-          />
-          
-          <CMVGerencialCard
-            receitaBruta={supplyExports?.receitaBrutaSupply || 0}
-            cmvProduto={cmvSupply || 0}
-            ticketMedio={parseCurrency(reuniaoAdsData?.ticketMedio || '')}
-            impostoPercentual={data.impostoPercentual ?? 0.16}
-            fretePorPedido={mediasConciliadas.fretePorPedido}
-          />
-          
-          {supplyExports?.skuData && supplyExports.skuData.length > 0 && (
-            <UnitEconomicsSKU
-              skus={supplyExports.skuData}
-              ticketMedio={parseCurrency(reuniaoAdsData?.ticketMedio || '')}
-              fretePorPedido={mediasConciliadas.fretePorPedido}
+          <ExecutiveResume exports={exports} caixaContratado={totaisContas.aReceber} />
+          {supplyExports?.forecast && (
+            <ForecastSupplyCard 
+              forecast={supplyExports.forecast}
+              receitaBruta={supplyExports.receitaBrutaSupply}
+              cmvMensal={supplyExports.cmvMensal}
             />
           )}
-          
-          <OrcadoRealizadoSection
-            contasFluxo={data.contasFluxo || []}
-            fornecedores={data.fornecedores || []}
-            isOpen={openSections.orcadoRealizado || false}
-            onToggle={() => toggleSection('orcadoRealizado')}
-          />
-          
-          <MargemRealCard
-            contasFluxo={data.contasFluxo || []}
-            faturamentoMes={data.faturamentoMes}
-          />
-          
+          <CaixaVsAPagar5d contasFluxo={data.contasFluxo || []} contasBancarias={data.contas} />
           <SnapshotsMensais snapshots={snapshotsReais} />
-        </CardContent>
-      </Card>
-      
-      {/* ========== 7. PARÂMETROS DO SISTEMA ========== */}
-      <Card className="border-l-4 border-l-slate-500">
-        <CardContent className="p-4 space-y-4">
-          <SectionHeader 
-            icon="⚙️" 
-            title="PARÂMETROS DO SISTEMA"
-            subtitle="(alterar aqui muda tudo acima)"
+          <RitmoChecklist
+            checklistDiario={data.checklistDiario}
+            checklistSemanal={data.checklistSemanal}
+            checklistMensal={data.checklistMensal}
+            onUpdateDiario={(updates) => onUpdateFinanceiroData({ 
+              checklistDiario: { ...data.checklistDiario, ...updates } 
+            })}
+            onUpdateSemanal={(updates) => onUpdateFinanceiroData({ 
+              checklistSemanal: { ...data.checklistSemanal, ...updates } 
+            })}
+            onUpdateMensal={(updates) => onUpdateFinanceiroData({ 
+              checklistMensal: { ...data.checklistMensal, ...updates } 
+            })}
           />
+        </div>
+      )}
+
+      {/* ========== TAB: CAIXA ========== */}
+      {activeTab === 'caixa' && (
+        <div className="space-y-6">
+          <Card className="border-l-4 border-l-emerald-500">
+            <CardContent className="p-4 space-y-4">
+              <SectionHeader 
+                icon="💰" 
+                title="POSIÇÃO ATUAL — REAL"
+                subtitle="(bate com banco. não é projeção.)"
+              />
+              
+              {/* Caixa Atual */}
+              <div id="ritmo-caixa" className="scroll-mt-20 space-y-1.5">
+                <label className="text-sm font-medium flex items-center gap-1.5">
+                  ✏️ Caixa Atual
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+                  <Input
+                    placeholder="0,00"
+                    value={data.caixaAtual}
+                    onChange={(e) => onUpdateFinanceiroData({ caixaAtual: e.target.value })}
+                    className="h-11 text-base pl-10 text-right font-medium"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Atualizar HOJE</p>
+              </div>
+              
+              {/* Contas Bancárias */}
+              <Collapsible open={openSections.contas} onOpenChange={() => toggleSection('contas')}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-between h-10 px-3 hover:bg-muted/50">
+                    <span className="flex items-center gap-2 text-sm">
+                      <Building2 className="h-4 w-4" />
+                      Contas Bancárias
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {formatCurrency(totaisContas.caixaTotal)}
+                      </span>
+                      {openSections.contas ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </div>
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3 space-y-3">
+                  {/* ITAÚ NICE FOODS */}
+                  <div className="p-3 rounded-lg border bg-muted/30">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">ITAÚ NICE FOODS</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Saldo</label>
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                          <Input
+                            placeholder="0,00"
+                            value={data.contas?.itauNiceFoods.saldo || ''}
+                            onChange={(e) => onUpdateFinanceiroData({ 
+                              contas: { 
+                                ...data.contas!, 
+                                itauNiceFoods: { ...data.contas!.itauNiceFoods, saldo: e.target.value } 
+                              } 
+                            })}
+                            className="h-8 text-sm pl-7 text-right"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">CDB</label>
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                          <Input
+                            placeholder="0,00"
+                            value={data.contas?.itauNiceFoods.cdb || ''}
+                            onChange={(e) => onUpdateFinanceiroData({ 
+                              contas: { 
+                                ...data.contas!, 
+                                itauNiceFoods: { ...data.contas!.itauNiceFoods, cdb: e.target.value } 
+                              } 
+                            })}
+                            className="h-8 text-sm pl-7 text-right"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* ITAÚ NICE ECOM */}
+                  <div className="p-3 rounded-lg border bg-muted/30">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">ITAÚ NICE ECOM</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Saldo</label>
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                          <Input
+                            placeholder="0,00"
+                            value={data.contas?.itauNiceEcom.saldo || ''}
+                            onChange={(e) => onUpdateFinanceiroData({ 
+                              contas: { 
+                                ...data.contas!, 
+                                itauNiceEcom: { ...data.contas!.itauNiceEcom, saldo: e.target.value } 
+                              } 
+                            })}
+                            className="h-8 text-sm pl-7 text-right"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">CDB</label>
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                          <Input
+                            placeholder="0,00"
+                            value={data.contas?.itauNiceEcom.cdb || ''}
+                            onChange={(e) => onUpdateFinanceiroData({ 
+                              contas: { 
+                                ...data.contas!, 
+                                itauNiceEcom: { ...data.contas!.itauNiceEcom, cdb: e.target.value } 
+                              } 
+                            })}
+                            className="h-8 text-sm pl-7 text-right"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* GATEWAYS */}
+                  {[
+                    { key: 'asaas', label: 'ASAAS' },
+                    { key: 'nuvem', label: 'NUVEM' },
+                    { key: 'pagarMe', label: 'PAGAR.ME' },
+                  ].map(({ key, label }) => (
+                    <div key={key} className="p-3 rounded-lg border bg-muted/30">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">{label}</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Saldo</label>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                            <Input
+                              placeholder="0,00"
+                              value={(data.contas as any)?.[key]?.saldo || ''}
+                              onChange={(e) => onUpdateFinanceiroData({ 
+                                contas: { 
+                                  ...data.contas!, 
+                                  [key]: { ...(data.contas as any)![key], saldo: e.target.value } 
+                                } 
+                              })}
+                              className="h-8 text-sm pl-7 text-right"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">A receber</label>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                            <Input
+                              placeholder="0,00"
+                              value={(data.contas as any)?.[key]?.aReceber || ''}
+                              onChange={(e) => onUpdateFinanceiroData({ 
+                                contas: { 
+                                  ...data.contas!, 
+                                  [key]: { ...(data.contas as any)![key], aReceber: e.target.value } 
+                                } 
+                              })}
+                              className="h-8 text-sm pl-7 text-right"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {/* MERCADO PAGO */}
+                  <div className="p-3 rounded-lg border bg-muted/30">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">MERCADO PAGO ECOM</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Disponível</label>
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                          <Input
+                            placeholder="0,00"
+                            value={data.contas?.mercadoPagoEcom.disponivel || ''}
+                            onChange={(e) => onUpdateFinanceiroData({ 
+                              contas: { 
+                                ...data.contas!, 
+                                mercadoPagoEcom: { ...data.contas!.mercadoPagoEcom, disponivel: e.target.value } 
+                              } 
+                            })}
+                            className="h-8 text-sm pl-7 text-right"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Saldo total</label>
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                          <Input
+                            placeholder="0,00"
+                            value={data.contas?.mercadoPagoEcom.saldo || ''}
+                            onChange={(e) => onUpdateFinanceiroData({ 
+                              contas: { 
+                                ...data.contas!, 
+                                mercadoPagoEcom: { ...data.contas!.mercadoPagoEcom, saldo: e.target.value } 
+                              } 
+                            })}
+                            className="h-8 text-sm pl-7 text-right"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Totais */}
+                  <Separator />
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="font-medium">Caixa Total</span>
+                      <span className="font-bold text-primary">{formatCurrency(totaisContas.caixaTotal)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="font-medium">Total A Receber</span>
+                      <span className={cn("font-bold", totaisContas.aReceber >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>{formatCurrency(totaisContas.aReceber)}</span>
+                    </div>
+                  </div>
+                  {totaisContas.caixaTotal > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => onUpdateFinanceiroData({ caixaAtual: formatCurrency(totaisContas.caixaTotal).replace('R$', '').trim() })}
+                    >
+                      Usar como Caixa Atual
+                    </Button>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+              
+              {/* Contas a Pagar/Receber */}
+              <div id="ritmo-contas-hoje" className="scroll-mt-20">
+                <ContasFluxoSection
+                  contas={data.contasFluxo || []}
+                  fornecedores={data.fornecedores || []}
+                  duplicatasDispensadas={data.duplicatasDispensadas || []}
+                  onUpdateDuplicatasDispensadas={(keys) => onUpdateFinanceiroData({ duplicatasDispensadas: keys })}
+                  onAddConta={handleAddConta}
+                  onAddMultipleContas={handleAddMultipleContas}
+                  onUpdateConta={handleUpdateConta}
+                  onRemoveConta={handleRemoveConta}
+                  onTogglePago={handleTogglePago}
+                  onToggleAgendado={handleToggleAgendado}
+                  isOpen={openSections.fluxoContas}
+                  onToggle={() => toggleSection('fluxoContas')}
+                />
+              </div>
+            </CardContent>
+          </Card>
           
-          {/* 7.1 Custos Fixos */}
-          <Collapsible open={openSections.custosFixos} onOpenChange={() => toggleSection('custosFixos')}>
-            <CustosFixosCard
-              data={data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS}
-              onUpdate={(custosFixosDetalhados) => onUpdateFinanceiroData({ custosFixosDetalhados })}
-            />
-          </Collapsible>
-          
-          {/* 7.2 Gerar Contas Fixas do Mês */}
-          <GerarContasFixasButton
-            custosFixos={data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS}
-            contasExistentes={data.contasFluxo || []}
-            adsBase={parseCurrency(data.adsBase || '')}
-            faturamentoMesAnterior={data.faturamentoMesAnterior || ''}
-            onFaturamentoChange={(value) => onUpdateFinanceiroData({ faturamentoMesAnterior: value })}
-            onGerarContas={(novasContas) => {
-              const contasComId: ContaFluxo[] = novasContas.map(c => ({
-                ...c,
-                id: crypto.randomUUID(),
-              }));
-              onUpdateFinanceiroData({
-                contasFluxo: [...(data.contasFluxo || []), ...contasComId],
-              });
-            }}
-            isOpen={openSections.gerarContas || false}
-            onToggle={() => toggleSection('gerarContas')}
+          <CaixaContratadoCard 
+            aReceberPorConta={totaisContas.aReceberPorConta}
+            total={totaisContas.aReceber}
           />
+        </div>
+      )}
+
+      {/* ========== TAB: PROJEÇÃO ========== */}
+      {activeTab === 'projecao' && (
+        <div className="space-y-6">
+          <Card className="border-l-4 border-l-purple-500">
+            <CardContent className="p-4 space-y-4">
+              <SectionHeader 
+                icon="🔮" 
+                title="PROJEÇÃO — ESTIMADO"
+                subtitle="(depende de premissas)"
+              />
+              
+              <div className="space-y-3">
+                <div id="ritmo-premissas" className="space-y-1.5 scroll-mt-20">
+                  <label className="text-sm font-medium flex items-center gap-1.5">
+                    ⚙️ Faturamento esperado (30d)
+                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+                    <Input
+                      placeholder="0,00"
+                      value={data.faturamentoEsperado30d}
+                      onChange={(e) => onUpdateFinanceiroData({ faturamentoEsperado30d: e.target.value })}
+                      className="h-10 text-base pl-10 text-right"
+                    />
+                  </div>
+                  {supplyExports?.forecast && supplyExports.forecast.receitaProjetada30d > 0 && (
+                    <div className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-1.5">
+                      <span className="text-[10px] text-muted-foreground">
+                        📊 Forecast Supply: <strong>{formatCurrency(supplyExports.forecast.receitaProjetada30d)}</strong>
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px] px-2 text-primary hover:text-primary"
+                        onClick={() => {
+                          const breakdown = supplyExports!.forecast!.breakdownSemanal;
+                          const ultimas4 = breakdown.slice(-4);
+                          const receitaReal4sem = ultimas4.reduce((s: number, w: any) => s + w.receitaReal, 0);
+                          const valor = (receitaReal4sem * (30 / 28))
+                            .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                          onUpdateFinanceiroData({ faturamentoEsperado30d: valor });
+                          toast.success('Faturamento esperado atualizado pelo ritmo real (últimas 4 semanas)');
+                        }}
+                      >
+                        Usar este valor
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">⚙️ Margem operacional</label>
+                    <div className="relative">
+                      <Input
+                        placeholder="40"
+                        value="40"
+                        readOnly
+                        className="h-8 text-sm text-right bg-muted/50"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">⚙️ Ads base</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                      <Input
+                        placeholder="0,00"
+                        value={data.adsBase}
+                        onChange={(e) => onUpdateFinanceiroData({ adsBase: e.target.value })}
+                        className="h-8 text-sm pl-7 text-right"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <FluxoCaixaChart
+                dados={fluxoCaixa.dados}
+                caixaMinimo={caixaMinimo}
+                modoProjecao={fluxoCaixa.modoProjecao}
+                numContas={fluxoCaixa.numContas}
+                fonteHistorico={fluxoCaixa.fonteHistorico}
+                semanasHistorico={fluxoCaixa.semanasHistorico}
+                onAddConta={() => { setActiveTab('caixa'); toggleSection('fluxoContas'); }}
+              />
+              
+              <FluxoCaixaDiarioChart
+                contasFluxo={data.contasFluxo || []}
+                caixaAtual={parseCurrency(data.caixaAtual || '')}
+                caixaMinimo={caixaMinimo}
+              />
+            </CardContent>
+          </Card>
           
-          {/* 7.3 Conciliação Bancária */}
-          <div id="ritmo-conciliacao" className="scroll-mt-20">
-            <ConciliacaoSection
-              contasExistentes={data.contasFluxo || []}
-              fornecedores={data.fornecedores || []}
-              mapeamentos={data.mapeamentosDescricao || []}
-              onAddMapeamento={(novoMapeamento: MapeamentoDescricaoFornecedor) => {
-                onUpdateFinanceiroData({
-                  mapeamentosDescricao: [...(data.mapeamentosDescricao || []), novoMapeamento],
-                });
-              }}
-              onConciliar={(result) => {
-                const contasAtualizadas = (data.contasFluxo || []).map(c => {
-                   const conciliado = result.conciliados.find(cc => cc.id === c.id);
-                   if (conciliado) {
-                     return { 
-                       ...c, 
-                       pago: true, 
-                       conciliado: true,
-                       ...(conciliado.dataPagamento ? { dataPagamento: conciliado.dataPagamento } : {}),
-                       ...(conciliado.lancamentoConciliadoId ? { lancamentoConciliadoId: conciliado.lancamentoConciliadoId } : {}),
-                     };
-                   }
-                   return c;
-                });
-                
-                const novasContas: ContaFluxo[] = result.novos.map(n => ({
-                  ...n,
-                  id: crypto.randomUUID(),
-                }));
-                
-                const todasContas = [...contasAtualizadas, ...novasContas];
-                
-                // Gerar snapshot mensal automático
-                const hoje = new Date();
-                const mesAtual = format(hoje, 'yyyy-MM');
-                const TIPOS_ENTRADA_SNAP = ['receber', 'resgate'];
-                const TIPOS_SAIDA_SNAP = ['pagar', 'aplicacao', 'cartao'];
-                
-                let totalEntradas = 0;
-                let totalSaidas = 0;
-                for (const c of todasContas) {
-                  if (!c.pago) continue;
-                  if (!c.dataVencimento?.startsWith(mesAtual)) continue;
-                  if (['intercompany'].includes(c.tipo)) continue;
-                  const valor = parseCurrency(c.valor?.toString() || '');
-                  if (TIPOS_ENTRADA_SNAP.includes(c.tipo)) totalEntradas += valor;
-                  else if (TIPOS_SAIDA_SNAP.includes(c.tipo)) totalSaidas += valor;
-                }
-                
-                const snapExistentes = (data.snapshotsMensais || []).filter(s => s.mesAno !== mesAtual);
-                const novoSnapshot = {
-                  mesAno: mesAtual,
-                  entradas: totalEntradas,
-                  saidas: totalSaidas,
-                  saldo: totalEntradas - totalSaidas,
-                  geradoEm: new Date().toISOString(),
-                };
-                
-                onUpdateFinanceiroData({
-                  contasFluxo: todasContas,
-                  snapshotsMensais: [...snapExistentes, novoSnapshot],
-                });
-                
-                if (result.conciliados.length > 0 || result.novos.length > 0) {
-                  onUpdateTimestamp?.('lastConciliacaoCheck');
+          <Card className="border-l-4 border-l-amber-500">
+            <CardContent className="p-4 space-y-4">
+              <SectionHeader 
+                icon="🎯" 
+                title="METAS — CONSEQUÊNCIA"
+                subtitle="(calculadas, não opinião)"
+              />
+              
+              <MetaVendasCard contas={data.contasFluxo || []} />
+              
+              <EntradaMediaRealChart
+                contasFluxo={data.contasFluxo || []}
+                custoFixoMensal={totalCustosFixos}
+                marketingEstrutural={parseCurrency(data.marketingEstrutural || data.marketingBase || '')}
+                adsBase={parseCurrency(data.adsBase || '')}
+              />
+              
+              <MetaMensalCard
+                contasFluxo={data.contasFluxo || []}
+                custoFixoMensal={formatCurrency(totalCustosFixos).replace('R$', '').trim()}
+                marketingEstrutural={data.marketingEstrutural || data.marketingBase || ''}
+                adsBase={data.adsBase}
+                faturamentoCanais={data.faturamentoCanais}
+                faturamentoMes={data.faturamentoMes}
+                fornecedores={data.fornecedores || []}
+              />
+              
+              <FaturamentoCanaisCard
+                faturamentoCanais={data.faturamentoCanais || { b2b: '', ecomNuvem: '', ecomShopee: '', ecomAssinaturas: '' }}
+                onUpdate={(canais) => onUpdateFinanceiroData({ faturamentoCanais: canais })}
+                contasFluxo={data.contasFluxo}
+                movimentacoes={supplyExports?.movimentacoes}
+                forecastMensal={supplyExports?.forecast?.receitaProjetada30d}
+                forecastSemanal={supplyExports?.forecast ? supplyExports.forecast.receitaProjetada30d / (30/7) : undefined}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ========== TAB: ANÁLISE ========== */}
+      {activeTab === 'analise' && (
+        <div className="space-y-6">
+          <Card className="border-l-4 border-l-cyan-500">
+            <CardContent className="p-4 space-y-4">
+              <SectionHeader 
+                icon="📈" 
+                title="ANÁLISE"
+                subtitle="(entender, não agir)"
+              />
+              
+              <DRESection
+                lancamentos={data.contasFluxo || []}
+                fornecedores={data.fornecedores || []}
+                cmvGerencialData={cmvGerencialCalc || undefined}
+                isOpen={openSections.dre || false}
+                onToggle={() => toggleSection('dre')}
+                onUpdateLancamentos={(updates) => {
+                  const contasAtualizadas = (data.contasFluxo || []).map(c => {
+                    const upd = updates.find(u => u.id === c.id);
+                    return upd ? { ...c, ...upd.changes } : c;
+                  });
+                  onUpdateFinanceiroData({ contasFluxo: contasAtualizadas });
                   flushSave?.();
-                }
-              }}
-              onCreateFornecedor={(novoFornecedor) => {
-                const novoId = crypto.randomUUID();
-                const fornecedorComId: Fornecedor = {
-                  ...novoFornecedor,
-                  id: novoId,
-                };
-                onUpdateFinanceiroData({
-                  fornecedores: [...(data.fornecedores || []), fornecedorComId],
-                });
-                toast.success(`Fornecedor "${novoFornecedor.nome}" criado!`);
-                return novoId; // Retorna ID para seleção automática
-              }}
-              onUpdateFornecedor={(id, updates) => {
-                onUpdateFinanceiroData({
-                  fornecedores: (data.fornecedores || []).map(f => 
-                    f.id === id ? { ...f, ...updates } : f
-                  ),
-                });
-              }}
-              onUpdateMultipleContas={(updates) => {
-                const contasAtualizadas = (data.contasFluxo || []).map(c => {
-                  const upd = updates.find(u => u.id === c.id);
-                  return upd ? { ...c, ...upd.changes } : c;
-                });
-                onUpdateFinanceiroData({ contasFluxo: contasAtualizadas });
-                flushSave?.();
-              }}
-              isOpen={openSections.conciliacao || false}
-              onToggle={() => toggleSection('conciliacao')}
-            />
-          </div>
-          
-          {/* 7.4 Fornecedores Cadastrados */}
-          <FornecedoresManager
-            fornecedores={data.fornecedores || []}
-            contasFluxo={data.contasFluxo || []}
-            onAdd={(fornecedor) => {
-              const novoId = crypto.randomUUID();
-              onUpdateFinanceiroData({
-                fornecedores: [...(data.fornecedores || []), { ...fornecedor, id: novoId }],
-              });
-            }}
-            onUpdate={(id, updates) => {
-              onUpdateFinanceiroData({
-                fornecedores: (data.fornecedores || []).map(f => 
-                  f.id === id ? { ...f, ...updates } : f
-                ),
-              });
-            }}
-            onRemove={(id) => {
-              onUpdateFinanceiroData({
-                fornecedores: (data.fornecedores || []).filter(f => f.id !== id),
-              });
-            }}
-            isOpen={openSections.fornecedores || false}
-            onToggle={() => toggleSection('fornecedores')}
-          />
-        </CardContent>
-      </Card>
-      
-      {/* ========== LIMPAR HISTÓRICO ========== */}
-      <div className="flex items-center justify-center gap-2 py-2">
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/10">
-              <Trash2 className="h-3 w-3" />
-              Limpar Histórico
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Limpar histórico de lançamentos</AlertDialogTitle>
-              <AlertDialogDescription>
-                Escolha o que deseja limpar. Esta ação não pode ser desfeita.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="space-y-2 py-2">
-              <Button
-                variant="outline"
-                className="w-full justify-start text-sm gap-2"
-                onClick={() => setLimparMode('pagas')}
-              >
-                🧹 Apenas contas pagas (histórico)
-                <span className="text-xs text-muted-foreground ml-auto">
-                  {(data.contasFluxo || []).filter(c => c.pago).length} contas
-                </span>
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start text-sm gap-2 text-destructive"
-                onClick={() => setLimparMode('tudo')}
-              >
-                ⚠️ Tudo (pagas + pendentes)
-                <span className="text-xs text-muted-foreground ml-auto">
-                  {(data.contasFluxo || []).length} contas
-                </span>
-              </Button>
-            </div>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              {limparMode && (
-                <AlertDialogAction
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  onClick={() => {
-                    if (limparMode === 'pagas') {
-                      const restantes = (data.contasFluxo || []).filter(c => !c.pago);
-                      onUpdateFinanceiroData({ contasFluxo: restantes });
-                      toast.success(`Histórico limpo — ${(data.contasFluxo || []).filter(c => c.pago).length} contas pagas removidas`);
-                    } else {
-                      onUpdateFinanceiroData({ contasFluxo: [] });
-                      toast.success('Todas as contas removidas');
+                }}
+                onAddMapeamento={(novoMapeamento: MapeamentoDescricaoFornecedor) => {
+                  onUpdateFinanceiroData({
+                    mapeamentosDescricao: [...(data.mapeamentosDescricao || []), novoMapeamento],
+                  });
+                }}
+                mapeamentos={data.mapeamentosDescricao || []}
+              />
+              
+              <CMVGerencialCard
+                receitaBruta={supplyExports?.receitaBrutaSupply || 0}
+                cmvProduto={cmvSupply || 0}
+                ticketMedio={parseCurrency(reuniaoAdsData?.ticketMedio || '')}
+                impostoPercentual={data.impostoPercentual ?? 0.16}
+                fretePorPedido={mediasConciliadas.fretePorPedido}
+              />
+              
+              {supplyExports?.skuData && supplyExports.skuData.length > 0 && (
+                <UnitEconomicsSKU
+                  skus={supplyExports.skuData}
+                  ticketMedio={parseCurrency(reuniaoAdsData?.ticketMedio || '')}
+                  fretePorPedido={mediasConciliadas.fretePorPedido}
+                />
+              )}
+              
+              <OrcadoRealizadoSection
+                contasFluxo={data.contasFluxo || []}
+                fornecedores={data.fornecedores || []}
+                isOpen={openSections.orcadoRealizado || false}
+                onToggle={() => toggleSection('orcadoRealizado')}
+              />
+              
+              <MargemRealCard
+                contasFluxo={data.contasFluxo || []}
+                faturamentoMes={data.faturamentoMes}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ========== TAB: CONFIG ========== */}
+      {activeTab === 'config' && (
+        <div className="space-y-6">
+          <Card className="border-l-4 border-l-slate-500">
+            <CardContent className="p-4 space-y-4">
+              <SectionHeader 
+                icon="⚙️" 
+                title="PARÂMETROS DO SISTEMA"
+                subtitle="(alterar aqui muda tudo acima)"
+              />
+              
+              <Collapsible open={openSections.custosFixos} onOpenChange={() => toggleSection('custosFixos')}>
+                <CustosFixosCard
+                  data={data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS}
+                  onUpdate={(custosFixosDetalhados) => onUpdateFinanceiroData({ custosFixosDetalhados })}
+                />
+              </Collapsible>
+              
+              <GerarContasFixasButton
+                custosFixos={data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS}
+                contasExistentes={data.contasFluxo || []}
+                adsBase={parseCurrency(data.adsBase || '')}
+                faturamentoMesAnterior={data.faturamentoMesAnterior || ''}
+                onFaturamentoChange={(value) => onUpdateFinanceiroData({ faturamentoMesAnterior: value })}
+                onGerarContas={(novasContas) => {
+                  const contasComId: ContaFluxo[] = novasContas.map(c => ({
+                    ...c,
+                    id: crypto.randomUUID(),
+                  }));
+                  onUpdateFinanceiroData({
+                    contasFluxo: [...(data.contasFluxo || []), ...contasComId],
+                  });
+                }}
+                isOpen={openSections.gerarContas || false}
+                onToggle={() => toggleSection('gerarContas')}
+              />
+              
+              <div id="ritmo-conciliacao" className="scroll-mt-20">
+                <ConciliacaoSection
+                  contasExistentes={data.contasFluxo || []}
+                  fornecedores={data.fornecedores || []}
+                  mapeamentos={data.mapeamentosDescricao || []}
+                  onAddMapeamento={(novoMapeamento: MapeamentoDescricaoFornecedor) => {
+                    onUpdateFinanceiroData({
+                      mapeamentosDescricao: [...(data.mapeamentosDescricao || []), novoMapeamento],
+                    });
+                  }}
+                  onConciliar={(result) => {
+                    const contasAtualizadas = (data.contasFluxo || []).map(c => {
+                       const conciliado = result.conciliados.find(cc => cc.id === c.id);
+                       if (conciliado) {
+                         return { 
+                           ...c, 
+                           pago: true, 
+                           conciliado: true,
+                           ...(conciliado.dataPagamento ? { dataPagamento: conciliado.dataPagamento } : {}),
+                           ...(conciliado.lancamentoConciliadoId ? { lancamentoConciliadoId: conciliado.lancamentoConciliadoId } : {}),
+                         };
+                       }
+                       return c;
+                    });
+                    
+                    const novasContas: ContaFluxo[] = result.novos.map(n => ({
+                      ...n,
+                      id: crypto.randomUUID(),
+                    }));
+                    
+                    const todasContas = [...contasAtualizadas, ...novasContas];
+                    
+                    const hoje = new Date();
+                    const mesAtual = format(hoje, 'yyyy-MM');
+                    const TIPOS_ENTRADA_SNAP = ['receber', 'resgate'];
+                    const TIPOS_SAIDA_SNAP = ['pagar', 'aplicacao', 'cartao'];
+                    
+                    let totalEntradas = 0;
+                    let totalSaidas = 0;
+                    for (const c of todasContas) {
+                      if (!c.pago) continue;
+                      if (!c.dataVencimento?.startsWith(mesAtual)) continue;
+                      if (['intercompany'].includes(c.tipo)) continue;
+                      const valor = parseCurrency(c.valor?.toString() || '');
+                      if (TIPOS_ENTRADA_SNAP.includes(c.tipo)) totalEntradas += valor;
+                      else if (TIPOS_SAIDA_SNAP.includes(c.tipo)) totalSaidas += valor;
                     }
-                    setLimparMode(null);
+                    
+                    const snapExistentes = (data.snapshotsMensais || []).filter(s => s.mesAno !== mesAtual);
+                    const novoSnapshot = {
+                      mesAno: mesAtual,
+                      entradas: totalEntradas,
+                      saidas: totalSaidas,
+                      saldo: totalEntradas - totalSaidas,
+                      geradoEm: new Date().toISOString(),
+                    };
+                    
+                    onUpdateFinanceiroData({
+                      contasFluxo: todasContas,
+                      snapshotsMensais: [...snapExistentes, novoSnapshot],
+                    });
+                    
+                    if (result.conciliados.length > 0 || result.novos.length > 0) {
+                      onUpdateTimestamp?.('lastConciliacaoCheck');
+                      flushSave?.();
+                    }
+                  }}
+                  onCreateFornecedor={(novoFornecedor) => {
+                    const novoId = crypto.randomUUID();
+                    const fornecedorComId: Fornecedor = {
+                      ...novoFornecedor,
+                      id: novoId,
+                    };
+                    onUpdateFinanceiroData({
+                      fornecedores: [...(data.fornecedores || []), fornecedorComId],
+                    });
+                    toast.success(`Fornecedor "${novoFornecedor.nome}" criado!`);
+                    return novoId;
+                  }}
+                  onUpdateFornecedor={(id, updates) => {
+                    onUpdateFinanceiroData({
+                      fornecedores: (data.fornecedores || []).map(f => 
+                        f.id === id ? { ...f, ...updates } : f
+                      ),
+                    });
+                  }}
+                  onUpdateMultipleContas={(updates) => {
+                    const contasAtualizadas = (data.contasFluxo || []).map(c => {
+                      const upd = updates.find(u => u.id === c.id);
+                      return upd ? { ...c, ...upd.changes } : c;
+                    });
+                    onUpdateFinanceiroData({ contasFluxo: contasAtualizadas });
                     flushSave?.();
                   }}
-                >
-                  Confirmar: {limparMode === 'pagas' ? 'Limpar pagas' : 'Limpar tudo'}
-                </AlertDialogAction>
-              )}
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-      
-      {/* ========== 8. CHECKLIST FINAL — RITMO ========== */}
-      <RitmoChecklist
-        checklistDiario={data.checklistDiario}
-        checklistSemanal={data.checklistSemanal}
-        checklistMensal={data.checklistMensal}
-        onUpdateDiario={(updates) => onUpdateFinanceiroData({ 
-          checklistDiario: { ...data.checklistDiario, ...updates } 
-        })}
-        onUpdateSemanal={(updates) => onUpdateFinanceiroData({ 
-          checklistSemanal: { ...data.checklistSemanal, ...updates } 
-        })}
-        onUpdateMensal={(updates) => onUpdateFinanceiroData({ 
-          checklistMensal: { ...data.checklistMensal, ...updates } 
-        })}
-      />
+                  isOpen={openSections.conciliacao || false}
+                  onToggle={() => toggleSection('conciliacao')}
+                />
+              </div>
+              
+              <FornecedoresManager
+                fornecedores={data.fornecedores || []}
+                contasFluxo={data.contasFluxo || []}
+                onAdd={(fornecedor) => {
+                  const novoId = crypto.randomUUID();
+                  onUpdateFinanceiroData({
+                    fornecedores: [...(data.fornecedores || []), { ...fornecedor, id: novoId }],
+                  });
+                }}
+                onUpdate={(id, updates) => {
+                  onUpdateFinanceiroData({
+                    fornecedores: (data.fornecedores || []).map(f => 
+                      f.id === id ? { ...f, ...updates } : f
+                    ),
+                  });
+                }}
+                onRemove={(id) => {
+                  onUpdateFinanceiroData({
+                    fornecedores: (data.fornecedores || []).filter(f => f.id !== id),
+                  });
+                }}
+                isOpen={openSections.fornecedores || false}
+                onToggle={() => toggleSection('fornecedores')}
+              />
+            </CardContent>
+          </Card>
+          
+          {/* Limpar Histórico */}
+          <div className="flex items-center justify-center gap-2 py-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1 text-xs text-destructive border-destructive/30 hover:bg-destructive/10">
+                  <Trash2 className="h-3 w-3" />
+                  Limpar Histórico
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Limpar histórico de lançamentos</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Escolha o que deseja limpar. Esta ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-2 py-2">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-sm gap-2"
+                    onClick={() => setLimparMode('pagas')}
+                  >
+                    🧹 Apenas contas pagas (histórico)
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {(data.contasFluxo || []).filter(c => c.pago).length} contas
+                    </span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-sm gap-2 text-destructive"
+                    onClick={() => setLimparMode('tudo')}
+                  >
+                    ⚠️ Tudo (pagas + pendentes)
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {(data.contasFluxo || []).length} contas
+                    </span>
+                  </Button>
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  {limparMode && (
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => {
+                        if (limparMode === 'pagas') {
+                          const restantes = (data.contasFluxo || []).filter(c => !c.pago);
+                          onUpdateFinanceiroData({ contasFluxo: restantes });
+                          toast.success(`Histórico limpo — ${(data.contasFluxo || []).filter(c => c.pago).length} contas pagas removidas`);
+                        } else {
+                          onUpdateFinanceiroData({ contasFluxo: [] });
+                          toast.success('Todas as contas removidas');
+                        }
+                        setLimparMode(null);
+                        flushSave?.();
+                      }}
+                    >
+                      Confirmar: {limparMode === 'pagas' ? 'Limpar pagas' : 'Limpar tudo'}
+                    </AlertDialogAction>
+                  )}
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      )}
+
+      {/* ========== BOTTOM NAV ========== */}
+      <FinanceiroBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
 }

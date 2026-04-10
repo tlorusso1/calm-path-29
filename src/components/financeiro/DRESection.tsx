@@ -855,7 +855,7 @@ export function DRESection({
                       </span>
                     )}
                   </span>
-                  <span>{formatCurrency(totais.receitas)}</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">{formatCurrency(totais.receitas)}</span>
                 </div>
                 {dre
                   .filter(m => m.modalidade === 'RECEITAS' || m.modalidade === 'RECEITAS FINANCEIRAS')
@@ -1160,7 +1160,10 @@ function DREModalidadeRow({ modalidade, onReclassify }: { modalidade: DREModalid
             {open ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3 rotate-90" />}
             {modalidade.modalidade}
           </span>
-          <span>{formatCurrency(modalidade.total)}</span>
+          <span className={cn(
+            "font-medium",
+            modalidade.tipo === 'RECEITAS' ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+          )}>{formatCurrency(modalidade.total)}</span>
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent>
@@ -1169,12 +1172,16 @@ function DREModalidadeRow({ modalidade, onReclassify }: { modalidade: DREModalid
             <div key={grupo.grupo} className="space-y-0.5">
               <div className="flex justify-between text-[11px] text-muted-foreground font-medium">
                 <span>{grupo.grupo}</span>
-                <span>{formatCurrency(grupo.total)}</span>
+                <span className={cn(
+                  modalidade.tipo === 'RECEITAS' ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+                )}>{formatCurrency(grupo.total)}</span>
               </div>
               {grupo.categorias.map(cat => (
                 <div key={cat.categoria} className="flex justify-between text-[10px] text-muted-foreground pl-2">
                   <span>{cat.categoria}</span>
-                  <span>{formatCurrency(cat.valor)}</span>
+                  <span className={cn(
+                    cat.valor >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+                  )}>{formatCurrency(cat.valor)}</span>
                 </div>
               ))}
             </div>
