@@ -610,6 +610,10 @@ export function DRESection({
 
     linhas.push('');
     linhas.push(`RESULTADO OPERACIONAL;;;${totais.resultadoOperacional.toFixed(2)}`);
+    if (totais.receitasFinanceiras !== 0) {
+      linhas.push(`RECEITAS FINANCEIRAS;;;${totais.receitasFinanceiras.toFixed(2)}`);
+      linhas.push(`RESULTADO FINAL;;;${totais.resultadoFinal.toFixed(2)}`);
+    }
 
     downloadFile(linhas.join('\n'), `DRE_${periodoLabel.replace(/[\s/]/g, '_')}.csv`, 'text/csv;charset=utf-8;');
   };
