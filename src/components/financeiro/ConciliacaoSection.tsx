@@ -94,10 +94,11 @@ interface ExtractedLancamento {
 }
 
 interface ConciliacaoResult {
-  conciliados: { id: string; descricao: string; dataPagamento?: string; lancamentoConciliadoId?: string }[];
+  conciliados: { id: string; descricao: string; dataPagamento?: string; lancamentoConciliadoId?: string; changes?: Partial<ContaFluxo> }[];
   novos: Omit<ContaFluxo, 'id'>[];
   ignorados: number;
   paraRevisar: ExtractedLancamento[];
+  updates?: { id: string; changes: Partial<ContaFluxo> }[];
 }
 
 interface ConciliacaoSectionProps {
@@ -196,21 +197,56 @@ function calcularSimilaridade(a: string, b: string): number {
   return comuns / Math.max(tokensA.size, tokensB.size);
 }
 
-// Match por canal: SHPP/SHOPEE no extrato → vincular a conta aberta SHPP/SHOPEE (receber)
+// Match por canal: SHPP/SHOPEE no extrato → vincular a conta aberta correta por data + valor
 function encontrarMatchPorCanal(
-  lancamento: { descricao: string; tipo: string },
+  lancamento: { descricao: string; tipo: string; valor: string; dataVencimento: string },
   contas: ContaFluxo[]
 ): ContaFluxo | null {
-  if (!/SHPP|SHOPEE/i.test(lancamento.descricao)) return null;
-  
-  return contas.find(c => {
-    if (c.pago) return false;
-    if (c.tipo !== 'receber') return false;
-    return /SHPP|SHOPEE/i.test(c.descricao);
-  }) || null;
+  if (!/SHPP|SHOPEE/i.test(lancamento.descricao) || lancamento.tipo !== 'receber') return null;
+
+  const valorLanc = parseValorFlexivel(lancamento.valor);
+  let dataLanc: Date;
+  try {
+    dataLanc = parseISO(lancamento.dataVencimento);
+  } catch {
+    return null;
+  }
+
+  let melhorMatch: ContaFluxo | null = null;
+  let melhorScore = Number.POSITIVE_INFINITY;
+
+  for (const conta of contas) {
+    if (conta.pago) continue;
+    if (conta.tipo !== 'receber') continue;
+    if (!/SHPP|SHOPEE/i.test(conta.descricao) && conta.canalOrigem !== 'ecomShopee') continue;
+
+    let dataConta: Date;
+    try {
+      dataConta = parseISO(conta.dataVencimento);
+    } catch {
+      continue;
+    }
+
+    const diffDias = Math.abs(differenceInDays(dataLanc, dataConta));
+    if (diffDias > 7) continue;
+
+    const valorConta = parseValorFlexivel(conta.valor);
+    const baseValor = Math.max(Math.abs(valorConta), Math.abs(valorLanc), 1);
+    const toleranciaValor = Math.max(0.02, baseValor * (conta.projecao ? 0.35 : 0.05));
+    const diffValor = Math.abs(valorLanc - valorConta);
+    if (diffValor > toleranciaValor) continue;
+
+    const score = diffDias * 1000 + diffValor;
+    if (score < melhorScore) {
+      melhorScore = score;
+      melhorMatch = conta;
+    }
+  }
+
+  return melhorMatch;
 }
 
-// Match por descrição similar: mesmo tipo de fluxo, descrição ≥50% similar, data ± 5 dias
+// Match por descrição similar: mesmo tipo de fluxo, valor compatível e descrição parecida
 function encontrarMatchPorDescricao(
   lancamento: { valor: string; dataVencimento: string; tipo: string; descricao: string },
   contas: ContaFluxo[]
@@ -227,6 +263,7 @@ function encontrarMatchPorDescricao(
   
   for (const conta of contas) {
     if (conta.pago) continue;
+    if (conta.projecao) continue;
     const contaEhSaida = tiposSaida.includes(conta.tipo);
     if (lancEhSaida && !contaEhSaida) continue;
     if (!lancEhSaida && conta.tipo !== lancamento.tipo) continue;
@@ -236,12 +273,18 @@ function encontrarMatchPorDescricao(
     
     const diffDias = Math.abs(differenceInDays(dataLanc, dataConta));
     if (diffDias > 7) continue;
+
+    const valorConta = parseValorFlexivel(conta.valor);
+    const baseValor = Math.max(Math.abs(valorConta), Math.abs(valorLanc), 1);
+    const diffValor = Math.abs(valorLanc - valorConta);
+    const toleranciaValor = Math.max(0.02, baseValor * 0.05);
+    if (diffValor > toleranciaValor) continue;
     
     const similaridade = calcularSimilaridade(lancamento.descricao, conta.descricao);
     const nomeMatch = extrairNomesProprios(lancamento.descricao, conta.descricao);
     if (similaridade < 0.3 && !nomeMatch) continue;
     
-    const score = similaridade - (diffDias * 0.05);
+    const score = similaridade + (nomeMatch ? 0.15 : 0) - (diffDias * 0.05) - (diffValor / baseValor);
     if (score > melhorScore) {
       melhorScore = score;
       melhorMatch = conta;
@@ -288,6 +331,39 @@ function encontrarMatchProjecao(
     
     return valorMatch && mesmaSemana;
   }) || null;
+}
+
+function criarAtualizacaoConciliacao(
+  match: ContaFluxo,
+  lancamento: ExtractedLancamento,
+  contaOrigem?: string,
+  descricaoConciliacao?: string,
+) {
+  const valorLanc = parseValorFlexivel(lancamento.valor);
+  const valorConta = parseValorFlexivel(match.valor);
+  const changes: Partial<ContaFluxo> = {};
+
+  if (Math.abs(valorLanc - valorConta) > 0.01) {
+    changes.valor = lancamento.valor;
+  }
+
+  if (contaOrigem && match.contaOrigem !== contaOrigem) {
+    changes.contaOrigem = contaOrigem;
+  }
+
+  if (match.projecao) {
+    changes.projecao = false;
+    changes.descricao = lancamento.descricao;
+    changes.dataVencimento = lancamento.dataVencimento;
+  }
+
+  return {
+    id: match.id,
+    descricao: descricaoConciliacao || lancamento.descricao,
+    dataPagamento: lancamento.dataVencimento,
+    lancamentoConciliadoId: match.id,
+    ...(Object.keys(changes).length > 0 ? { changes } : {}),
+  };
 }
 
 export function ConciliacaoSection({
@@ -539,7 +615,7 @@ export function ConciliacaoSection({
     for (const lanc of todosLancamentos) {
       const match = encontrarMatch(lanc, contasNaoPagas);
       if (match) {
-        conciliados.push({ id: match.id, descricao: lanc.descricao, dataPagamento: lanc.dataVencimento, lancamentoConciliadoId: match.id });
+        conciliados.push(criarAtualizacaoConciliacao(match, lanc, contaOrigem));
         const idx = contasNaoPagas.findIndex(c => c.id === match.id);
         if (idx >= 0) contasNaoPagas.splice(idx, 1);
         continue;
@@ -570,7 +646,7 @@ export function ConciliacaoSection({
 
       const matchCanal = encontrarMatchPorCanal(lanc, contasNaoPagas);
       if (matchCanal) {
-        conciliados.push({ id: matchCanal.id, descricao: `${lanc.descricao} (canal: ${matchCanal.descricao})`, dataPagamento: lanc.dataVencimento, lancamentoConciliadoId: matchCanal.id });
+        conciliados.push(criarAtualizacaoConciliacao(matchCanal, lanc, contaOrigem, `${lanc.descricao} (canal: ${matchCanal.descricao})`));
         const idx = contasNaoPagas.findIndex(c => c.id === matchCanal.id);
         if (idx >= 0) contasNaoPagas.splice(idx, 1);
         continue;
@@ -578,7 +654,7 @@ export function ConciliacaoSection({
 
       const matchDesc = encontrarMatchPorDescricao(lanc, contasNaoPagas);
       if (matchDesc) {
-        conciliados.push({ id: matchDesc.id, descricao: `${lanc.descricao} (≈ ${matchDesc.descricao})`, dataPagamento: lanc.dataVencimento, lancamentoConciliadoId: matchDesc.id });
+        conciliados.push(criarAtualizacaoConciliacao(matchDesc, lanc, contaOrigem, `${lanc.descricao} (≈ ${matchDesc.descricao})`));
         const idx = contasNaoPagas.findIndex(c => c.id === matchDesc.id);
         if (idx >= 0) contasNaoPagas.splice(idx, 1);
         continue;
@@ -586,7 +662,7 @@ export function ConciliacaoSection({
 
       const matchProj = encontrarMatchProjecao(lanc, contasNaoPagas);
       if (matchProj) {
-        conciliados.push({ id: matchProj.id, descricao: `${lanc.descricao} (proj: ${matchProj.descricao})` });
+        conciliados.push(criarAtualizacaoConciliacao(matchProj, lanc, contaOrigem, `${lanc.descricao} (proj: ${matchProj.descricao})`));
         const idx = contasNaoPagas.findIndex(c => c.id === matchProj.id);
         if (idx >= 0) contasNaoPagas.splice(idx, 1);
         continue;
@@ -895,7 +971,7 @@ export function ConciliacaoSection({
   // === Importar Conciliação Detalhada (XLSX) ===
   const handleXlsxUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !onUpdateMultipleContas) return;
+    if (!file) return;
 
     setXlsxProcessing(true);
 
@@ -1174,12 +1250,8 @@ export function ConciliacaoSection({
         enriched += combo.length;
       }
 
-      if (updates.length > 0) {
-        onUpdateMultipleContas(updates);
-      }
-
-      if (novosFromSplit.length > 0) {
-        onConciliar({ conciliados: [], novos: novosFromSplit, ignorados: 0, paraRevisar: [] });
+      if (updates.length > 0 || novosFromSplit.length > 0) {
+        onConciliar({ conciliados: [], novos: novosFromSplit, ignorados: 0, paraRevisar: [], updates });
       }
 
       if (reviewKeysToRemove.size > 0) {

@@ -965,18 +965,25 @@ export function FinanceiroMode({
                     });
                   }}
                   onConciliar={(result) => {
+                    const updatesMap = new Map((result.updates || []).map(update => [update.id, update.changes]));
+                    const conciliadosMap = new Map(result.conciliados.map(conciliado => [conciliado.id, conciliado]));
+
                     const contasAtualizadas = (data.contasFluxo || []).map(c => {
-                       const conciliado = result.conciliados.find(cc => cc.id === c.id);
-                       if (conciliado) {
-                         return { 
-                           ...c, 
-                           pago: true, 
+                       const update = updatesMap.get(c.id);
+                       const conciliado = conciliadosMap.get(c.id);
+                       if (!update && !conciliado) return c;
+
+                       return {
+                         ...c,
+                         ...(update || {}),
+                         ...(conciliado?.changes || {}),
+                         ...(conciliado ? {
+                           pago: true,
                            conciliado: true,
                            ...(conciliado.dataPagamento ? { dataPagamento: conciliado.dataPagamento } : {}),
                            ...(conciliado.lancamentoConciliadoId ? { lancamentoConciliadoId: conciliado.lancamentoConciliadoId } : {}),
-                         };
-                       }
-                       return c;
+                         } : {}),
+                       };
                     });
                     
                     const novasContas: ContaFluxo[] = result.novos.map(n => ({
