@@ -959,6 +959,39 @@ export function DRESection({
                 <span>{formatCurrency(totais.resultadoOperacional)}</span>
               </div>
 
+              {/* Receitas Financeiras (após resultado operacional) */}
+              {totais.receitasFinanceiras !== 0 && (
+                <div className="space-y-1 p-2 rounded border bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
+                  <div className="flex justify-between text-sm font-medium text-blue-700 dark:text-blue-400">
+                    <span>RECEITAS FINANCEIRAS</span>
+                    <span>{formatCurrency(totais.receitasFinanceiras)}</span>
+                  </div>
+                  {dre.filter(m => m.modalidade === 'RECEITAS FINANCEIRAS').map(mod =>
+                    mod.grupos.map(g =>
+                      g.categorias.map(cat => (
+                        <div key={cat.categoria} className="flex justify-between text-xs text-muted-foreground pl-2">
+                          <span>{cat.categoria}</span>
+                          <span>{formatCurrency(cat.valor)}</span>
+                        </div>
+                      ))
+                    )
+                  )}
+                </div>
+              )}
+
+              {/* Resultado Final */}
+              {totais.receitasFinanceiras !== 0 && (
+                <div className={cn(
+                  "flex justify-between font-bold p-3 rounded-lg border-2",
+                  totais.resultadoFinal >= 0
+                    ? "bg-green-50 dark:bg-green-900/20 border-green-300 text-green-700"
+                    : "bg-red-50 dark:bg-red-900/20 border-red-300 text-red-700"
+                )}>
+                  <span>RESULTADO FINAL</span>
+                  <span>{formatCurrency(totais.resultadoFinal)}</span>
+                </div>
+              )}
+
               {/* CMV Real (Gerencial) */}
               {cmvGerencialData && cmvGerencialData.receitaBruta > 0 && (
                 <div className="space-y-1 p-3 rounded-lg border bg-purple-50/50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800">
