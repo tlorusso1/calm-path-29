@@ -17,10 +17,8 @@ export const CATEGORIAS_DRE: CategoriaDRE[] = [
   
   // ============= OUTRAS RECEITAS/DESPESAS (ENTRADAS) =============
   { tipo: 'RECEITAS', modalidade: 'OUTRAS RECEITAS/DESPESAS', grupo: 'Outras Entradas', categoria: 'Entradas a Reclassificar' },
-  { tipo: 'RECEITAS', modalidade: 'OUTRAS RECEITAS/DESPESAS', grupo: 'Outras Entradas', categoria: 'Transferencias entre contas' },
   
-  // ============= RECEITAS FINANCEIRAS =============
-  { tipo: 'RECEITAS', modalidade: 'RECEITAS FINANCEIRAS', grupo: 'Receitas Financeiras', categoria: 'Emprestimos e Financiamentos' },
+  // ============= RECEITAS FINANCEIRAS (aparecem APÓS resultado operacional, NÃO entram em receita bruta) =============
   { tipo: 'RECEITAS', modalidade: 'RECEITAS FINANCEIRAS', grupo: 'Receitas Financeiras', categoria: 'Rendimentos de Aplicações' },
   { tipo: 'RECEITAS', modalidade: 'RECEITAS FINANCEIRAS', grupo: 'Receitas Financeiras', categoria: 'Estornos de pagamentos' },
   
