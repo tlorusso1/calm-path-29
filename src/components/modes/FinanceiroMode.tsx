@@ -946,38 +946,12 @@ export function FinanceiroMode({
       {/* ========== TAB: CONCILIAÇÃO ========== */}
       {activeTab === 'conciliacao' && (
         <div className="space-y-6">
-          <Card className="border-l-4 border-l-slate-500">
+          <Card className="border-l-4 border-l-cyan-500">
             <CardContent className="p-4 space-y-4">
               <SectionHeader 
-                icon="⚙️" 
-                title="PARÂMETROS DO SISTEMA"
-                subtitle="(alterar aqui muda tudo acima)"
-              />
-              
-              <Collapsible open={openSections.custosFixos} onOpenChange={() => toggleSection('custosFixos')}>
-                <CustosFixosCard
-                  data={data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS}
-                  onUpdate={(custosFixosDetalhados) => onUpdateFinanceiroData({ custosFixosDetalhados })}
-                />
-              </Collapsible>
-              
-              <GerarContasFixasButton
-                custosFixos={data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS}
-                contasExistentes={data.contasFluxo || []}
-                adsBase={parseCurrency(data.adsBase || '')}
-                faturamentoMesAnterior={data.faturamentoMesAnterior || ''}
-                onFaturamentoChange={(value) => onUpdateFinanceiroData({ faturamentoMesAnterior: value })}
-                onGerarContas={(novasContas) => {
-                  const contasComId: ContaFluxo[] = novasContas.map(c => ({
-                    ...c,
-                    id: crypto.randomUUID(),
-                  }));
-                  onUpdateFinanceiroData({
-                    contasFluxo: [...(data.contasFluxo || []), ...contasComId],
-                  });
-                }}
-                isOpen={openSections.gerarContas || false}
-                onToggle={() => toggleSection('gerarContas')}
+                icon="🏦" 
+                title="CONCILIAÇÃO BANCÁRIA"
+                subtitle="(importar extratos e classificar lançamentos)"
               />
               
               <div id="ritmo-conciliacao" className="scroll-mt-20">
@@ -1078,6 +1052,47 @@ export function FinanceiroMode({
                   onToggle={() => toggleSection('conciliacao')}
                 />
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ========== TAB: CONFIG ========== */}
+      {activeTab === 'config' && (
+        <div className="space-y-6">
+          <Card className="border-l-4 border-l-slate-500">
+            <CardContent className="p-4 space-y-4">
+              <SectionHeader 
+                icon="⚙️" 
+                title="PARÂMETROS DO SISTEMA"
+                subtitle="(alterar aqui muda tudo acima)"
+              />
+              
+              <Collapsible open={openSections.custosFixos} onOpenChange={() => toggleSection('custosFixos')}>
+                <CustosFixosCard
+                  data={data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS}
+                  onUpdate={(custosFixosDetalhados) => onUpdateFinanceiroData({ custosFixosDetalhados })}
+                />
+              </Collapsible>
+              
+              <GerarContasFixasButton
+                custosFixos={data.custosFixosDetalhados || DEFAULT_CUSTOS_FIXOS}
+                contasExistentes={data.contasFluxo || []}
+                adsBase={parseCurrency(data.adsBase || '')}
+                faturamentoMesAnterior={data.faturamentoMesAnterior || ''}
+                onFaturamentoChange={(value) => onUpdateFinanceiroData({ faturamentoMesAnterior: value })}
+                onGerarContas={(novasContas) => {
+                  const contasComId: ContaFluxo[] = novasContas.map(c => ({
+                    ...c,
+                    id: crypto.randomUUID(),
+                  }));
+                  onUpdateFinanceiroData({
+                    contasFluxo: [...(data.contasFluxo || []), ...contasComId],
+                  });
+                }}
+                isOpen={openSections.gerarContas || false}
+                onToggle={() => toggleSection('gerarContas')}
+              />
               
               <FornecedoresManager
                 fornecedores={data.fornecedores || []}
