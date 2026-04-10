@@ -43,6 +43,7 @@ import { DEFAULT_CUSTOS_FIXOS, calcularTotalCustosFixos, DEFAULT_EMPRESTIMOS } f
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { loadFornecedores } from '@/utils/loadFornecedores';
+import { FinanceiroBottomNav, type FinanceiroTab } from '@/components/financeiro/FinanceiroBottomNav';
 
 interface FinanceiroModeProps {
   mode: FocusMode;
