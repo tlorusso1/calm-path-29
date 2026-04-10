@@ -723,9 +723,9 @@ export function DRESection({
               <div className="flex items-center gap-2">
                 <span className={cn(
                   "text-sm font-medium",
-                  totais.resultadoOperacional >= 0 ? "text-green-600" : "text-destructive"
+                  totais.resultadoFinal >= 0 ? "text-green-600" : "text-destructive"
                 )}>
-                  {formatCurrency(totais.resultadoOperacional)}
+                  {formatCurrency(totais.resultadoFinal)}
                 </span>
                 {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </div>
