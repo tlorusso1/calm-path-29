@@ -66,6 +66,7 @@ export function FinanceiroMode({
   supplyExports,
   reuniaoAdsData,
 }: FinanceiroModeProps) {
+  const [activeTab, setActiveTab] = useState<FinanceiroTab>('resumo');
   const [openSections, setOpenSections] = useState({
     // Posição Atual (Real)
     contas: false,
