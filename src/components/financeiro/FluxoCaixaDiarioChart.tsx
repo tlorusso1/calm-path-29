@@ -108,6 +108,9 @@ export function FluxoCaixaDiarioChart({
       }
     });
   }, [contasFluxo]);
+
+  const temEntradasFuturasDetalhadas = contasFuturas.some(c => TIPOS_ENTRADA.includes(c.tipo));
+  const temSaidasFuturasDetalhadas = contasFuturas.some(c => TIPOS_SAIDA.includes(c.tipo));
   
   // Gerar projeção para os próximos 30 dias
   const projecao = useMemo((): DiaProjecao[] => {
@@ -121,32 +124,43 @@ export function FluxoCaixaDiarioChart({
     // para descontar da média e evitar dupla contagem
     let totalEntradasConhecidas = 0;
     let totalSaidasConhecidas = 0;
-    let diasComContas = 0;
+    let diasComEntradas = 0;
+    let diasComSaidas = 0;
     
     for (let i = 1; i <= 30; i++) {
       const diaStr = format(addDays(hoje, i), 'yyyy-MM-dd');
       const contasDoDia = contasFuturas.filter(c => c.dataVencimento === diaStr);
-      if (contasDoDia.length > 0) {
-        diasComContas++;
-        for (const conta of contasDoDia) {
-          const valor = parseValorFlexivel(conta.valor);
-          if (TIPOS_ENTRADA.includes(conta.tipo)) totalEntradasConhecidas += valor;
-          else if (TIPOS_SAIDA.includes(conta.tipo)) totalSaidasConhecidas += valor;
+
+      let teveEntradaNoDia = false;
+      let teveSaidaNoDia = false;
+
+      for (const conta of contasDoDia) {
+        const valor = parseValorFlexivel(conta.valor);
+        if (TIPOS_ENTRADA.includes(conta.tipo)) {
+          totalEntradasConhecidas += valor;
+          teveEntradaNoDia = true;
+        } else if (TIPOS_SAIDA.includes(conta.tipo)) {
+          totalSaidasConhecidas += valor;
+          teveSaidaNoDia = true;
         }
       }
+
+      if (teveEntradaNoDia) diasComEntradas++;
+      if (teveSaidaNoDia) diasComSaidas++;
     }
     
-    // Média ajustada: remove a parcela já coberta por contas conhecidas
-    // para que os dias "vazios" complementem (não dupliquem) o total
-    const diasVazios = 30 - diasComContas;
+    // Só complementa com média quando aquele lado do fluxo NÃO tem contas futuras detalhadas.
+    // Se já existem saídas/entradas lançadas, a projeção respeita apenas esses valores.
+    const diasSemEntradasDetalhadas = 30 - diasComEntradas;
+    const diasSemSaidasDetalhadas = 30 - diasComSaidas;
     const totalEntradaEsperado30d = mediaEntrada * 30;
     const totalSaidaEsperado30d = mediaSaida * 30;
     
-    const entradaResidual = diasVazios > 0 
-      ? Math.max(0, totalEntradaEsperado30d - totalEntradasConhecidas) / diasVazios 
+    const entradaResidual = diasSemEntradasDetalhadas > 0 && !temEntradasFuturasDetalhadas
+      ? Math.max(0, totalEntradaEsperado30d - totalEntradasConhecidas) / diasSemEntradasDetalhadas 
       : 0;
-    const saidaResidual = diasVazios > 0 
-      ? Math.max(0, totalSaidaEsperado30d - totalSaidasConhecidas) / diasVazios 
+    const saidaResidual = diasSemSaidasDetalhadas > 0 && !temSaidasFuturasDetalhadas
+      ? Math.max(0, totalSaidaEsperado30d - totalSaidasConhecidas) / diasSemSaidasDetalhadas 
       : 0;
     
     for (let i = 0; i <= 30; i++) {
@@ -159,21 +173,29 @@ export function FluxoCaixaDiarioChart({
       let entradasDia = 0;
       let saidasDia = 0;
       let estimado = false;
+      let teveEntradaNoDia = false;
+      let teveSaidaNoDia = false;
       
       // Somar contas conhecidas
       for (const conta of contasDoDia) {
         const valor = parseValorFlexivel(conta.valor);
         if (TIPOS_ENTRADA.includes(conta.tipo)) {
           entradasDia += valor;
+          teveEntradaNoDia = true;
         } else if (TIPOS_SAIDA.includes(conta.tipo)) {
           saidasDia += valor;
+          teveSaidaNoDia = true;
         }
       }
       
-      // Se não tiver contas conhecidas, usar média residual (sem dupla contagem)
-      if (contasDoDia.length === 0 && i > 0) {
-        entradasDia = entradaResidual;
-        saidasDia = saidaResidual;
+      // Complemento estatístico só entra em lados sem contas futuras detalhadas
+      if (i > 0 && !teveEntradaNoDia && entradaResidual > 0) {
+        entradasDia += entradaResidual;
+        estimado = true;
+      }
+
+      if (i > 0 && !teveSaidaNoDia && saidaResidual > 0) {
+        saidasDia += saidaResidual;
         estimado = true;
       }
       
@@ -200,7 +222,15 @@ export function FluxoCaixaDiarioChart({
     }
     
     return dados;
-  }, [caixaAtual, caixaMinimo, contasFuturas, mediaEntrada, mediaSaida]);
+  }, [
+    caixaAtual,
+    caixaMinimo,
+    contasFuturas,
+    mediaEntrada,
+    mediaSaida,
+    temEntradasFuturasDetalhadas,
+    temSaidasFuturasDetalhadas,
+  ]);
   
   // Gerar visão dos últimos 60 dias (dados reais)
   const historico60d = useMemo((): DiaProjecao[] => {
@@ -265,6 +295,9 @@ export function FluxoCaixaDiarioChart({
   // Calcular variação esperada
   const saldoFinal = projecao[projecao.length - 1]?.saldo || caixaAtual;
   const variacaoEsperada = saldoFinal - caixaAtual;
+  const totalEntradasProjetadas = projecao[projecao.length - 1]?.entradasAcumuladas || 0;
+  const totalSaidasProjetadas = projecao[projecao.length - 1]?.saidasAcumuladas || 0;
+  const deltaProjetado = totalEntradasProjetadas - totalSaidasProjetadas;
   
   // Formatter para tooltip
   const formatCurrency = (valor: number) => 
@@ -317,7 +350,11 @@ export function FluxoCaixaDiarioChart({
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">
           3 linhas: Entradas acumuladas (verde), Saídas acumuladas (vermelho), Saldo (azul). 
-          <span className="ml-1 opacity-70">Dias estimados usam média 90d.</span>
+          <span className="ml-1 opacity-70">
+            {temEntradasFuturasDetalhadas || temSaidasFuturasDetalhadas
+              ? 'Contas futuras lançadas não recebem complemento estatístico.'
+              : 'Dias estimados usam média 90d.'}
+          </span>
         </p>
         
         {/* Gráfico com 3 linhas */}
@@ -408,24 +445,39 @@ export function FluxoCaixaDiarioChart({
         {/* Resumo */}
         <div className="grid grid-cols-3 gap-3 text-center">
           <div className="p-2 rounded-lg bg-muted/50">
-            <p className="text-[10px] text-muted-foreground">Média entrada/dia ({diasReais}d)</p>
+            <p className="text-[10px] text-muted-foreground">
+              {viewMode === 'futuro' && temEntradasFuturasDetalhadas
+                ? 'Entradas lançadas (30d)'
+                : `Média entrada/dia (${diasReais}d)`}
+            </p>
             <p className="text-sm font-medium text-green-600 dark:text-green-500">
-              +{formatCurrency(mediaEntrada)}
+              +{formatCurrency(viewMode === 'futuro' && temEntradasFuturasDetalhadas ? totalEntradasProjetadas : mediaEntrada)}
             </p>
           </div>
           <div className="p-2 rounded-lg bg-muted/50">
-            <p className="text-[10px] text-muted-foreground">Média saída/dia ({diasReais}d)</p>
+            <p className="text-[10px] text-muted-foreground">
+              {viewMode === 'futuro' && temSaidasFuturasDetalhadas
+                ? 'Saídas lançadas (30d)'
+                : `Média saída/dia (${diasReais}d)`}
+            </p>
             <p className="text-sm font-medium text-destructive">
-              -{formatCurrency(mediaSaida)}
+              -{formatCurrency(viewMode === 'futuro' && temSaidasFuturasDetalhadas ? totalSaidasProjetadas : mediaSaida)}
             </p>
           </div>
           <div className="p-2 rounded-lg bg-muted/50">
-            <p className="text-[10px] text-muted-foreground">Delta diário</p>
+            <p className="text-[10px] text-muted-foreground">
+              {viewMode === 'futuro' && (temEntradasFuturasDetalhadas || temSaidasFuturasDetalhadas)
+                ? 'Delta projetado (30d)'
+                : 'Delta diário'}
+            </p>
             <p className={cn(
               "text-sm font-medium",
-              (mediaEntrada - mediaSaida) >= 0 ? "text-green-600 dark:text-green-500" : "text-destructive"
+              (viewMode === 'futuro' && (temEntradasFuturasDetalhadas || temSaidasFuturasDetalhadas) ? deltaProjetado : (mediaEntrada - mediaSaida)) >= 0
+                ? "text-green-600 dark:text-green-500"
+                : "text-destructive"
             )}>
-              {(mediaEntrada - mediaSaida) >= 0 ? '+' : ''}{formatCurrency(mediaEntrada - mediaSaida)}
+              {(viewMode === 'futuro' && (temEntradasFuturasDetalhadas || temSaidasFuturasDetalhadas) ? deltaProjetado : (mediaEntrada - mediaSaida)) >= 0 ? '+' : ''}
+              {formatCurrency(viewMode === 'futuro' && (temEntradasFuturasDetalhadas || temSaidasFuturasDetalhadas) ? deltaProjetado : (mediaEntrada - mediaSaida))}
             </p>
           </div>
         </div>
