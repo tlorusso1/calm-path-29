@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { TrendingUp, Calendar, ChevronLeft, ChevronRight, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ContaFluxo, MovimentacaoEstoque, CanalVenda } from '@/types/focus-mode';
+import { parseValorFlexivel } from '@/utils/fluxoCaixaCalculator';
 import { FATURAMENTO_HISTORICO, FaturamentoMensal } from '@/data/faturamento-historico';
 import { format, subMonths, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -49,11 +50,7 @@ function classificarContaOrigem(contaOrigem?: string): CanalVenda | null {
   return null;
 }
 
-function parseCurrency(value: string): number {
-  if (!value) return 0;
-  const cleaned = value.replace(/[^\d,.-]/g, '').replace(',', '.');
-  return parseFloat(cleaned) || 0;
-}
+const parseCurrency = parseValorFlexivel;
 
 function formatCurrency(valor: number): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
