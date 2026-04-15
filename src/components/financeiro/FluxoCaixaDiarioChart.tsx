@@ -117,6 +117,38 @@ export function FluxoCaixaDiarioChart({
     let entradasAcumuladas = 0;
     let saidasAcumuladas = 0;
     
+    // Calcular total de contas futuras conhecidas nos próximos 30 dias
+    // para descontar da média e evitar dupla contagem
+    let totalEntradasConhecidas = 0;
+    let totalSaidasConhecidas = 0;
+    let diasComContas = 0;
+    
+    for (let i = 1; i <= 30; i++) {
+      const diaStr = format(addDays(hoje, i), 'yyyy-MM-dd');
+      const contasDoDia = contasFuturas.filter(c => c.dataVencimento === diaStr);
+      if (contasDoDia.length > 0) {
+        diasComContas++;
+        for (const conta of contasDoDia) {
+          const valor = parseValorFlexivel(conta.valor);
+          if (TIPOS_ENTRADA.includes(conta.tipo)) totalEntradasConhecidas += valor;
+          else if (TIPOS_SAIDA.includes(conta.tipo)) totalSaidasConhecidas += valor;
+        }
+      }
+    }
+    
+    // Média ajustada: remove a parcela já coberta por contas conhecidas
+    // para que os dias "vazios" complementem (não dupliquem) o total
+    const diasVazios = 30 - diasComContas;
+    const totalEntradaEsperado30d = mediaEntrada * 30;
+    const totalSaidaEsperado30d = mediaSaida * 30;
+    
+    const entradaResidual = diasVazios > 0 
+      ? Math.max(0, totalEntradaEsperado30d - totalEntradasConhecidas) / diasVazios 
+      : 0;
+    const saidaResidual = diasVazios > 0 
+      ? Math.max(0, totalSaidaEsperado30d - totalSaidasConhecidas) / diasVazios 
+      : 0;
+    
     for (let i = 0; i <= 30; i++) {
       const diaData = addDays(hoje, i);
       const diaStr = format(diaData, 'yyyy-MM-dd');
@@ -138,10 +170,10 @@ export function FluxoCaixaDiarioChart({
         }
       }
       
-      // Se não tiver contas conhecidas, usar média
+      // Se não tiver contas conhecidas, usar média residual (sem dupla contagem)
       if (contasDoDia.length === 0 && i > 0) {
-        entradasDia = mediaEntrada;
-        saidasDia = mediaSaida;
+        entradasDia = entradaResidual;
+        saidasDia = saidaResidual;
         estimado = true;
       }
       
