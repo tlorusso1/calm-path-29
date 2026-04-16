@@ -784,20 +784,48 @@ export function SupplyChainMode({
 
           {/* Alertas */}
           {/* Alertas como Lista Estruturada */}
-          {(itensProcessados.some(i => i.status === 'vermelho' && ['produto_acabado', 'acessorio', 'brinde', 'material_pdv'].includes(i.tipo)) || 
+          {(itensProcessados.some(i => (i.quantidade ?? 0) <= 0 && TIPOS_PRODUTO_FINAL.includes(i.tipo)) ||
+            itensProcessados.some(i => i.status === 'vermelho' && ['produto_acabado', 'acessorio', 'brinde', 'material_pdv'].includes(i.tipo)) || 
             itensProcessados.some(i => i.status === 'amarelo' && ['produto_acabado', 'acessorio', 'brinde', 'material_pdv'].includes(i.tipo)) ||
             itensProcessados.some(i => {
               const dias = calcularDiasAteVencimento(i.dataValidade);
               return dias !== null && dias < 90;
             })) && (
             <div className="pt-3 border-t border-border space-y-3">
+              {/* Sem Estoque - produtos acabados zerados */}
+              {(() => {
+                const semEstoque = itensProcessados.filter(
+                  i => (i.quantidade ?? 0) <= 0 && TIPOS_PRODUTO_FINAL.includes(i.tipo)
+                );
+                if (semEstoque.length === 0) return null;
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
+                      <span className="font-medium text-destructive text-sm">
+                        Sem Estoque ({semEstoque.length})
+                      </span>
+                    </div>
+                    {renderAlertGroupedByTipo(
+                      semEstoque,
+                      (item) => (
+                        <>
+                          <span>{item.nome}</span>
+                          <span className="text-destructive font-medium">Sem estoque</span>
+                        </>
+                      )
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Ruptura Iminente - produtos visíveis + insumos em dropdown */}
               {(() => {
                 const produtosRuptura = itensProcessados.filter(
-                  i => i.status === 'vermelho' && TIPOS_PRODUTO_FINAL.includes(i.tipo)
+                  i => i.status === 'vermelho' && TIPOS_PRODUTO_FINAL.includes(i.tipo) && (i.quantidade ?? 0) > 0
                 );
                 const insumosRuptura = itensProcessados.filter(
-                  i => i.status === 'vermelho' && ['materia_prima', 'embalagem'].includes(i.tipo)
+                  i => i.status === 'vermelho' && ['materia_prima', 'embalagem'].includes(i.tipo) && (i.quantidade ?? 0) > 0
                 );
                 if (produtosRuptura.length === 0 && insumosRuptura.length === 0) return null;
                 return (
