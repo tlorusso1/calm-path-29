@@ -822,10 +822,10 @@ export function SupplyChainMode({
               {/* Ruptura Iminente - produtos visíveis + insumos em dropdown */}
               {(() => {
                 const produtosRuptura = itensProcessados.filter(
-                  i => i.status === 'vermelho' && TIPOS_PRODUTO_FINAL.includes(i.tipo)
+                  i => i.status === 'vermelho' && TIPOS_PRODUTO_FINAL.includes(i.tipo) && (i.quantidade ?? 0) > 0
                 );
                 const insumosRuptura = itensProcessados.filter(
-                  i => i.status === 'vermelho' && ['materia_prima', 'embalagem'].includes(i.tipo)
+                  i => i.status === 'vermelho' && ['materia_prima', 'embalagem'].includes(i.tipo) && (i.quantidade ?? 0) > 0
                 );
                 if (produtosRuptura.length === 0 && insumosRuptura.length === 0) return null;
                 return (
