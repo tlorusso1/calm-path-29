@@ -1,14 +1,31 @@
-import { RefreshCw, TrendingUp, MousePointerClick, Eye, ShoppingCart, Info } from "lucide-react";
+import { useState } from "react";
+import { RefreshCw, TrendingUp, MousePointerClick, ShoppingCart, Info, Upload } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   useMarketingConsolidado,
   useMetaInsights,
   useMetaCampaigns,
   useGoogleCampaigns,
+  useMetaAdSets,
+  useMetaAds,
 } from "../hooks/useMarketingData";
+import { isGoogleConfigured } from "../api/googleAds";
 import { CanalCard } from "../components/CanalCard";
-import { CampanhaRow } from "../components/CampanhaRow";
+import { CampanhaCard } from "../components/CampanhaCard";
+import { AdSetCard } from "../components/AdSetCard";
+import { AdCard } from "../components/AdCard";
+import { UploadCriativo } from "../components/UploadCriativo";
+
+type SubTab = "campanhas" | "publicos" | "criativos" | "upload";
+
+const SUB_TABS: { id: SubTab; label: string }[] = [
+  { id: "campanhas", label: "Campanhas" },
+  { id: "publicos", label: "Públicos" },
+  { id: "criativos", label: "Criativos" },
+  { id: "upload", label: "Upload" },
+];
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
@@ -17,16 +34,20 @@ const fmtK = (v: number) =>
   v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
 
 export default function MarketingPage() {
+  const [subTab, setSubTab] = useState<SubTab>("campanhas");
   const qc = useQueryClient();
   const { totalSpend, totalRevenue, roasGeral, channels, isLoading, isMock } = useMarketingConsolidado();
   const metaInsights = useMetaInsights();
   const metaCampaigns = useMetaCampaigns();
   const googleCampaigns = useGoogleCampaigns();
+  const metaAdSets = useMetaAdSets();
+  const metaAds = useMetaAds();
 
   const meta = metaInsights.data;
+
   const allCampaigns = [
     ...(metaCampaigns.data ?? []).map(c => ({ ...c, channel: "meta" as const })),
-    ...(googleCampaigns.data ?? []).map(c => ({
+    ...(isGoogleConfigured() ? (googleCampaigns.data ?? []).map(c => ({
       id: c.id,
       name: c.name,
       status: c.status === "ENABLED" ? "ACTIVE" as const : "PAUSED" as const,
@@ -45,8 +66,11 @@ export default function MarketingPage() {
         roas: c.roas,
       },
       channel: "google" as const,
-    })),
+    })) : []),
   ].sort((a, b) => b.insights.spend - a.insights.spend);
+
+  const adsets = (metaAdSets.data ?? []).sort((a, b) => b.insights.spend - a.insights.spend);
+  const ads = (metaAds.data ?? []).sort((a, b) => b.insights.spend - a.insights.spend);
 
   return (
     <div className="flex flex-col animate-fade-in">
@@ -55,7 +79,9 @@ export default function MarketingPage() {
         <div>
           <h1 className="text-lg font-semibold">Marketing & Ads</h1>
           <p className="text-xs text-muted-foreground">
-            {isLoading ? "Carregando..." : `Este mês · ${allCampaigns.filter(c => c.status === "ACTIVE").length} campanhas ativas`}
+            {isLoading
+              ? "Carregando..."
+              : `Este mês · ${allCampaigns.filter(c => c.status === "ACTIVE").length} campanhas ativas`}
           </p>
         </div>
         <Button
@@ -104,9 +130,9 @@ export default function MarketingPage() {
           },
           {
             label: "Cliques totais",
-            value: isLoading ? null : fmtK((meta?.clicks ?? 0) + (googleCampaigns.data?.reduce((s,c) => s+c.clicks, 0) ?? 0)),
+            value: isLoading ? null : fmtK((meta?.clicks ?? 0) + (isGoogleConfigured() ? (googleCampaigns.data?.reduce((s, c) => s + c.clicks, 0) ?? 0) : 0)),
             icon: <MousePointerClick size={13} className="text-muted-foreground" />,
-            sub: `CTR ${((meta?.ctr ?? 0)).toFixed(1)}% Meta`,
+            sub: `CTR ${(meta?.ctr ?? 0).toFixed(1)}% Meta`,
           },
         ].map(({ label, value, icon, sub, valueColor }) => (
           <div key={label} className="metric-card">
@@ -160,23 +186,118 @@ export default function MarketingPage() {
         </div>
       )}
 
-      {/* Campanhas */}
+      {/* Sub-tabs */}
+      <div className="px-4 md:px-6 mb-3">
+        <div className="flex gap-1 bg-muted/40 p-1 rounded-lg">
+          {SUB_TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setSubTab(t.id)}
+              className={cn(
+                "flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-colors",
+                subTab === t.id
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {t.id === "upload" ? (
+                <span className="flex items-center justify-center gap-1">
+                  <Upload size={10} />
+                  {t.label}
+                </span>
+              ) : (
+                t.label
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tab content */}
       <div className="px-4 md:px-6 pb-8">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-          Campanhas ({allCampaigns.length})
-        </p>
-        {isLoading ? (
-          <div className="space-y-2">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-14 bg-muted animate-pulse rounded-lg" />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {allCampaigns.map((c) => (
-              <CampanhaRow key={`${c.channel}-${c.id}`} campanha={c} />
-            ))}
-          </div>
+
+        {/* Campanhas */}
+        {subTab === "campanhas" && (
+          <>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Campanhas ({allCampaigns.length})
+            </p>
+            {isLoading ? (
+              <div className="space-y-2">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-14 bg-muted animate-pulse rounded-lg" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {allCampaigns.map((c) => (
+                  <CampanhaCard key={`${c.channel}-${c.id}`} campanha={c} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Públicos */}
+        {subTab === "publicos" && (
+          <>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Públicos / Ad Sets ({adsets.length})
+            </p>
+            {metaAdSets.isLoading ? (
+              <div className="space-y-2">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-24 bg-muted animate-pulse rounded-xl" />
+                ))}
+              </div>
+            ) : adsets.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">
+                Nenhum público encontrado.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {adsets.map((as) => (
+                  <AdSetCard key={as.id} adset={as} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Criativos */}
+        {subTab === "criativos" && (
+          <>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Criativos / Ads ({ads.length})
+            </p>
+            {metaAds.isLoading ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="aspect-[3/4] bg-muted animate-pulse rounded-xl" />
+                ))}
+              </div>
+            ) : ads.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">
+                Nenhum criativo encontrado.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {ads.map((ad) => (
+                  <AdCard key={ad.id} ad={ad} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Upload */}
+        {subTab === "upload" && (
+          <>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              Upload de criativo
+            </p>
+            <UploadCriativo />
+          </>
         )}
       </div>
     </div>

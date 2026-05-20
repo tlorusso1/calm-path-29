@@ -50,3 +50,8 @@ export async function getAsaasReceivedThisMonth(): Promise<{ data: AsaasPayment[
 export async function getAsaasOverdue(): Promise<{ data: AsaasPayment[]; totalCount: number }> {
   return get("/payments?limit=50&status=OVERDUE&sort=dueDate&order=asc");
 }
+
+export async function sendAsaasNotification(paymentId: string): Promise<void> {
+  const res = await fetch(`${BASE}/payments/${paymentId}/sendNotification`, { method: "POST" });
+  if (!res.ok) throw new Error(`Asaas sendNotification ${paymentId}: ${res.status}`);
+}

@@ -1,9 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { differenceInDays, parse } from "date-fns";
+import { differenceInDays, parse, startOfMonth, endOfMonth, subMonths, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { getAllContatos, getAllPedidos12m, type TinyPedidoResumo } from "../api/tinyB2B";
 
 // ── Tipos públicos ─────────────────────────────────────────────
 export type HealthStatus = "ativo" | "risco" | "perdido" | "novo";
+
+export type PeriodoKey = "mes_atual" | "mes_anterior" | "trimestre" | "ano" | "personalizado";
+
+export interface PeriodoRange {
+  inicio: Date;
+  fim: Date;
+  label: string;
+}
 
 export interface ClienteB2B {
   id: string;
@@ -17,18 +25,50 @@ export interface ClienteB2B {
   uf: string;
   obs: string;
 
-  // Métricas calculadas dos pedidos
+  // Métricas calculadas dos pedidos (para o período selecionado)
   totalPedidos: number;
   receitaTotal: number;
   ticketMedio: number;
-  ultimaCompra: string | null;    // ISO date
+  ultimaCompra: string | null;
   diasSemComprar: number | null;
-  skus: string[];                 // produtos únicos comprados
-  pedidos: TinyPedidoResumo[];
+  skus: string[];
+  pedidos: TinyPedidoResumo[];       // todos os pedidos (12m, sem filtro de período)
+  pedidosPeriodo: TinyPedidoResumo[]; // pedidos do período selecionado
 
-  // Health
+  // Comparação com período anterior
+  receitaAnterior: number;
+  variacaoReceita: number | null; // % de variação, null se sem dados anteriores
+
+  // Health (baseado no histórico completo, não no período)
   health: HealthStatus;
   healthLabel: string;
+}
+
+export function getPeriodoRange(key: PeriodoKey, custom?: { inicio: Date; fim: Date }): PeriodoRange {
+  const hoje = new Date();
+  switch (key) {
+    case "mes_atual":
+      return { inicio: startOfMonth(hoje), fim: endOfMonth(hoje), label: "Este mês" };
+    case "mes_anterior": {
+      const m = subMonths(hoje, 1);
+      return { inicio: startOfMonth(m), fim: endOfMonth(m), label: "Mês anterior" };
+    }
+    case "trimestre":
+      return { inicio: startOfQuarter(hoje), fim: endOfQuarter(hoje), label: "Este trimestre" };
+    case "ano":
+      return { inicio: startOfYear(hoje), fim: endOfYear(hoje), label: "Este ano" };
+    case "personalizado":
+      return custom
+        ? { inicio: custom.inicio, fim: custom.fim, label: "Período personalizado" }
+        : { inicio: startOfMonth(hoje), fim: endOfMonth(hoje), label: "Este mês" };
+  }
+}
+
+export function getPeriodoAnterior(range: PeriodoRange): PeriodoRange {
+  const duracao = range.fim.getTime() - range.inicio.getTime();
+  const fimAnt = new Date(range.inicio.getTime() - 1);
+  const inicioAnt = new Date(fimAnt.getTime() - duracao);
+  return { inicio: inicioAnt, fim: fimAnt, label: "Período anterior" };
 }
 
 const SITUACOES_OK = ["aprovado", "pronto para envio", "enviado", "entregue"];
@@ -46,14 +86,25 @@ function calcHealth(diasSemComprar: number | null, totalPedidos: number): Health
 }
 
 const HEALTH_LABELS: Record<HealthStatus, string> = {
-  ativo:  "Ativo",
-  risco:  "Em risco",
-  perdido:"Inativo",
-  novo:   "Novo / Lead",
+  ativo:   "Ativo",
+  risco:   "Em risco",
+  perdido: "Inativo",
+  novo:    "Novo / Lead",
 };
 
+function pedidosDoPeriodo(pedidos: TinyPedidoResumo[], range: PeriodoRange): TinyPedidoResumo[] {
+  return pedidos.filter((p) => {
+    const d = parseTinyDate(p.data_pedido);
+    if (!d) return false;
+    return d >= range.inicio && d <= range.fim;
+  });
+}
+
 // ── Hook principal ─────────────────────────────────────────────
-export function useB2BClientes() {
+export function useB2BClientes(periodo?: PeriodoRange) {
+  const range = periodo ?? getPeriodoRange("mes_atual");
+  const rangeAnterior = getPeriodoAnterior(range);
+
   const contatos = useQuery({
     queryKey: ["b2b", "contatos"],
     queryFn: getAllContatos,
@@ -71,7 +122,7 @@ export function useB2BClientes() {
   const clientes: ClienteB2B[] = (() => {
     if (!contatos.data || !pedidos.data) return [];
 
-    // Agrupa pedidos aprovados por nome de cliente
+    // Agrupa TODOS os pedidos aprovados por nome
     const pedidosPorNome = new Map<string, TinyPedidoResumo[]>();
     for (const p of pedidos.data) {
       if (!SITUACOES_OK.includes(p.situacao?.toLowerCase() ?? "")) continue;
@@ -84,44 +135,38 @@ export function useB2BClientes() {
     const hoje = new Date();
 
     return contatos.data.map((c): ClienteB2B => {
-      // Tenta encontrar pedidos por nome exato ou fantasia
       const chaves = [
         c.nome?.trim()?.toLowerCase(),
         c.fantasia?.trim()?.toLowerCase(),
       ].filter(Boolean);
 
-      let pedidosCliente: TinyPedidoResumo[] = [];
+      let todosPedidos: TinyPedidoResumo[] = [];
       for (const chave of chaves) {
-        if (pedidosPorNome.has(chave!)) {
-          pedidosCliente = pedidosPorNome.get(chave!)!;
-          break;
-        }
-        // Busca parcial (nome contém)
+        if (pedidosPorNome.has(chave!)) { todosPedidos = pedidosPorNome.get(chave!)!; break; }
         for (const [k, v] of pedidosPorNome) {
-          if (k.includes(chave!) || chave!.includes(k)) {
-            pedidosCliente = v;
-            break;
-          }
+          if (k.includes(chave!) || chave!.includes(k)) { todosPedidos = v; break; }
         }
-        if (pedidosCliente.length) break;
+        if (todosPedidos.length) break;
       }
 
-      const totalPedidos  = pedidosCliente.length;
-      const receitaTotal  = pedidosCliente.reduce((s, p) => s + (p.valor ?? 0), 0);
-      const ticketMedio   = totalPedidos > 0 ? receitaTotal / totalPedidos : 0;
-
-      // Última compra
-      const datas = pedidosCliente
-        .map((p) => parseTinyDate(p.data_pedido))
-        .filter(Boolean) as Date[];
+      // Health baseado no histórico completo
+      const datas = todosPedidos.map((p) => parseTinyDate(p.data_pedido)).filter(Boolean) as Date[];
       const ultimaData = datas.length ? new Date(Math.max(...datas.map((d) => d.getTime()))) : null;
       const ultimaCompra = ultimaData?.toISOString().split("T")[0] ?? null;
       const diasSemComprar = ultimaData ? differenceInDays(hoje, ultimaData) : null;
+      const health = calcHealth(diasSemComprar, todosPedidos.length);
 
-      // SKUs únicos
-      const skus: string[] = [];
+      // Métricas do período selecionado
+      const pedPeriodo = pedidosDoPeriodo(todosPedidos, range);
+      const pedAnterior = pedidosDoPeriodo(todosPedidos, rangeAnterior);
 
-      const health = calcHealth(diasSemComprar, totalPedidos);
+      const totalPedidos = pedPeriodo.length;
+      const receitaTotal = pedPeriodo.reduce((s, p) => s + (p.valor ?? 0), 0);
+      const ticketMedio  = totalPedidos > 0 ? receitaTotal / totalPedidos : 0;
+      const receitaAnterior = pedAnterior.reduce((s, p) => s + (p.valor ?? 0), 0);
+      const variacaoReceita = receitaAnterior > 0
+        ? ((receitaTotal - receitaAnterior) / receitaAnterior) * 100
+        : null;
 
       return {
         id: c.id,
@@ -139,25 +184,30 @@ export function useB2BClientes() {
         ticketMedio,
         ultimaCompra,
         diasSemComprar,
-        skus,
-        pedidos: pedidosCliente,
+        skus: [],
+        pedidos: todosPedidos,
+        pedidosPeriodo: pedPeriodo,
+        receitaAnterior,
+        variacaoReceita,
         health,
         healthLabel: HEALTH_LABELS[health],
       };
     });
   })();
 
-  // Separados por status
   const ativos   = clientes.filter((c) => c.health === "ativo");
   const risco    = clientes.filter((c) => c.health === "risco");
   const perdidos = clientes.filter((c) => c.health === "perdido");
   const novos    = clientes.filter((c) => c.health === "novo");
 
-  // Top clientes por receita
   const topClientes = [...clientes]
     .filter((c) => c.receitaTotal > 0)
     .sort((a, b) => b.receitaTotal - a.receitaTotal)
     .slice(0, 10);
+
+  const totalReceita = clientes.reduce((s, c) => s + c.receitaTotal, 0);
+  const totalReceita12m = clientes.reduce((s, c) =>
+    s + c.pedidos.reduce((ps, p) => ps + (p.valor ?? 0), 0), 0);
 
   return {
     clientes,
@@ -166,8 +216,9 @@ export function useB2BClientes() {
     perdidos,
     novos,
     topClientes,
+    totalReceita,      // receita do período selecionado
+    totalReceita12m,   // receita total 12m (para faturamento)
     isLoading: contatos.isLoading || pedidos.isLoading,
     isError: contatos.isError || pedidos.isError,
-    totalReceita: clientes.reduce((s, c) => s + c.receitaTotal, 0),
   };
 }

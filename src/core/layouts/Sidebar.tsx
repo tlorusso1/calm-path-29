@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useNavigation } from "../store/navigation";
 import { MODULES } from "./modules";
 import { supabase } from "@/integrations/supabase/client";
+import { useModuleAccess } from "../hooks/useModuleAccess";
 import birdLogo from "@/assets/bird-logo-white.png";
 
 export function Sidebar() {
@@ -12,6 +13,7 @@ export function Sidebar() {
   const location = useLocation();
   const { theme, setTheme } = useTheme();
   const { sidebarCollapsed, toggleSidebar, setActiveModule } = useNavigation();
+  const { canAccess } = useModuleAccess();
 
   const handleNav = (path: string, id: Parameters<typeof setActiveModule>[0]) => {
     setActiveModule(id);
@@ -47,7 +49,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-        {MODULES.map((mod) => {
+        {MODULES.filter((mod) => canAccess(mod.id)).map((mod) => {
           const Icon = mod.icon;
           const isActive = location.pathname.startsWith(mod.path);
           return (

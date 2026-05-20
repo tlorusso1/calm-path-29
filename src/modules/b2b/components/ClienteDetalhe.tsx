@@ -1,7 +1,9 @@
-import { X, Phone, Mail, MapPin, ShoppingBag, ExternalLink } from "lucide-react";
+import { useState } from "react";
+import { X, Phone, Mail, MapPin, ShoppingBag, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { HealthBadge } from "./HealthBadge";
+import { PedidoItens } from "./PedidoItens";
 import type { ClienteB2B } from "../hooks/useB2BClientes";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +17,7 @@ function formatDate(iso: string | null) {
 }
 
 export function ClienteDetalhe({ cliente, onClose }: { cliente: ClienteB2B; onClose: () => void }) {
+  const [pedidoExpandido, setPedidoExpandido] = useState<string | null>(null);
   const whatsappNum = cliente.telefone.replace(/\D/g, "");
   const whatsappMsg = `Olá ${cliente.fantasia || cliente.nome}! Tudo bem? Passando para verificar se precisa repor algum produto NICE FOODS. 😊`;
   const whatsappUrl = `https://wa.me/55${whatsappNum}?text=${encodeURIComponent(whatsappMsg)}`;
@@ -106,21 +109,34 @@ export function ClienteDetalhe({ cliente, onClose }: { cliente: ClienteB2B; onCl
                 Histórico de pedidos
               </p>
               <div className="space-y-1.5">
-                {cliente.pedidos.slice(0, 10).map((p) => (
-                  <div key={p.id} className="flex items-center gap-3 px-3 py-2 bg-muted/40 rounded-lg text-sm">
-                    <ShoppingBag size={12} className="text-muted-foreground shrink-0" />
-                    <span className="text-xs text-muted-foreground w-20 shrink-0">{p.data_pedido}</span>
-                    <span className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded-full shrink-0",
-                      p.situacao?.toLowerCase() === "entregue" || p.situacao?.toLowerCase() === "aprovado"
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                        : "bg-muted text-muted-foreground"
-                    )}>
-                      {p.situacao}
-                    </span>
-                    <span className="ml-auto tabular-nums text-xs font-medium">{fmt(p.valor)}</span>
-                  </div>
-                ))}
+                {cliente.pedidos.slice(0, 10).map((p) => {
+                  const expandido = pedidoExpandido === p.id;
+                  return (
+                    <div key={p.id} className="rounded-lg overflow-hidden">
+                      <button
+                        onClick={() => setPedidoExpandido(expandido ? null : p.id)}
+                        className="w-full flex items-center gap-3 px-3 py-2 bg-muted/40 hover:bg-muted/70 transition-colors text-sm"
+                      >
+                        {expandido
+                          ? <ChevronDown size={12} className="text-muted-foreground shrink-0" />
+                          : <ChevronRight size={12} className="text-muted-foreground shrink-0" />
+                        }
+                        <ShoppingBag size={12} className="text-muted-foreground shrink-0" />
+                        <span className="text-xs text-muted-foreground w-20 shrink-0">{p.data_pedido}</span>
+                        <span className={cn(
+                          "text-[10px] px-1.5 py-0.5 rounded-full shrink-0",
+                          p.situacao?.toLowerCase() === "entregue" || p.situacao?.toLowerCase() === "enviado"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                            : "bg-muted text-muted-foreground"
+                        )}>
+                          {p.situacao}
+                        </span>
+                        <span className="ml-auto tabular-nums text-xs font-medium">{fmt(p.valor)}</span>
+                      </button>
+                      {expandido && <PedidoItens pedidoId={p.id} />}
+                    </div>
+                  );
+                })}
               </div>
             </section>
           )}

@@ -9,6 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppShell } from "@/core/layouts/AppShell";
 import { Loader2 } from "lucide-react";
+import { useModuleAccess } from "@/core/hooks/useModuleAccess";
 
 // Páginas de autenticação e públicas (carregadas imediatamente)
 import Auth from "./pages/Auth";
@@ -42,6 +43,13 @@ function PageLoader() {
   );
 }
 
+// Redirects to the correct starting page based on user's role
+function RoleRedirect() {
+  const { defaultPath, isLoading } = useModuleAccess();
+  if (isLoading) return <PageLoader />;
+  return <Navigate to={defaultPath} replace />;
+}
+
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
     <QueryClientProvider client={queryClient}>
@@ -63,8 +71,8 @@ const App = () => (
                     <AppShell>
                       <Suspense fallback={<PageLoader />}>
                         <Routes>
-                          {/* Redireciona / para /financeiro */}
-                          <Route path="/" element={<Navigate to="/financeiro" replace />} />
+                          {/* Redireciona / para o módulo padrão do role */}
+                          <Route path="/" element={<RoleRedirect />} />
 
                           {/* Módulos novos */}
                           <Route path="/financeiro/*" element={<FinanceiroPage />} />

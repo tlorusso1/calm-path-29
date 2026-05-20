@@ -1,4 +1,4 @@
-import { Phone, Mail, MapPin, ShoppingBag, TrendingUp, Clock } from "lucide-react";
+import { Phone, MapPin, ShoppingBag, Clock, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HealthBadge } from "./HealthBadge";
 import type { ClienteB2B } from "../hooks/useB2BClientes";
@@ -9,22 +9,40 @@ const fmt = (v: number) =>
 interface Props {
   cliente: ClienteB2B;
   onClick: () => void;
+  selecionado?: boolean;
+  modoSelecao?: boolean;
+  compararAnterior?: boolean;
 }
 
-export function ClienteCard({ cliente, onClick }: Props) {
-  const { nome, fantasia, cidade, uf, telefone, totalPedidos, receitaTotal, ticketMedio, diasSemComprar, health } = cliente;
+export function ClienteCard({ cliente, onClick, selecionado, modoSelecao, compararAnterior }: Props) {
+  const { nome, fantasia, cidade, uf, telefone, totalPedidos, receitaTotal, diasSemComprar, health, variacaoReceita } = cliente;
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        "w-full text-left bg-card border border-border rounded-xl p-4 hover:border-primary/40 transition-colors",
+        "w-full text-left bg-card border border-border rounded-xl p-4 hover:border-primary/40 transition-colors relative",
         health === "risco"   && "border-l-4 border-l-amber-400",
         health === "perdido" && "border-l-4 border-l-red-400",
         health === "ativo"   && "border-l-4 border-l-emerald-400",
         health === "novo"    && "border-l-4 border-l-blue-400",
+        selecionado && "ring-2 ring-blue-500 border-blue-400",
       )}
     >
+      {/* Checkbox modo seleção */}
+      {modoSelecao && (
+        <div className={cn(
+          "absolute top-3 right-3 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+          selecionado ? "bg-blue-600 border-blue-600" : "border-border bg-background"
+        )}>
+          {selecionado && (
+            <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+              <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </div>
+      )}
+
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0">
           <p className="font-medium text-sm truncate">{fantasia || nome}</p>
@@ -63,6 +81,17 @@ export function ClienteCard({ cliente, onClick }: Props) {
           <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
             {fmt(receitaTotal)}
           </p>
+          {compararAnterior && variacaoReceita !== null && (
+            <p className={cn(
+              "text-[9px] font-semibold",
+              variacaoReceita >= 0 ? "text-emerald-500" : "text-red-500"
+            )}>
+              {variacaoReceita >= 0
+                ? <><TrendingUp size={8} className="inline" /> +{variacaoReceita.toFixed(0)}%</>
+                : <><TrendingDown size={8} className="inline" /> {variacaoReceita.toFixed(0)}%</>
+              }
+            </p>
+          )}
         </div>
         <div className="bg-muted/50 rounded-lg p-2">
           <p className="text-[10px] text-muted-foreground">Última compra</p>
