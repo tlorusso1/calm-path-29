@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { getAsaasBalance, getAsaasReceivables, getAsaasOverdue, getAsaasReceivedThisMonth } from "../api/asaas";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAsaasBalance, getAsaasReceivables, getAsaasOverdue, getAsaasReceivedThisMonth, deleteAsaasPayment } from "../api/asaas";
 import { getTinyPedidosMes, getTinyPedidosRecentes } from "../api/tiny";
 
 // ── Asaas ─────────────────────────────────────────────────────
@@ -14,6 +14,16 @@ export function useAsaasOverdue() {
 }
 export function useAsaasReceivedThisMonth() {
   return useQuery({ queryKey: ["asaas", "received", "month"], queryFn: getAsaasReceivedThisMonth, staleTime: 1000*60*5, retry: 1 });
+}
+export function useDeleteAsaasPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteAsaasPayment(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["asaas", "overdue"] });
+      qc.invalidateQueries({ queryKey: ["asaas", "receivables"] });
+    },
+  });
 }
 
 // ── Tiny ──────────────────────────────────────────────────────

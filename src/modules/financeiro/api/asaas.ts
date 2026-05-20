@@ -55,3 +55,13 @@ export async function sendAsaasNotification(paymentId: string): Promise<void> {
   const res = await fetch(`${BASE}/payments/${paymentId}/sendNotification`, { method: "POST" });
   if (!res.ok) throw new Error(`Asaas sendNotification ${paymentId}: ${res.status}`);
 }
+
+export async function deleteAsaasPayment(paymentId: string): Promise<void> {
+  const res = await fetch(`${BASE}/payments/${paymentId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Asaas deletePayment ${paymentId}: ${res.status}`);
+}
+
+// URL para abrir o pagamento no painel Asaas
+export function asaasPaymentUrl(paymentId: string): string {
+  return `https://app.asaas.com/myAccount/payments/show/${paymentId}`;
+}
