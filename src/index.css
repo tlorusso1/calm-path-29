@@ -1,90 +1,100 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* FocoAgora Design System - Calm, Minimal, Human */
+/* NICE BIRD OS — Design System */
 
 @layer base {
   :root {
     --background: 0 0% 98%;
-    --foreground: 0 0% 12%;
+    --foreground: 222 14% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 12%;
+    --card-foreground: 222 14% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 12%;
+    --popover-foreground: 222 14% 10%;
 
-    --primary: 0 0% 12%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 152 60% 35%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 94%;
-    --secondary-foreground: 0 0% 12%;
+    --secondary: 220 14% 95%;
+    --secondary-foreground: 222 14% 20%;
 
-    --muted: 0 0% 94%;
-    --muted-foreground: 0 0% 45%;
+    --muted: 220 14% 95%;
+    --muted-foreground: 220 10% 50%;
 
-    --accent: 0 0% 94%;
-    --accent-foreground: 0 0% 12%;
+    --accent: 152 60% 35%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 60% 50%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 0 0% 12%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
 
-    --radius: 1rem;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 152 60% 35%;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 0 0% 30%;
-    --sidebar-primary: 0 0% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 0 0% 95%;
-    --sidebar-accent-foreground: 0 0% 10%;
-    --sidebar-border: 0 0% 91%;
-    --sidebar-ring: 0 0% 60%;
+    --radius: 0.75rem;
+
+    /* Sidebar */
+    --sidebar-background: 222 20% 9%;
+    --sidebar-foreground: 220 15% 75%;
+    --sidebar-primary: 152 60% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 18% 14%;
+    --sidebar-accent-foreground: 220 15% 90%;
+    --sidebar-border: 222 18% 14%;
+    --sidebar-ring: 152 60% 45%;
+
+    /* Brand */
+    --brand-green: 152 60% 35%;
+    --brand-green-light: 152 60% 93%;
+    --brand-amber: 38 92% 50%;
+    --brand-red: 0 72% 51%;
   }
 
   .dark {
-    --background: 0 0% 8%;
-    --foreground: 0 0% 92%;
+    --background: 222 20% 7%;
+    --foreground: 220 15% 92%;
 
-    --card: 0 0% 10%;
-    --card-foreground: 0 0% 92%;
+    --card: 222 18% 10%;
+    --card-foreground: 220 15% 92%;
 
-    --popover: 0 0% 10%;
-    --popover-foreground: 0 0% 92%;
+    --popover: 222 18% 10%;
+    --popover-foreground: 220 15% 92%;
 
-    --primary: 0 0% 92%;
-    --primary-foreground: 0 0% 8%;
+    --primary: 152 55% 45%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 15%;
-    --secondary-foreground: 0 0% 92%;
+    --secondary: 222 18% 14%;
+    --secondary-foreground: 220 15% 82%;
 
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 55%;
+    --muted: 222 18% 14%;
+    --muted-foreground: 220 10% 50%;
 
-    --accent: 0 0% 15%;
-    --accent-foreground: 0 0% 92%;
+    --accent: 152 55% 45%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 50% 40%;
-    --destructive-foreground: 0 0% 92%;
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 0 0% 85%;
+    --border: 222 18% 16%;
+    --input: 222 18% 16%;
+    --ring: 152 55% 45%;
 
-    --sidebar-background: 0 0% 10%;
-    --sidebar-foreground: 0 0% 90%;
-    --sidebar-primary: 0 0% 75%;
+    --sidebar-background: 222 22% 6%;
+    --sidebar-foreground: 220 15% 65%;
+    --sidebar-primary: 152 55% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 15%;
-    --sidebar-accent-foreground: 0 0% 90%;
-    --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 0 0% 60%;
+    --sidebar-accent: 222 20% 11%;
+    --sidebar-accent-foreground: 220 15% 88%;
+    --sidebar-border: 222 20% 11%;
+    --sidebar-ring: 152 55% 45%;
   }
 }
 
@@ -102,45 +112,76 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Scrollbar customizada */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
 }
 
-/* NICE TASKS Design System - Section Colors */
+/* NICE BIRD — Status Colors */
 @layer components {
-  /* Seção HOJE - Verde */
+  .status-green {
+    @apply bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900;
+  }
+  .status-amber {
+    @apply bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900;
+  }
+  .status-red {
+    @apply bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900;
+  }
+
+  /* Metric card */
+  .metric-card {
+    @apply bg-card border border-border rounded-xl p-4 flex flex-col gap-1;
+  }
+
+  /* Sidebar nav item */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+           text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground
+           transition-colors duration-150 cursor-pointer;
+  }
+  .nav-item-active {
+    @apply bg-sidebar-accent text-sidebar-accent-foreground;
+  }
+  .nav-item-active .nav-dot {
+    @apply bg-[hsl(var(--sidebar-primary))];
+  }
+
+  /* Bottom nav item (mobile) */
+  .bottom-nav-item {
+    @apply flex flex-col items-center gap-0.5 px-2 py-1.5 flex-1
+           text-[10px] font-medium text-muted-foreground
+           transition-colors duration-150;
+  }
+  .bottom-nav-item-active {
+    @apply text-primary;
+  }
+
+  /* Section header */
   .section-hoje {
-    @apply border-l-4 border-l-green-500;
+    @apply border-l-4 border-l-emerald-500;
   }
-  .section-hoje-bg {
-    @apply bg-green-500/10 text-green-700 dark:text-green-400;
-  }
-  
-  /* Seção PRÓXIMO - Azul */
   .section-proximo {
     @apply border-l-4 border-l-blue-500;
   }
-  .section-proximo-bg {
-    @apply bg-blue-500/10 text-blue-700 dark:text-blue-400;
-  }
-  
-  /* Seção DEPOIS - Cinza */
   .section-depois {
     @apply border-l-4 border-l-gray-400 dark:border-l-gray-600;
   }
-  .section-depois-bg {
-    @apply bg-muted/50 text-muted-foreground;
-  }
-  
-  /* Tarefa Urgente */
   .tarefa-urgente {
-    @apply border-l-yellow-500 bg-yellow-50 dark:bg-yellow-900/20;
+    @apply border-l-amber-500 bg-amber-50 dark:bg-amber-900/20;
   }
-  
-  /* Modo Foco - Roxo com pulse */
   .fazendo-agora {
     @apply border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/20;
   }
-  
-  /* Overlay quando em modo foco */
   .foco-overlay {
     @apply opacity-40 pointer-events-none transition-opacity duration-300;
   }
@@ -148,30 +189,28 @@
 
 @layer utilities {
   .animate-fade-in {
-    animation: fadeIn 0.3s ease-out;
+    animation: fadeIn 0.2s ease-out;
   }
 
   @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
-  
+
   .animate-pulse-slow {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: pulseSlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
-  
-  @keyframes pulse {
-    0%, 100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.7;
-    }
+
+  @keyframes pulseSlow {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.7; }
+  }
+
+  /* Safe area para iPhone */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
   }
 }

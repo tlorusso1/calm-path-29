@@ -1,17 +1,46 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import Index from "./pages/Index";
+import { AppShell } from "@/core/layouts/AppShell";
+import { Loader2 } from "lucide-react";
+
+// Páginas de autenticação e públicas (carregadas imediatamente)
 import Auth from "./pages/Auth";
 import EstoqueDashboard from "./pages/EstoqueDashboard";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Módulos com lazy loading
+const FinanceiroPage    = lazy(() => import("./modules/financeiro/pages/FinanceiroPage"));
+const EcommercePage     = lazy(() => import("./modules/ecommerce/pages/EcommercePage"));
+const MarketingPage     = lazy(() => import("./modules/marketing/pages/MarketingPage"));
+const AtendimentoPage   = lazy(() => import("./modules/atendimento/pages/AtendimentoPage"));
+const SupplyPage        = lazy(() => import("./modules/supply/pages/SupplyPage"));
+const ProdutosPage      = lazy(() => import("./modules/produtos/pages/ProdutosPage"));
+const OperacoesPage     = lazy(() => import("./modules/operacoes/pages/OperacoesPage"));
+const B2BPage           = lazy(() => import("./modules/b2b/pages/B2BPage"));
+
+// Módulo legado (mantido intacto durante a transição)
+const LegacyIndex       = lazy(() => import("./pages/Index"));
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 1000 * 60 * 5 },
+  },
+});
+
+function PageLoader() {
+  return (
+    <div className="flex-1 flex items-center justify-center min-h-[50vh]">
+      <Loader2 size={24} className="animate-spin text-muted-foreground" />
+    </div>
+  );
+}
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
@@ -22,18 +51,41 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <Routes>
+              {/* Públicas */}
               <Route path="/auth" element={<Auth />} />
               <Route path="/estoques/:userId" element={<EstoqueDashboard />} />
+
+              {/* App protegido com AppShell */}
               <Route
-                path="/"
+                path="/*"
                 element={
                   <ProtectedRoute>
-                    <Index />
+                    <AppShell>
+                      <Suspense fallback={<PageLoader />}>
+                        <Routes>
+                          {/* Redireciona / para /financeiro */}
+                          <Route path="/" element={<Navigate to="/financeiro" replace />} />
+
+                          {/* Módulos novos */}
+                          <Route path="/financeiro/*" element={<FinanceiroPage />} />
+                          <Route path="/ecommerce/*"  element={<EcommercePage />} />
+                          <Route path="/marketing/*"  element={<MarketingPage />} />
+                          <Route path="/atendimento/*" element={<AtendimentoPage />} />
+                          <Route path="/supply/*"     element={<SupplyPage />} />
+                          <Route path="/produtos/*"   element={<ProdutosPage />} />
+                          <Route path="/operacoes/*"  element={<OperacoesPage />} />
+                          <Route path="/b2b/*"        element={<B2BPage />} />
+
+                          {/* Legado: acesso ao dashboard original em /ritmo */}
+                          <Route path="/ritmo/*"      element={<LegacyIndex />} />
+
+                          <Route path="*" element={<NotFound />} />
+                        </Routes>
+                      </Suspense>
+                    </AppShell>
                   </ProtectedRoute>
                 }
               />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
             </Routes>
           </AuthProvider>
         </BrowserRouter>
