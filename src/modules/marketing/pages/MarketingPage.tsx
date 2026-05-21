@@ -19,10 +19,16 @@ import {
   useInstagramInsights,
   useYouTubeStats,
   useYouTubeVideos,
+  useGA4TrafficByChannel,
+  useGA4Summary,
+  usePerfitCampaigns,
+  usePerfitSummary,
 } from "../hooks/useMarketingData";
 import { isGoogleConfigured } from "../api/googleAds";
 import { isInstagramConfigured } from "../api/instagram";
 import { isYouTubeConfigured } from "../api/youtube";
+import { isGA4Configured } from "../api/ga4";
+import { isPerfitConfigured } from "../api/perfit";
 import { CanalCard } from "../components/CanalCard";
 import { CampanhaCard } from "../components/CampanhaCard";
 import { AdSetCard } from "../components/AdSetCard";
@@ -33,6 +39,11 @@ import { IGInsightsBar } from "../components/instagram/IGInsightsBar";
 import { IGMediaGrid } from "../components/instagram/IGMediaGrid";
 import { YTChannelCard } from "../components/youtube/YTChannelCard";
 import { YTVideoList } from "../components/youtube/YTVideoList";
+import { GA4TrafficChart, GA4RevenueChart } from "../components/analytics/GA4TrafficChart";
+import { GA4ChannelTable } from "../components/analytics/GA4ChannelTable";
+import { OrganicVsPaidCard } from "../components/analytics/OrganicVsPaidCard";
+import { PerfitSummaryBar } from "../components/email/PerfitSummaryBar";
+import { PerfitCampaignCard } from "../components/email/PerfitCampaignCard";
 
 // ─── Types ────────────────────────────────────────────────────
 type Section    = "overview" | "ads" | "social" | "analytics" | "email";
@@ -130,6 +141,14 @@ export default function MarketingPage() {
   const igInsights = useInstagramInsights();
   const ytStats    = useYouTubeStats();
   const ytVideos   = useYouTubeVideos();
+
+  // Analytics
+  const ga4Traffic  = useGA4TrafficByChannel();
+  const ga4Summary  = useGA4Summary();
+
+  // Email
+  const perfitCampaigns = usePerfitCampaigns();
+  const perfitSummary   = usePerfitSummary();
 
   return (
     <div className="flex flex-col animate-fade-in">
@@ -486,12 +505,56 @@ export default function MarketingPage() {
           SEÇÃO: ANALYTICS
       ══════════════════════════════════════════════════════ */}
       {section === "analytics" && (
-        <div className="px-4 md:px-6 pb-8">
-          <ComingSoonSection
-            icon={BarChart3}
-            title="Analytics Hub"
-            description="Tráfego por canal via Google Analytics 4, orgânico vs pago, receita por origem, top landing pages e attribution cruzada. Chegando na Semana 3."
-          />
+        <div className="px-4 md:px-6 pb-8 space-y-4">
+          {!isGA4Configured() && (
+            <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-lg text-xs text-blue-800 dark:text-blue-300">
+              <Info size={13} className="mt-0.5 shrink-0" />
+              <span>
+                <strong>Dados de demonstração.</strong> Para dados reais do GA4, crie uma Service Account no
+                Google Cloud, conceda acesso à propriedade GA4 e adicione{" "}
+                <code className="font-mono bg-blue-100 dark:bg-blue-900/40 px-1 rounded">GOOGLE_SA_KEY_JSON</code>{" "}
+                + <code className="font-mono bg-blue-100 dark:bg-blue-900/40 px-1 rounded">VITE_GA4_PROPERTY_ID</code>{" "}
+                ao <code className="font-mono bg-blue-100 dark:bg-blue-900/40 px-1 rounded">.env.local</code>.
+              </span>
+            </div>
+          )}
+
+          {/* KPIs de resumo */}
+          {ga4Summary.data && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              {[
+                { label: "Sessões (30d)",  value: ga4Summary.data.totalSessions.toLocaleString("pt-BR"),  color: "text-foreground" },
+                { label: "Usuários",       value: ga4Summary.data.totalUsers.toLocaleString("pt-BR"),      color: "text-foreground" },
+                { label: "Conversões",     value: ga4Summary.data.totalConversions.toLocaleString("pt-BR"), color: "text-emerald-600 dark:text-emerald-400" },
+                { label: "Receita (GA4)",  value: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(ga4Summary.data.totalRevenue), color: "text-emerald-600 dark:text-emerald-400" },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="metric-card">
+                  <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                  {ga4Summary.isLoading
+                    ? <div className="h-7 w-20 bg-muted animate-pulse rounded" />
+                    : <span className={`text-xl font-bold ${color}`}>{value}</span>
+                  }
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Orgânico vs Pago */}
+          {ga4Summary.data && (
+            <OrganicVsPaidCard summary={ga4Summary.data} isLoading={ga4Summary.isLoading} />
+          )}
+
+          {/* Charts */}
+          <GA4TrafficChart data={ga4Traffic.data ?? []} isLoading={ga4Traffic.isLoading} />
+          <GA4RevenueChart data={ga4Traffic.data ?? []} isLoading={ga4Traffic.isLoading} />
+
+          {/* Table */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Detalhes por canal
+            </p>
+            <GA4ChannelTable data={ga4Traffic.data ?? []} isLoading={ga4Traffic.isLoading} />
+          </div>
         </div>
       )}
 
@@ -499,12 +562,49 @@ export default function MarketingPage() {
           SEÇÃO: EMAIL
       ══════════════════════════════════════════════════════ */}
       {section === "email" && (
-        <div className="px-4 md:px-6 pb-8">
-          <ComingSoonSection
-            icon={Mail}
-            title="Email Marketing — Perfit"
-            description="Campanhas de email, taxas de abertura e clique, listas de contatos e automações via Perfit. Chegando na Semana 4 (aguardando API key)."
-          />
+        <div className="px-4 md:px-6 pb-8 space-y-4">
+          {/* Config banner */}
+          {!isPerfitConfigured() && (
+            <div className="flex items-start gap-2 p-3 bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-900 rounded-lg text-xs text-violet-800 dark:text-violet-300">
+              <Info size={13} className="mt-0.5 shrink-0" />
+              <span>
+                <strong>Dados de demonstração.</strong> Para dados reais, adicione{" "}
+                <code className="font-mono bg-violet-100 dark:bg-violet-900/40 px-1 rounded">PERFIT_API_KEY</code>{" "}
+                e{" "}
+                <code className="font-mono bg-violet-100 dark:bg-violet-900/40 px-1 rounded">VITE_PERFIT_CONFIGURED=true</code>{" "}
+                ao <code className="font-mono bg-violet-100 dark:bg-violet-900/40 px-1 rounded">.env.local</code>.
+              </span>
+            </div>
+          )}
+
+          {/* KPIs de resumo */}
+          {perfitSummary.data && (
+            <PerfitSummaryBar summary={perfitSummary.data} isLoading={perfitSummary.isLoading} />
+          )}
+
+          {/* Lista de campanhas */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Campanhas ({perfitCampaigns.data?.length ?? 0})
+            </p>
+            {perfitCampaigns.isLoading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-32 bg-muted animate-pulse rounded-xl" />
+                ))}
+              </div>
+            ) : perfitCampaigns.data?.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">
+                Nenhuma campanha encontrada.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {(perfitCampaigns.data ?? []).map((campaign) => (
+                  <PerfitCampaignCard key={campaign.id} campaign={campaign} />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -38,8 +38,27 @@ import {
   type YTChannelStats,
   type YTVideo,
 } from "../api/youtube";
+import {
+  getTrafficByChannel,
+  getGA4Summary,
+  type GA4ChannelBreakdown,
+  type GA4Summary,
+} from "../api/ga4";
+import {
+  getPerfitCampaigns,
+  getPerfitLists,
+  getPerfitSummary,
+  type PerfitCampaign,
+  type PerfitList,
+  type PerfitSummary,
+} from "../api/perfit";
 
-export type { IGProfile, IGMedia, IGAccountInsights, YTChannelStats, YTVideo };
+export type {
+  IGProfile, IGMedia, IGAccountInsights,
+  YTChannelStats, YTVideo,
+  GA4ChannelBreakdown, GA4Summary,
+  PerfitCampaign, PerfitList, PerfitSummary,
+};
 
 export type { MetaInsights, MetaCampaign, MetaCampaignUpdate, MetaAdSet, MetaAd, GoogleAccountInsights, GoogleCampaign };
 
@@ -131,6 +150,53 @@ export function useYouTubeVideos() {
     queryKey: ["marketing", "youtube", "videos"],
     queryFn: getYouTubeVideos,
     staleTime: 1000 * 60 * 30,
+    retry: 1,
+  });
+}
+
+// ── GA4 Analytics ────────────────────────────────────────────
+export function useGA4TrafficByChannel() {
+  return useQuery({
+    queryKey: ["marketing", "ga4", "traffic"],
+    queryFn: () => getTrafficByChannel(),
+    staleTime: 1000 * 60 * 30,
+    retry: 1,
+  });
+}
+
+export function useGA4Summary() {
+  return useQuery({
+    queryKey: ["marketing", "ga4", "summary"],
+    queryFn: () => getGA4Summary(),
+    staleTime: 1000 * 60 * 30,
+    retry: 1,
+  });
+}
+
+// ── Perfit Email ──────────────────────────────────────────────
+export function usePerfitCampaigns() {
+  return useQuery({
+    queryKey: ["marketing", "perfit", "campaigns"],
+    queryFn: getPerfitCampaigns,
+    staleTime: 1000 * 60 * 15,
+    retry: 1,
+  });
+}
+
+export function usePerfitLists() {
+  return useQuery({
+    queryKey: ["marketing", "perfit", "lists"],
+    queryFn: getPerfitLists,
+    staleTime: 1000 * 60 * 30,
+    retry: 1,
+  });
+}
+
+export function usePerfitSummary() {
+  return useQuery({
+    queryKey: ["marketing", "perfit", "summary"],
+    queryFn: getPerfitSummary,
+    staleTime: 1000 * 60 * 15,
     retry: 1,
   });
 }
