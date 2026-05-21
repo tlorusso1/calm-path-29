@@ -24,6 +24,22 @@ import {
   type GoogleAccountInsights,
   type GoogleCampaign,
 } from "../api/googleAds";
+import {
+  getInstagramProfile,
+  getInstagramMedia,
+  getInstagramAccountInsights,
+  type IGProfile,
+  type IGMedia,
+  type IGAccountInsights,
+} from "../api/instagram";
+import {
+  getYouTubeChannelStats,
+  getYouTubeVideos,
+  type YTChannelStats,
+  type YTVideo,
+} from "../api/youtube";
+
+export type { IGProfile, IGMedia, IGAccountInsights, YTChannelStats, YTVideo };
 
 export type { MetaInsights, MetaCampaign, MetaCampaignUpdate, MetaAdSet, MetaAd, GoogleAccountInsights, GoogleCampaign };
 
@@ -69,6 +85,53 @@ export function useUploadMetaImage() {
   return useMutation({
     mutationFn: (file: File) => uploadMetaImage(file),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["marketing", "meta", "ads"] }),
+  });
+}
+
+// ── Instagram ────────────────────────────────────────────────
+export function useInstagramProfile() {
+  return useQuery({
+    queryKey: ["marketing", "instagram", "profile"],
+    queryFn: getInstagramProfile,
+    staleTime: 1000 * 60 * 30,
+    retry: 1,
+  });
+}
+
+export function useInstagramMedia() {
+  return useQuery({
+    queryKey: ["marketing", "instagram", "media"],
+    queryFn: getInstagramMedia,
+    staleTime: 1000 * 60 * 15,
+    retry: 1,
+  });
+}
+
+export function useInstagramInsights() {
+  return useQuery({
+    queryKey: ["marketing", "instagram", "insights"],
+    queryFn: getInstagramAccountInsights,
+    staleTime: 1000 * 60 * 15,
+    retry: 1,
+  });
+}
+
+// ── YouTube ──────────────────────────────────────────────────
+export function useYouTubeStats() {
+  return useQuery({
+    queryKey: ["marketing", "youtube", "channel"],
+    queryFn: getYouTubeChannelStats,
+    staleTime: 1000 * 60 * 60,
+    retry: 1,
+  });
+}
+
+export function useYouTubeVideos() {
+  return useQuery({
+    queryKey: ["marketing", "youtube", "videos"],
+    queryFn: getYouTubeVideos,
+    staleTime: 1000 * 60 * 30,
+    retry: 1,
   });
 }
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   RefreshCw, TrendingUp, MousePointerClick, ShoppingCart, Info,
   LayoutDashboard, BadgeDollarSign, Smartphone, BarChart3, Mail,
-  Construction,
+  Construction, Instagram, Youtube,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -14,17 +14,30 @@ import {
   useGoogleCampaigns,
   useMetaAdSets,
   useMetaAds,
+  useInstagramProfile,
+  useInstagramMedia,
+  useInstagramInsights,
+  useYouTubeStats,
+  useYouTubeVideos,
 } from "../hooks/useMarketingData";
 import { isGoogleConfigured } from "../api/googleAds";
+import { isInstagramConfigured } from "../api/instagram";
+import { isYouTubeConfigured } from "../api/youtube";
 import { CanalCard } from "../components/CanalCard";
 import { CampanhaCard } from "../components/CampanhaCard";
 import { AdSetCard } from "../components/AdSetCard";
 import { AdCard } from "../components/AdCard";
 import { BulkUploadPanel } from "../components/BulkUploadPanel";
+import { IGProfileCard } from "../components/instagram/IGProfileCard";
+import { IGInsightsBar } from "../components/instagram/IGInsightsBar";
+import { IGMediaGrid } from "../components/instagram/IGMediaGrid";
+import { YTChannelCard } from "../components/youtube/YTChannelCard";
+import { YTVideoList } from "../components/youtube/YTVideoList";
 
 // ─── Types ────────────────────────────────────────────────────
-type Section = "overview" | "ads" | "social" | "analytics" | "email";
-type AdsTab  = "campanhas" | "publicos" | "criativos" | "upload";
+type Section    = "overview" | "ads" | "social" | "analytics" | "email";
+type AdsTab     = "campanhas" | "publicos" | "criativos" | "upload";
+type SocialTab  = "instagram" | "youtube";
 
 const TOP_SECTIONS: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "overview",   label: "Visão Geral", icon: LayoutDashboard  },
@@ -39,6 +52,11 @@ const ADS_TABS: { id: AdsTab; label: string }[] = [
   { id: "publicos",  label: "Públicos"   },
   { id: "criativos", label: "Criativos"  },
   { id: "upload",    label: "Upload"     },
+];
+
+const SOCIAL_TABS: { id: SocialTab; label: string; icon: React.ElementType }[] = [
+  { id: "instagram", label: "Instagram", icon: Instagram },
+  { id: "youtube",   label: "YouTube",   icon: Youtube   },
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────
@@ -70,8 +88,9 @@ function ComingSoonSection({ icon: Icon, title, description }: {
 
 // ─── Page ─────────────────────────────────────────────────────
 export default function MarketingPage() {
-  const [section,  setSection]  = useState<Section>("overview");
-  const [adsTab,   setAdsTab]   = useState<AdsTab>("campanhas");
+  const [section,    setSection]    = useState<Section>("overview");
+  const [adsTab,     setAdsTab]     = useState<AdsTab>("campanhas");
+  const [socialTab,  setSocialTab]  = useState<SocialTab>("instagram");
 
   const qc = useQueryClient();
   const { totalSpend, totalRevenue, roasGeral, channels, isLoading, isMock } = useMarketingConsolidado();
@@ -104,6 +123,13 @@ export default function MarketingPage() {
 
   const adsets = (metaAdSets.data ?? []).sort((a, b) => b.insights.spend - a.insights.spend);
   const ads    = (metaAds.data    ?? []).sort((a, b) => b.insights.spend - a.insights.spend);
+
+  // Social
+  const igProfile  = useInstagramProfile();
+  const igMedia    = useInstagramMedia();
+  const igInsights = useInstagramInsights();
+  const ytStats    = useYouTubeStats();
+  const ytVideos   = useYouTubeVideos();
 
   return (
     <div className="flex flex-col animate-fade-in">
@@ -374,12 +400,85 @@ export default function MarketingPage() {
           SEÇÃO: SOCIAL
       ══════════════════════════════════════════════════════ */}
       {section === "social" && (
-        <div className="px-4 md:px-6 pb-8">
-          <ComingSoonSection
-            icon={Smartphone}
-            title="Social Media Hub"
-            description="Instagram insights, YouTube analytics, agendamento de posts e sugestões de conteúdo baseadas em performance. Chegando na Semana 2."
-          />
+        <div className="flex flex-col px-4 md:px-6 pb-8 gap-4">
+          {/* Mock banners */}
+          {!isInstagramConfigured() && socialTab === "instagram" && (
+            <div className="flex items-start gap-2 p-3 bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900 rounded-lg text-xs text-purple-800 dark:text-purple-300">
+              <Info size={13} className="mt-0.5 shrink-0" />
+              <span>
+                <strong>Dados de demonstração.</strong> Para conectar dados reais, adicione{" "}
+                <code className="font-mono bg-purple-100 dark:bg-purple-900/40 px-1 rounded">VITE_INSTAGRAM_CONFIGURED=true</code>{" "}
+                ao <code className="font-mono bg-purple-100 dark:bg-purple-900/40 px-1 rounded">.env.local</code>.
+                O token Meta já está configurado.
+              </span>
+            </div>
+          )}
+          {!isYouTubeConfigured() && socialTab === "youtube" && (
+            <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-lg text-xs text-red-800 dark:text-red-300">
+              <Info size={13} className="mt-0.5 shrink-0" />
+              <span>
+                <strong>Dados de demonstração.</strong> Para dados reais, adicione{" "}
+                <code className="font-mono bg-red-100 dark:bg-red-900/40 px-1 rounded">YOUTUBE_API_KEY</code>{" "}
+                e{" "}
+                <code className="font-mono bg-red-100 dark:bg-red-900/40 px-1 rounded">VITE_YOUTUBE_CHANNEL_ID</code>{" "}
+                ao <code className="font-mono bg-red-100 dark:bg-red-900/40 px-1 rounded">.env.local</code>.
+              </span>
+            </div>
+          )}
+
+          {/* Social sub-tabs */}
+          <div className="flex gap-1 bg-muted/40 p-1 rounded-lg">
+            {SOCIAL_TABS.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setSocialTab(id)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 px-2 rounded-md transition-colors",
+                  socialTab === id
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icon size={12} />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Instagram */}
+          {socialTab === "instagram" && (
+            <div className="space-y-4">
+              {igProfile.data && <IGProfileCard profile={igProfile.data} />}
+              {igInsights.data && (
+                <IGInsightsBar insights={igInsights.data} isLoading={igInsights.isLoading} />
+              )}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  Posts recentes
+                </p>
+                <IGMediaGrid
+                  media={igMedia.data ?? []}
+                  isLoading={igMedia.isLoading}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* YouTube */}
+          {socialTab === "youtube" && (
+            <div className="space-y-4">
+              {ytStats.data && <YTChannelCard stats={ytStats.data} />}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  Vídeos recentes ({ytVideos.data?.length ?? 0})
+                </p>
+                <YTVideoList
+                  videos={ytVideos.data ?? []}
+                  isLoading={ytVideos.isLoading}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
