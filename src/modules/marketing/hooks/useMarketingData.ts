@@ -1,4 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { processBulkUploadQueue } from "../api/bulkUpload";
+import type { UploadQueue, UploadQueueItem } from "../api/bulkUpload";
+export type { UploadQueue, UploadQueueItem };
 import {
   getMetaAccountInsights,
   getMetaCampaigns,
@@ -65,6 +68,17 @@ export function useUploadMetaImage() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (file: File) => uploadMetaImage(file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["marketing", "meta", "ads"] }),
+  });
+}
+
+export function useBulkUploadQueue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ queue, onItemUpdate }: {
+      queue: UploadQueue;
+      onItemUpdate: (id: string, update: Partial<UploadQueueItem>) => void;
+    }) => processBulkUploadQueue(queue, onItemUpdate, 3),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["marketing", "meta", "ads"] }),
   });
 }

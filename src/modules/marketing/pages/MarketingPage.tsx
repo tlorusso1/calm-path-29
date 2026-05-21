@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { RefreshCw, TrendingUp, MousePointerClick, ShoppingCart, Info, Upload } from "lucide-react";
+import {
+  RefreshCw, TrendingUp, MousePointerClick, ShoppingCart, Info,
+  LayoutDashboard, BadgeDollarSign, Smartphone, BarChart3, Mail,
+  Construction,
+} from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,72 +20,102 @@ import { CanalCard } from "../components/CanalCard";
 import { CampanhaCard } from "../components/CampanhaCard";
 import { AdSetCard } from "../components/AdSetCard";
 import { AdCard } from "../components/AdCard";
-import { UploadCriativo } from "../components/UploadCriativo";
+import { BulkUploadPanel } from "../components/BulkUploadPanel";
 
-type SubTab = "campanhas" | "publicos" | "criativos" | "upload";
+// ─── Types ────────────────────────────────────────────────────
+type Section = "overview" | "ads" | "social" | "analytics" | "email";
+type AdsTab  = "campanhas" | "publicos" | "criativos" | "upload";
 
-const SUB_TABS: { id: SubTab; label: string }[] = [
-  { id: "campanhas", label: "Campanhas" },
-  { id: "publicos", label: "Públicos" },
-  { id: "criativos", label: "Criativos" },
-  { id: "upload", label: "Upload" },
+const TOP_SECTIONS: { id: Section; label: string; icon: React.ElementType }[] = [
+  { id: "overview",   label: "Visão Geral", icon: LayoutDashboard  },
+  { id: "ads",        label: "Ads",         icon: BadgeDollarSign  },
+  { id: "social",     label: "Social",      icon: Smartphone       },
+  { id: "analytics",  label: "Analytics",   icon: BarChart3        },
+  { id: "email",      label: "Email",        icon: Mail             },
 ];
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+const ADS_TABS: { id: AdsTab; label: string }[] = [
+  { id: "campanhas", label: "Campanhas"  },
+  { id: "publicos",  label: "Públicos"   },
+  { id: "criativos", label: "Criativos"  },
+  { id: "upload",    label: "Upload"     },
+];
 
+// ─── Helpers ───────────────────────────────────────────────────
+const fmt  = (v: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 const fmtK = (v: number) =>
   v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
 
+// ─── Stub component for sections in development ────────────────
+function ComingSoonSection({ icon: Icon, title, description }: {
+  icon: React.ElementType; title: string; description: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center gap-3 text-muted-foreground">
+      <div className="w-14 h-14 rounded-2xl bg-muted/60 flex items-center justify-center">
+        <Icon size={28} className="opacity-40" />
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+        <p className="text-xs mt-1 opacity-70 max-w-xs">{description}</p>
+      </div>
+      <span className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900 rounded-full font-medium">
+        <Construction size={11} />
+        Em desenvolvimento — chegando em breve
+      </span>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────
 export default function MarketingPage() {
-  const [subTab, setSubTab] = useState<SubTab>("campanhas");
+  const [section,  setSection]  = useState<Section>("overview");
+  const [adsTab,   setAdsTab]   = useState<AdsTab>("campanhas");
+
   const qc = useQueryClient();
   const { totalSpend, totalRevenue, roasGeral, channels, isLoading, isMock } = useMarketingConsolidado();
-  const metaInsights = useMetaInsights();
-  const metaCampaigns = useMetaCampaigns();
+  const metaInsights   = useMetaInsights();
+  const metaCampaigns  = useMetaCampaigns();
   const googleCampaigns = useGoogleCampaigns();
-  const metaAdSets = useMetaAdSets();
-  const metaAds = useMetaAds();
+  const metaAdSets     = useMetaAdSets();
+  const metaAds        = useMetaAds();
 
   const meta = metaInsights.data;
 
   const allCampaigns = [
-    ...(metaCampaigns.data ?? []).map(c => ({ ...c, channel: "meta" as const })),
-    ...(isGoogleConfigured() ? (googleCampaigns.data ?? []).map(c => ({
-      id: c.id,
-      name: c.name,
-      status: c.status === "ENABLED" ? "ACTIVE" as const : "PAUSED" as const,
-      objective: c.type,
-      dailyBudget: c.budget,
-      insights: {
-        spend: c.spend,
-        impressions: c.impressions,
-        clicks: c.clicks,
-        reach: 0,
-        ctr: c.ctr,
-        cpc: c.cpc,
-        cpp: 0,
-        purchases: c.conversions,
-        purchaseValue: c.conversionValue,
-        roas: c.roas,
-      },
-      channel: "google" as const,
-    })) : []),
+    ...(metaCampaigns.data ?? []).map((c) => ({ ...c, channel: "meta" as const })),
+    ...(isGoogleConfigured()
+      ? (googleCampaigns.data ?? []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          status: c.status === "ENABLED" ? "ACTIVE" as const : "PAUSED" as const,
+          objective: c.type,
+          dailyBudget: c.budget,
+          insights: {
+            spend: c.spend, impressions: c.impressions, clicks: c.clicks,
+            reach: 0, ctr: c.ctr, cpc: c.cpc, cpp: 0,
+            purchases: c.conversions, purchaseValue: c.conversionValue, roas: c.roas,
+          },
+          channel: "google" as const,
+        }))
+      : []),
   ].sort((a, b) => b.insights.spend - a.insights.spend);
 
   const adsets = (metaAdSets.data ?? []).sort((a, b) => b.insights.spend - a.insights.spend);
-  const ads = (metaAds.data ?? []).sort((a, b) => b.insights.spend - a.insights.spend);
+  const ads    = (metaAds.data    ?? []).sort((a, b) => b.insights.spend - a.insights.spend);
 
   return (
     <div className="flex flex-col animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-3 md:px-6 md:pt-6">
+
+      {/* ─── Header ─────────────────────────────────────────── */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-2 md:px-6 md:pt-6">
         <div>
           <h1 className="text-lg font-semibold">Marketing & Ads</h1>
           <p className="text-xs text-muted-foreground">
             {isLoading
               ? "Carregando..."
-              : `Este mês · ${allCampaigns.filter(c => c.status === "ACTIVE").length} campanhas ativas`}
+              : `Este mês · ${allCampaigns.filter((c) => c.status === "ACTIVE").length} campanhas ativas`}
           </p>
         </div>
         <Button
@@ -95,211 +129,285 @@ export default function MarketingPage() {
         </Button>
       </div>
 
-      {/* Banner demo */}
-      {isMock && (
-        <div className="mx-4 md:mx-6 mb-4 flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-lg text-xs text-blue-800 dark:text-blue-300">
-          <Info size={13} className="mt-0.5 shrink-0" />
-          <span>
-            <strong>Dados de demonstração.</strong> Para conectar dados reais, adicione seus tokens de
-            Meta Ads e Google Ads no <code className="font-mono bg-blue-100 dark:bg-blue-900/40 px-1 rounded">.env.local</code>.
-          </span>
-        </div>
-      )}
-
-      {/* KPIs principais */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 px-4 md:px-6 mb-4">
-        {[
-          {
-            label: "Investimento total",
-            value: isLoading ? null : fmt(totalSpend),
-            icon: <ShoppingCart size={13} className="text-muted-foreground" />,
-            sub: "este mês",
-          },
-          {
-            label: "Receita atribuída",
-            value: isLoading ? null : fmt(totalRevenue),
-            icon: <TrendingUp size={13} className="text-emerald-500" />,
-            sub: "via ads",
-          },
-          {
-            label: "ROAS geral",
-            value: isLoading ? null : `${roasGeral.toFixed(2)}x`,
-            icon: null,
-            sub: roasGeral >= 3 ? "✅ Saudável" : roasGeral >= 2 ? "⚠️ Atenção" : "🔴 Baixo",
-            valueColor: roasGeral >= 3 ? "text-emerald-600 dark:text-emerald-400" : roasGeral >= 2 ? "text-amber-600 dark:text-amber-400" : "text-red-500",
-          },
-          {
-            label: "Cliques totais",
-            value: isLoading ? null : fmtK((meta?.clicks ?? 0) + (isGoogleConfigured() ? (googleCampaigns.data?.reduce((s, c) => s + c.clicks, 0) ?? 0) : 0)),
-            icon: <MousePointerClick size={13} className="text-muted-foreground" />,
-            sub: `CTR ${(meta?.ctr ?? 0).toFixed(1)}% Meta`,
-          },
-        ].map(({ label, value, icon, sub, valueColor }) => (
-          <div key={label} className="metric-card">
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              {icon}
-              {label}
-            </div>
-            {value === null ? (
-              <div className="h-7 w-24 bg-muted animate-pulse rounded mt-1" />
-            ) : (
-              <span className={`text-xl font-bold ${valueColor ?? ""}`}>{value}</span>
-            )}
-            <p className="text-[10px] text-muted-foreground">{sub}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Canais */}
-      <div className="px-4 md:px-6 mb-4">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-          Canais
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {channels.map((canal) => (
-            <CanalCard key={canal.channel} canal={canal} totalSpend={totalSpend} />
-          ))}
-        </div>
-      </div>
-
-      {/* KPIs Meta detalhados */}
-      {meta && (
-        <div className="px-4 md:px-6 mb-4">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-            Meta Ads — Detalhes
-          </p>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-            {[
-              { label: "Impressões", value: fmtK(meta.impressions) },
-              { label: "Alcance", value: fmtK(meta.reach) },
-              { label: "Cliques", value: fmtK(meta.clicks) },
-              { label: "CTR", value: `${meta.ctr.toFixed(2)}%` },
-              { label: "CPC", value: fmt(meta.cpc) },
-              { label: "Compras", value: String(meta.purchases) },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-muted/40 rounded-lg p-2.5 text-center">
-                <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
-                <p className="text-xs font-semibold">{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Sub-tabs */}
-      <div className="px-4 md:px-6 mb-3">
-        <div className="flex gap-1 bg-muted/40 p-1 rounded-lg">
-          {SUB_TABS.map((t) => (
+      {/* ─── Top-level section tabs ──────────────────────────── */}
+      <div className="px-4 md:px-6 pb-3">
+        <div className="flex gap-1 bg-muted/40 p-1 rounded-xl overflow-x-auto scrollbar-none">
+          {TOP_SECTIONS.map(({ id, label, icon: Icon }) => (
             <button
-              key={t.id}
-              onClick={() => setSubTab(t.id)}
+              key={id}
+              onClick={() => setSection(id)}
               className={cn(
-                "flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-colors",
-                subTab === t.id
+                "flex items-center gap-1.5 text-xs font-medium py-2 px-3 rounded-lg whitespace-nowrap transition-colors shrink-0",
+                section === id
                   ? "bg-background shadow-sm text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {t.id === "upload" ? (
-                <span className="flex items-center justify-center gap-1">
-                  <Upload size={10} />
-                  {t.label}
-                </span>
-              ) : (
-                t.label
-              )}
+              <Icon size={13} />
+              {label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Tab content */}
-      <div className="px-4 md:px-6 pb-8">
+      {/* ─── Demo banner ─────────────────────────────────────── */}
+      {isMock && section === "overview" && (
+        <div className="mx-4 md:mx-6 mb-4 flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-lg text-xs text-blue-800 dark:text-blue-300">
+          <Info size={13} className="mt-0.5 shrink-0" />
+          <span>
+            <strong>Dados de demonstração.</strong> Para conectar dados reais, adicione seus tokens de
+            Meta Ads e Google Ads no{" "}
+            <code className="font-mono bg-blue-100 dark:bg-blue-900/40 px-1 rounded">.env.local</code>.
+          </span>
+        </div>
+      )}
 
-        {/* Campanhas */}
-        {subTab === "campanhas" && (
-          <>
+      {/* ══════════════════════════════════════════════════════
+          SEÇÃO: VISÃO GERAL
+      ══════════════════════════════════════════════════════ */}
+      {section === "overview" && (
+        <div className="space-y-5 px-4 md:px-6 pb-8">
+          {/* KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+            {[
+              {
+                label: "Investimento total",
+                value: isLoading ? null : fmt(totalSpend),
+                icon: <ShoppingCart size={13} className="text-muted-foreground" />,
+                sub: "este mês",
+              },
+              {
+                label: "Receita atribuída",
+                value: isLoading ? null : fmt(totalRevenue),
+                icon: <TrendingUp size={13} className="text-emerald-500" />,
+                sub: "via ads",
+              },
+              {
+                label: "ROAS geral",
+                value: isLoading ? null : `${roasGeral.toFixed(2)}x`,
+                icon: null,
+                sub: roasGeral >= 3 ? "✅ Saudável" : roasGeral >= 2 ? "⚠️ Atenção" : "🔴 Baixo",
+                valueColor:
+                  roasGeral >= 3
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : roasGeral >= 2
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-red-500",
+              },
+              {
+                label: "Cliques totais",
+                value: isLoading
+                  ? null
+                  : fmtK(
+                      (meta?.clicks ?? 0) +
+                        (isGoogleConfigured()
+                          ? (googleCampaigns.data?.reduce((s, c) => s + c.clicks, 0) ?? 0)
+                          : 0)
+                    ),
+                icon: <MousePointerClick size={13} className="text-muted-foreground" />,
+                sub: `CTR ${(meta?.ctr ?? 0).toFixed(1)}% Meta`,
+              },
+            ].map(({ label, value, icon, sub, valueColor }) => (
+              <div key={label} className="metric-card">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  {icon}
+                  {label}
+                </div>
+                {value === null ? (
+                  <div className="h-7 w-24 bg-muted animate-pulse rounded mt-1" />
+                ) : (
+                  <span className={`text-xl font-bold ${valueColor ?? ""}`}>{value}</span>
+                )}
+                <p className="text-[10px] text-muted-foreground">{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Canais */}
+          <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Campanhas ({allCampaigns.length})
+              Canais
             </p>
-            {isLoading ? (
-              <div className="space-y-2">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-14 bg-muted animate-pulse rounded-lg" />
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {allCampaigns.map((c) => (
-                  <CampanhaCard key={`${c.channel}-${c.id}`} campanha={c} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {channels.map((canal) => (
+                <CanalCard key={canal.channel} canal={canal} totalSpend={totalSpend} />
+              ))}
+            </div>
+          </div>
 
-        {/* Públicos */}
-        {subTab === "publicos" && (
-          <>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Públicos / Ad Sets ({adsets.length})
-            </p>
-            {metaAdSets.isLoading ? (
-              <div className="space-y-2">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-24 bg-muted animate-pulse rounded-xl" />
+          {/* Meta detalhes */}
+          {meta && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Meta Ads — Detalhes
+              </p>
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                {[
+                  { label: "Impressões", value: fmtK(meta.impressions) },
+                  { label: "Alcance",    value: fmtK(meta.reach)       },
+                  { label: "Cliques",    value: fmtK(meta.clicks)      },
+                  { label: "CTR",        value: `${meta.ctr.toFixed(2)}%` },
+                  { label: "CPC",        value: fmt(meta.cpc)          },
+                  { label: "Compras",    value: String(meta.purchases)  },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-muted/40 rounded-lg p-2.5 text-center">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
+                    <p className="text-xs font-semibold">{value}</p>
+                  </div>
                 ))}
               </div>
-            ) : adsets.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground text-sm">
-                Nenhum público encontrado.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {adsets.map((as) => (
-                  <AdSetCard key={as.id} adset={as} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
+            </div>
+          )}
+        </div>
+      )}
 
-        {/* Criativos */}
-        {subTab === "criativos" && (
-          <>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Criativos / Ads ({ads.length})
-            </p>
-            {metaAds.isLoading ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="aspect-[3/4] bg-muted animate-pulse rounded-xl" />
-                ))}
-              </div>
-            ) : ads.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground text-sm">
-                Nenhum criativo encontrado.
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {ads.map((ad) => (
-                  <AdCard key={ad.id} ad={ad} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
+      {/* ══════════════════════════════════════════════════════
+          SEÇÃO: ADS
+      ══════════════════════════════════════════════════════ */}
+      {section === "ads" && (
+        <div className="flex flex-col px-4 md:px-6 pb-8 gap-4">
+          {/* Ads sub-tabs */}
+          <div className="flex gap-1 bg-muted/40 p-1 rounded-lg">
+            {ADS_TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setAdsTab(t.id)}
+                className={cn(
+                  "flex-1 text-xs font-medium py-1.5 px-2 rounded-md transition-colors",
+                  adsTab === t.id
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-        {/* Upload */}
-        {subTab === "upload" && (
-          <>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              Upload de criativo
-            </p>
-            <UploadCriativo />
-          </>
-        )}
-      </div>
+          {/* Campanhas */}
+          {adsTab === "campanhas" && (
+            <>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider -mb-2">
+                Campanhas ({allCampaigns.length})
+              </p>
+              {isLoading ? (
+                <div className="space-y-2">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="h-14 bg-muted animate-pulse rounded-lg" />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {allCampaigns.map((c) => (
+                    <CampanhaCard key={`${c.channel}-${c.id}`} campanha={c} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Públicos */}
+          {adsTab === "publicos" && (
+            <>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider -mb-2">
+                Públicos / Ad Sets ({adsets.length})
+              </p>
+              {metaAdSets.isLoading ? (
+                <div className="space-y-2">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="h-24 bg-muted animate-pulse rounded-xl" />
+                  ))}
+                </div>
+              ) : adsets.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground text-sm">
+                  Nenhum público encontrado.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {adsets.map((as) => (
+                    <AdSetCard key={as.id} adset={as} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Criativos */}
+          {adsTab === "criativos" && (
+            <>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider -mb-2">
+                Criativos / Ads ({ads.length})
+              </p>
+              {metaAds.isLoading ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="aspect-[3/4] bg-muted animate-pulse rounded-xl" />
+                  ))}
+                </div>
+              ) : ads.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground text-sm">
+                  Nenhum criativo encontrado.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {ads.map((ad) => (
+                    <AdCard key={ad.id} ad={ad} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Bulk Upload */}
+          {adsTab === "upload" && (
+            <>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider -mb-2">
+                Upload em massa de criativos
+              </p>
+              <BulkUploadPanel adSets={adsets} />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════
+          SEÇÃO: SOCIAL
+      ══════════════════════════════════════════════════════ */}
+      {section === "social" && (
+        <div className="px-4 md:px-6 pb-8">
+          <ComingSoonSection
+            icon={Smartphone}
+            title="Social Media Hub"
+            description="Instagram insights, YouTube analytics, agendamento de posts e sugestões de conteúdo baseadas em performance. Chegando na Semana 2."
+          />
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════
+          SEÇÃO: ANALYTICS
+      ══════════════════════════════════════════════════════ */}
+      {section === "analytics" && (
+        <div className="px-4 md:px-6 pb-8">
+          <ComingSoonSection
+            icon={BarChart3}
+            title="Analytics Hub"
+            description="Tráfego por canal via Google Analytics 4, orgânico vs pago, receita por origem, top landing pages e attribution cruzada. Chegando na Semana 3."
+          />
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════
+          SEÇÃO: EMAIL
+      ══════════════════════════════════════════════════════ */}
+      {section === "email" && (
+        <div className="px-4 md:px-6 pb-8">
+          <ComingSoonSection
+            icon={Mail}
+            title="Email Marketing — Perfit"
+            description="Campanhas de email, taxas de abertura e clique, listas de contatos e automações via Perfit. Chegando na Semana 4 (aguardando API key)."
+          />
+        </div>
+      )}
     </div>
   );
 }

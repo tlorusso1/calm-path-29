@@ -8,13 +8,20 @@ export default defineConfig(({ mode }) => {
   // Carrega TODAS as variáveis de ambiente (prefixo "" = todas)
   const env = loadEnv(mode, process.cwd(), "");
 
-  const asaasToken = env.ASAAS_TOKEN    ?? "";
-  const tinyToken  = env.TINY_TOKEN     ?? "";
-  const metaToken  = env.META_ADS_TOKEN ?? "";
+  const asaasToken    = env.ASAAS_TOKEN       ?? "";
+  const tinyToken     = env.TINY_TOKEN        ?? "";
+  const metaToken     = env.META_ADS_TOKEN    ?? "";
+  const youtubeApiKey = env.YOUTUBE_API_KEY   ?? "";
+  const ga4SaKeyJson  = env.GOOGLE_SA_KEY_JSON ?? ""; // base64 service account JSON
+  const perfitApiKey  = env.PERFIT_API_KEY    ?? "";
+  const perfitAccount = env.PERFIT_ACCOUNT    ?? "";
 
-  console.log("[NICE BIRD] Asaas token loaded:", asaasToken ? `${asaasToken.slice(0, 10)}…` : "VAZIO ⚠");
-  console.log("[NICE BIRD] Tiny token loaded:",  tinyToken  ? `${tinyToken.slice(0, 8)}…`  : "VAZIO ⚠");
-  console.log("[NICE BIRD] Meta token loaded:",  metaToken  ? `${metaToken.slice(0, 8)}…`  : "VAZIO ⚠");
+  console.log("[NICE BIRD] Asaas token loaded:   ", asaasToken    ? `${asaasToken.slice(0, 10)}…`    : "VAZIO ⚠");
+  console.log("[NICE BIRD] Tiny token loaded:    ", tinyToken     ? `${tinyToken.slice(0, 8)}…`     : "VAZIO ⚠");
+  console.log("[NICE BIRD] Meta token loaded:    ", metaToken     ? `${metaToken.slice(0, 8)}…`     : "VAZIO ⚠");
+  console.log("[NICE BIRD] YouTube API key:      ", youtubeApiKey ? `${youtubeApiKey.slice(0, 8)}…` : "não configurado (mock)");
+  console.log("[NICE BIRD] GA4 service account: ", ga4SaKeyJson  ? "configurado ✓"                 : "não configurado (mock)");
+  console.log("[NICE BIRD] Perfit API key:       ", perfitApiKey  ? `${perfitApiKey.slice(0, 6)}…`  : "não configurado (mock)");
 
   return {
     server: {
@@ -65,6 +72,53 @@ export default defineConfig(({ mode }) => {
           configure: (proxy) => {
             proxy.on("proxyReq", (proxyReq, req) => {
               console.log(`[proxy → Tiny] ${req.method} ${req.url}`);
+            });
+          },
+        },
+        // ── YouTube Data API v3 ────────────────────────────────
+        "/api/youtube": {
+          target: "https://www.googleapis.com/youtube/v3",
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/api\/youtube/, ""),
+          configure: (proxy) => {
+            proxy.on("proxyReq", (proxyReq) => {
+              if (!youtubeApiKey) return;
+              const url = new URL(`https://www.googleapis.com${proxyReq.path}`);
+              url.searchParams.set("key", youtubeApiKey);
+              proxyReq.path = url.pathname + url.search;
+            });
+          },
+        },
+        // ── Google Analytics 4 Data API ────────────────────────
+        // Auth: Service Account token injetado aqui.
+        // Configurar: GOOGLE_SA_KEY_JSON=<base64 do JSON da service account>
+        // (Semana 3 — token refresh logic adicionado quando SA key disponível)
+        "/api/ga4": {
+          target: "https://analyticsdata.googleapis.com",
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/api\/ga4/, ""),
+          configure: (proxy) => {
+            // Token será injetado na Semana 3 quando GOOGLE_SA_KEY_JSON estiver configurado.
+            // Por ora, passa sem header — o browser receberá 401 e o mock data é usado.
+            proxy.on("proxyReq", (proxyReq) => {
+              if (ga4SaKeyJson) {
+                // Placeholder: token refresh logic adicionado na Semana 3
+                proxyReq.setHeader("X-GA4-Configured", "true");
+              }
+            });
+          },
+        },
+        // ── Perfit Email Marketing ─────────────────────────────
+        "/api/perfit": {
+          target: "https://api.myperfit.com",
+          changeOrigin: true,
+          rewrite: (p) =>
+            p.replace(/^\/api\/perfit/, perfitAccount ? `/v2/${perfitAccount}` : "/v2"),
+          configure: (proxy) => {
+            proxy.on("proxyReq", (proxyReq) => {
+              if (perfitApiKey) {
+                proxyReq.setHeader("Authorization", `Bearer ${perfitApiKey}`);
+              }
             });
           },
         },
