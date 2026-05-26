@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTheme } from "next-themes";
-import { Sun, Moon, LogOut, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { Sun, Moon, LogOut, ChevronLeft, ChevronRight, Settings, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigation } from "../store/navigation";
 import { MODULES } from "./modules";
@@ -100,6 +100,15 @@ export function Sidebar() {
             : <Moon size={16} className="shrink-0" />
           }
           {!sidebarCollapsed && <span>Tema</span>}
+        </button>
+
+        <button
+          onClick={() => navigate("/instalar")}
+          className="nav-item w-full"
+          title="Instalar app"
+        >
+          <Smartphone size={16} className="shrink-0" />
+          {!sidebarCollapsed && <span>Instalar app</span>}
         </button>
 
         <button

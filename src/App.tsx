@@ -13,6 +13,7 @@ import { useModuleAccess } from "@/core/hooks/useModuleAccess";
 
 // Páginas de autenticação e públicas (carregadas imediatamente)
 import Auth from "./pages/Auth";
+import Instalar from "./pages/Instalar";
 import EstoqueDashboard from "./pages/EstoqueDashboard";
 import NotFound from "./pages/NotFound";
 
@@ -59,8 +60,9 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <Routes>
-              {/* Públicas */}
+              {/* Públicas — acessíveis sem login */}
               <Route path="/auth" element={<Auth />} />
+              <Route path="/instalar" element={<Instalar />} />
               <Route path="/estoques/:userId" element={<EstoqueDashboard />} />
 
               {/* App protegido com AppShell */}
