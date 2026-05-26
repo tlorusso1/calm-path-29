@@ -11,8 +11,9 @@
  *      header: Authorization: Bearer <token>
  */
 
+import { apiBase } from "@/lib/apiBase";
 const AD_ACCOUNT = import.meta.env.VITE_META_AD_ACCOUNT_ID ?? "";
-const BASE = "/api/meta/v20.0";
+const BASE = `${apiBase("meta")}/v20.0`;
 
 export interface MetaInsights {
   spend: number;

@@ -1,5 +1,6 @@
-// Bling API v3 — proxy via /api/bling (Vite dev) ou Edge Function (prod)
-const BASE = "/api/bling";
+import { apiBase } from "@/lib/apiBase";
+// Bling API v3 — Vite proxy em dev, Supabase Edge Function em prod
+const BASE = apiBase("bling");
 
 export interface BlingContaBancaria {
   id: number;

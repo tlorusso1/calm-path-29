@@ -1,5 +1,6 @@
-// Tiny API v2 — proxy via /api/tiny (Vite dev)
-const BASE = "/api/tiny";
+import { apiBase } from "@/lib/apiBase";
+// Tiny API v2 — Vite proxy em dev, Supabase Edge Function em prod
+const BASE = apiBase("tiny");
 const TOKEN = import.meta.env.VITE_TINY_TOKEN;
 
 async function get<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {

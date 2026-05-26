@@ -9,7 +9,8 @@
  *      VITE_PERFIT_CONFIGURED=true
  */
 
-const BASE = "/api/perfit";
+import { apiBase } from "@/lib/apiBase";
+const BASE = apiBase("perfit");
 
 // ── Interfaces ─────────────────────────────────────────────────
 

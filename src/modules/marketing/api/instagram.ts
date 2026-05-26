@@ -10,7 +10,8 @@
  *      e cacheado em sessionStorage como "ig_account_id"
  */
 
-const BASE = "/api/meta/v20.0";
+import { apiBase } from "@/lib/apiBase";
+const BASE = `${apiBase("meta")}/v20.0`;
 
 // ── Interfaces ─────────────────────────────────────────────────
 

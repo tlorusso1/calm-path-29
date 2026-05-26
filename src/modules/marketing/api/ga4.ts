@@ -12,7 +12,8 @@
  *   5. Token injetado automaticamente pelo proxy /api/ga4 (vite.config.ts — Semana 3)
  */
 
-const BASE = "/api/ga4/v1beta";
+import { apiBase } from "@/lib/apiBase";
+const BASE = `${apiBase("ga4")}/v1beta`;
 const PROPERTY_ID = import.meta.env.VITE_GA4_PROPERTY_ID ?? "properties/000000000";
 
 // ── Interfaces ─────────────────────────────────────────────────

@@ -9,7 +9,8 @@
  *      VITE_YOUTUBE_CONFIGURED=true
  */
 
-const BASE = "/api/youtube";
+import { apiBase } from "@/lib/apiBase";
+const BASE = apiBase("youtube");
 
 // ── Interfaces ─────────────────────────────────────────────────
 

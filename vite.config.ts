@@ -8,20 +8,24 @@ export default defineConfig(({ mode }) => {
   // Carrega TODAS as variáveis de ambiente (prefixo "" = todas)
   const env = loadEnv(mode, process.cwd(), "");
 
-  const asaasToken    = env.ASAAS_TOKEN       ?? "";
-  const tinyToken     = env.TINY_TOKEN        ?? "";
-  const metaToken     = env.META_ADS_TOKEN    ?? "";
-  const youtubeApiKey = env.YOUTUBE_API_KEY   ?? "";
-  const ga4SaKeyJson  = env.GOOGLE_SA_KEY_JSON ?? ""; // base64 service account JSON
-  const perfitApiKey  = env.PERFIT_API_KEY    ?? "";
-  const perfitAccount = env.PERFIT_ACCOUNT    ?? "";
+  const asaasToken       = env.ASAAS_TOKEN          ?? "";
+  const tinyToken        = env.TINY_TOKEN           ?? "";
+  const metaToken        = env.META_ADS_TOKEN       ?? "";
+  const youtubeApiKey    = env.YOUTUBE_API_KEY      ?? "";
+  const ga4SaKeyJson     = env.GOOGLE_SA_KEY_JSON   ?? ""; // base64 service account JSON
+  const perfitApiKey     = env.PERFIT_API_KEY       ?? "";
+  const perfitAccount    = env.PERFIT_ACCOUNT       ?? "";
+  const nuvemshopToken   = env.NUVEMSHOP_TOKEN      ?? "";
+  const nuvemshopStoreId = env.NUVEMSHOP_STORE_ID   ?? "";
 
   console.log("[NICE BIRD] Asaas token loaded:   ", asaasToken    ? `${asaasToken.slice(0, 10)}…`    : "VAZIO ⚠");
   console.log("[NICE BIRD] Tiny token loaded:    ", tinyToken     ? `${tinyToken.slice(0, 8)}…`     : "VAZIO ⚠");
   console.log("[NICE BIRD] Meta token loaded:    ", metaToken     ? `${metaToken.slice(0, 8)}…`     : "VAZIO ⚠");
   console.log("[NICE BIRD] YouTube API key:      ", youtubeApiKey ? `${youtubeApiKey.slice(0, 8)}…` : "não configurado (mock)");
   console.log("[NICE BIRD] GA4 service account: ", ga4SaKeyJson  ? "configurado ✓"                 : "não configurado (mock)");
-  console.log("[NICE BIRD] Perfit API key:       ", perfitApiKey  ? `${perfitApiKey.slice(0, 6)}…`  : "não configurado (mock)");
+  console.log("[NICE BIRD] Perfit API key:       ", perfitApiKey     ? `${perfitApiKey.slice(0, 6)}…`     : "não configurado (mock)");
+  console.log("[NICE BIRD] Nuvemshop token:      ", nuvemshopToken   ? `${nuvemshopToken.slice(0, 8)}…`   : "não configurado (mock)");
+  console.log("[NICE BIRD] Nuvemshop store ID:   ", nuvemshopStoreId ? nuvemshopStoreId                   : "não configurado (mock)");
 
   return {
     server: {
@@ -105,6 +109,19 @@ export default defineConfig(({ mode }) => {
                 // Placeholder: token refresh logic adicionado na Semana 3
                 proxyReq.setHeader("X-GA4-Configured", "true");
               }
+            });
+          },
+        },
+        // ── Nuvemshop ──────────────────────────────────────────
+        "/api/nuvemshop": {
+          target: `https://api.nuvemshop.com.br/v1/${nuvemshopStoreId}`,
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/api\/nuvemshop/, ""),
+          configure: (proxy) => {
+            proxy.on("proxyReq", (proxyReq, req) => {
+              proxyReq.setHeader("Authentication", `bearer ${nuvemshopToken}`);
+              proxyReq.setHeader("User-Agent", "NiceBirdOS/1.0 (thiago@nicefoods.com.br)");
+              console.log(`[proxy → Nuvemshop] ${req.method} ${req.url}`);
             });
           },
         },

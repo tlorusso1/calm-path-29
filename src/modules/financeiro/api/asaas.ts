@@ -1,5 +1,6 @@
-// Asaas API — proxy via /api/asaas (Vite dev) ou Edge Function (prod)
-const BASE = "/api/asaas";
+import { apiBase } from "@/lib/apiBase";
+// Asaas API — Vite proxy em dev, Supabase Edge Function em prod
+const BASE = apiBase("asaas");
 
 export interface AsaasBalance {
   balance: number;
