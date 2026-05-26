@@ -13,7 +13,7 @@ interface Props {
 
 export function CampanhaRow({ campanha }: Props) {
   const { name, status, insights } = campanha;
-  const isActive = status === "ACTIVE" || status === "ENABLED";
+  const isActive = (status as string) === "ACTIVE" || (status as string) === "ENABLED";
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 bg-muted/30 hover:bg-muted/60 rounded-lg transition-colors">
