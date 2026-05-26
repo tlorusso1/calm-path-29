@@ -158,7 +158,7 @@ export async function getYouTubeChannelStats(): Promise<YTChannelStats> {
     id: channelId,
     title: String(snippet.title ?? ""),
     description: String(snippet.description ?? ""),
-    thumbnailUrl: (snippet.thumbnails as Record<string, { url: string }>)?.high?.url ?? "",
+    thumbnailUrl: (snippet.thumbnails as unknown as Record<string, { url: string }>)?.high?.url ?? "",
     subscriberCount: parseInt(String(statistics.subscriberCount ?? "0")),
     hiddenSubscriberCount: statistics.hiddenSubscriberCount === true,
     videoCount: parseInt(String(statistics.videoCount ?? "0")),
