@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Smartphone, Monitor, Share, Plus, CheckCircle2, Download } from "lucide-react";
-import birdLogo from "@/assets/bird-logo-white.png";
+const birdLogo = "/icon-white.png";
 
 // ── Platform detection ────────────────────────────────────────────
 
@@ -82,9 +82,8 @@ export default function Instalar() {
     <div className="min-h-screen bg-[#0D1117] flex flex-col items-center justify-center px-6 py-12">
       {/* Logo */}
       <div className="flex flex-col items-center gap-3 mb-10">
-        <img src={birdLogo} alt="NICE BIRD" className="w-14 h-14 object-contain" />
+        <img src="/logo-white.png" alt="NICE OS" className="h-14 object-contain" />
         <div className="text-center">
-          <h1 className="text-white text-2xl font-bold tracking-tight">NICE BIRD</h1>
           <p className="text-white/50 text-sm mt-0.5">Operations OS</p>
         </div>
       </div>
@@ -156,7 +155,7 @@ export default function Instalar() {
                 {deferredPrompt ? (
                   <>
                     <p className="text-white/70 text-sm">
-                      Instale o NICE BIRD como app na sua{" "}
+                      Instale o NICE OS como app na sua{" "}
                       {desktop ? "área de trabalho" : "tela inicial"} para acesso rápido, mesmo offline.
                     </p>
                     <button

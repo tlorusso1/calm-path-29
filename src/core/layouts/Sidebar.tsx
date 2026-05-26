@@ -6,7 +6,7 @@ import { useNavigation } from "../store/navigation";
 import { MODULES } from "./modules";
 import { supabase } from "@/integrations/supabase/client";
 import { useModuleAccess } from "../hooks/useModuleAccess";
-import birdLogo from "@/assets/bird-logo-white.png";
+const birdLogo = "/icon-white.png";
 
 export function Sidebar() {
   const navigate = useNavigate();
@@ -38,12 +38,10 @@ export function Sidebar() {
         "flex items-center gap-2.5 px-4 py-5 border-b border-[hsl(var(--sidebar-border))]",
         sidebarCollapsed && "justify-center px-2"
       )}>
-        <img src={birdLogo} alt="NICE BIRD" className="w-7 h-7 shrink-0" />
-        {!sidebarCollapsed && (
-          <div>
-            <p className="text-[hsl(var(--sidebar-accent-foreground))] font-semibold text-sm leading-none">NICE BIRD</p>
-            <p className="text-[hsl(var(--sidebar-foreground))] text-[10px] mt-0.5 leading-none">Operations OS</p>
-          </div>
+        {sidebarCollapsed ? (
+          <img src="/icon-white.png" alt="NICE OS" className="w-7 h-7 shrink-0" />
+        ) : (
+          <img src="/logo-white.png" alt="NICE OS" className="h-7 object-contain" />
         )}
       </div>
 
