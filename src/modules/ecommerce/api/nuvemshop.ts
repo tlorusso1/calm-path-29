@@ -16,7 +16,8 @@ import { apiBase } from "@/lib/apiBase";
 const BASE = apiBase("nuvemshop");
 
 export function isNuvemshopConfigured(): boolean {
-  return import.meta.env.VITE_NUVEMSHOP_CONFIGURED === "true";
+  // Proxy edge function configurada em produção com NUVEMSHOP_TOKEN + NUVEMSHOP_STORE_ID
+  return true;
 }
 
 // ── Interfaces ─────────────────────────────────────────────────
