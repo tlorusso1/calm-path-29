@@ -4,7 +4,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* NICE BIRD OS — Design System */
+/* NICE OS — Design System */
 
 @layer base {
   :root {
@@ -126,7 +126,7 @@
   }
 }
 
-/* NICE BIRD — Status Colors */
+/* NICE OS — Status Colors */
 @layer components {
   .status-green {
     @apply bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900;

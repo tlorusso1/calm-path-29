@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import birdLogoWhite from '@/assets/bird-logo-white.png';
+const birdLogoWhite = '/logo-blue.png';
 import { ShaderBackground } from '@/components/ui/digital-aurora';
 
 const Auth = () => {
@@ -60,7 +60,7 @@ const Auth = () => {
       <div className="relative z-10 w-full max-w-md animate-fade-in">
         {/* Logo */}
         <div className="mb-8 text-center flex flex-col items-center">
-          <img src={birdLogoWhite} alt="Foco Agora" className="h-10 object-contain mb-3 drop-shadow-lg" />
+          <img src="/logo-blue.png" alt="NICE OS" className="h-12 object-contain mb-3 drop-shadow-lg" />
           <p className="mt-2 text-lg text-white drop-shadow-md">
             Foco no que importa.
           </p>

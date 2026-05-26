@@ -4,7 +4,7 @@ import { Sun, Moon, LogOut, Menu } from "lucide-react";
 import { MODULES } from "./modules";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import birdLogo from "@/assets/bird-logo-white.png";
+const birdLogo = "/icon-white.png";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { useNavigation } from "../store/navigation";
@@ -33,11 +33,7 @@ export function TopBar() {
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0 bg-[hsl(var(--sidebar-background))] border-[hsl(var(--sidebar-border))]">
           <div className="flex items-center gap-2.5 px-4 py-5 border-b border-[hsl(var(--sidebar-border))]">
-            <img src={birdLogo} alt="NICE BIRD" className="w-7 h-7" />
-            <div>
-              <p className="text-[hsl(var(--sidebar-accent-foreground))] font-semibold text-sm leading-none">NICE BIRD</p>
-              <p className="text-[hsl(var(--sidebar-foreground))] text-[10px] mt-0.5 leading-none">Operations OS</p>
-            </div>
+            <img src="/logo-white.png" alt="NICE OS" className="h-7 object-contain" />
           </div>
           <nav className="px-2 py-3 space-y-0.5">
             {MODULES.map((mod) => {
@@ -77,8 +73,8 @@ export function TopBar() {
         )}
         {!currentModule && (
           <>
-            <img src={birdLogo} alt="" className="w-5 h-5 shrink-0" />
-            <span className="font-semibold text-sm">NICE BIRD</span>
+            <img src="/icon-white.png" alt="" className="w-5 h-5 shrink-0" />
+            <span className="font-semibold text-sm">NICE OS</span>
           </>
         )}
       </div>
