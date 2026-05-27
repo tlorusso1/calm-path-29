@@ -148,9 +148,9 @@ export default defineConfig(({ mode }) => {
         registerType: "autoUpdate",
         includeAssets: ["icons/*.png"],
         manifest: {
-          name: "NICE BIRD — Operations OS",
-          short_name: "NICE BIRD",
-          description: "Sistema operacional da NICE FOODS",
+          name: "NICE OS",
+          short_name: "NICE OS",
+          description: "Operations OS — Nice Foods",
           theme_color: "#0D1117",
           background_color: "#0D1117",
           display: "standalone",
@@ -158,7 +158,7 @@ export default defineConfig(({ mode }) => {
           start_url: "/",
           lang: "pt-BR",
           icons: [
-            { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
+            { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
             { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
           ],
         },

@@ -158,14 +158,11 @@ const Auth = () => {
               src="/logo-blue.png"
               alt="NICE OS"
               style={{ height: 36, imageRendering: 'pixelated' }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
           </div>
 
           <form onSubmit={handleSubmit}>
-            {/* Email */}
             <div style={{ marginBottom: 10 }}>
               <label style={{ display: 'block', fontSize: 12, marginBottom: 3, fontWeight: 'bold' }}>
                 Email:
@@ -180,7 +177,6 @@ const Auth = () => {
               />
             </div>
 
-            {/* Senha */}
             <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', fontSize: 12, marginBottom: 3, fontWeight: 'bold' }}>
                 Senha:
@@ -196,7 +192,6 @@ const Auth = () => {
               />
             </div>
 
-            {/* Botões */}
             <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
               <button
                 type="submit"
@@ -215,7 +210,6 @@ const Auth = () => {
             </div>
           </form>
 
-          {/* Status bar */}
           <div style={{
             marginTop: 12,
             ...win95.inset,
@@ -229,7 +223,6 @@ const Auth = () => {
         </div>
       </div>
 
-      {/* Versão */}
       <p style={{
         marginTop: 12,
         fontSize: 11,
