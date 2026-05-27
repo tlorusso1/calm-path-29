@@ -180,7 +180,8 @@ export default function Instalar() {
                           <Step num={1}>Abra este link no <strong>Chrome</strong></Step>
                           <Step num={2}>
                             Clique no ícone de instalar{" "}
-                            <strong>(⊕)</strong> na barra de endereço
+                            <strong>(⊕)</strong> no canto direito da barra de endereço.{" "}
+                            <span className="text-white/50">Se não aparecer, use o menu <strong className="text-white/80">⋮</strong> → Salvar e compartilhar → Instalar como app.</span>
                           </Step>
                           <Step num={3}>Confirme clicando em <strong>Instalar</strong></Step>
                         </>
@@ -208,7 +209,7 @@ export default function Instalar() {
 
       {/* URL hint */}
       <p className="text-white/30 text-xs mt-8 text-center">
-        intranet.tasks-thiago-edition.nicefoods.com.br
+        os.nicefoods.com.br
       </p>
     </div>
   );
