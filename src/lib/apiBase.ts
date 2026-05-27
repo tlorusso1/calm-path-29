@@ -11,8 +11,6 @@
  *   4. Use `apiBase('service')` no arquivo de API.
  */
 
-import { supabase } from "@/integrations/supabase/client";
-
 const SUPABASE_FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
