@@ -1,11 +1,11 @@
-import { apiBase } from "@/lib/apiBase";
+import { apiBase, proxyFetch } from "@/lib/apiBase";
 // Tiny API — Vite proxy em dev, Supabase Edge Function em prod
 const BASE = apiBase("tiny");
 const TOKEN = import.meta.env.VITE_TINY_TOKEN;
 
 async function get<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
   const qs = new URLSearchParams({ token: TOKEN, formato: "json", ...params });
-  const res = await fetch(`${BASE}/${endpoint}?${qs}`);
+  const res = await proxyFetch(`${BASE}/${endpoint}?${qs}`);
   if (!res.ok) throw new Error(`Tiny ${endpoint}: ${res.status}`);
   return res.json();
 }

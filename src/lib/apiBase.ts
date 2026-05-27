@@ -11,12 +11,26 @@
  *   4. Use `apiBase('service')` no arquivo de API.
  */
 
-const SUPABASE_FUNCTIONS_URL =
-  "https://ibxzyodvtmagnetpyyfz.supabase.co/functions/v1";
+const SUPABASE_FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 export function apiBase(service: string): string {
   if (import.meta.env.DEV) {
     return `/api/${service}`;
   }
   return `${SUPABASE_FUNCTIONS_URL}/proxy-${service}`;
+}
+
+export async function proxyFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const requestUrl = typeof input === "string" ? input : input.toString();
+
+  if (!requestUrl.startsWith(SUPABASE_FUNCTIONS_URL)) {
+    return fetch(input, init);
+  }
+
+  const headers = new Headers(init.headers);
+  headers.set("apikey", SUPABASE_PUBLISHABLE_KEY);
+  headers.set("Authorization", `Bearer ${SUPABASE_PUBLISHABLE_KEY}`);
+
+  return fetch(input, { ...init, headers });
 }

@@ -1,4 +1,4 @@
-import { apiBase } from "@/lib/apiBase";
+import { apiBase, proxyFetch } from "@/lib/apiBase";
 // Bling API v3 — Vite proxy em dev, Supabase Edge Function em prod
 const BASE = apiBase("bling");
 
@@ -31,7 +31,7 @@ export interface BlingContaReceber {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await proxyFetch(`${BASE}${path}`);
   if (!res.ok) throw new Error(`Bling ${path}: ${res.status}`);
   return res.json();
 }

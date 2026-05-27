@@ -15,7 +15,7 @@ const TARGET = `https://api.nuvemshop.com.br/v1/${NS_STORE_ID}`;
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "apikey, authorization, content-type, x-client-info",
 };
 
 serve(async (req: Request) => {
@@ -29,7 +29,7 @@ serve(async (req: Request) => {
 
   const headers = new Headers();
   headers.set("Authentication", `bearer ${NS_TOKEN}`);
-  headers.set("User-Agent", "NiceBirdOS/1.0 (thiago@nicefoods.com.br)");
+  headers.set("User-Agent", "NiceOS/1.0 (thiago@nicefoods.com.br)");
   headers.set("Content-Type", "application/json");
 
   const res = await fetch(targetUrl, {

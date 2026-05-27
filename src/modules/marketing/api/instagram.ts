@@ -10,7 +10,7 @@
  *      e cacheado em sessionStorage como "ig_account_id"
  */
 
-import { apiBase } from "@/lib/apiBase";
+import { apiBase, proxyFetch } from "@/lib/apiBase";
 const BASE = `${apiBase("meta")}/v20.0`;
 
 // ── Interfaces ─────────────────────────────────────────────────
@@ -152,13 +152,13 @@ async function resolveIGAccountId(): Promise<string | null> {
   if (cached) return cached;
 
   try {
-    const pagesRes = await fetch(`${BASE}/me/accounts`);
+    const pagesRes = await proxyFetch(`${BASE}/me/accounts`);
     if (!pagesRes.ok) return null;
     const pagesData = await pagesRes.json();
     const pages: { id: string }[] = pagesData.data ?? [];
     if (pages.length === 0) return null;
 
-    const pageRes = await fetch(`${BASE}/${pages[0].id}?fields=instagram_business_account`);
+    const pageRes = await proxyFetch(`${BASE}/${pages[0].id}?fields=instagram_business_account`);
     if (!pageRes.ok) return null;
     const pageData = await pageRes.json();
     const igId: string = pageData.instagram_business_account?.id ?? null;
@@ -196,7 +196,7 @@ export async function getInstagramProfile(): Promise<IGProfile> {
   if (!igId) return MOCK_PROFILE;
 
   const fields = "followers_count,follows_count,media_count,profile_picture_url,username,biography";
-  const res = await fetch(`${BASE}/${igId}?fields=${fields}`);
+  const res = await proxyFetch(`${BASE}/${igId}?fields=${fields}`);
   if (!res.ok) return MOCK_PROFILE;
   const d = await res.json();
 
@@ -218,7 +218,7 @@ export async function getInstagramMedia(): Promise<IGMedia[]> {
   if (!igId) return MOCK_MEDIA;
 
   const fields = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count";
-  const res = await fetch(`${BASE}/${igId}/media?fields=${fields}&limit=20`);
+  const res = await proxyFetch(`${BASE}/${igId}/media?fields=${fields}&limit=20`);
   if (!res.ok) return MOCK_MEDIA;
   const data = await res.json();
 
@@ -238,7 +238,7 @@ export async function getInstagramMedia(): Promise<IGMedia[]> {
 
       // Fetch insights for each media (only available for business accounts)
       try {
-        const insightsRes = await fetch(
+        const insightsRes = await proxyFetch(
           `${BASE}/${item.id}/insights?metric=reach,impressions,saved,shares`
         );
         if (insightsRes.ok) {
@@ -266,7 +266,7 @@ export async function getInstagramAccountInsights(): Promise<IGAccountInsights> 
   const until = Math.floor(Date.now() / 1000);
   const metric = "reach,impressions,profile_views,follower_count";
 
-  const res = await fetch(
+  const res = await proxyFetch(
     `${BASE}/${igId}/insights?metric=${metric}&period=day&since=${since}&until=${until}`
   );
   if (!res.ok) return MOCK_INSIGHTS;

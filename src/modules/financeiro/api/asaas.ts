@@ -1,4 +1,4 @@
-import { apiBase } from "@/lib/apiBase";
+import { apiBase, proxyFetch } from "@/lib/apiBase";
 // Asaas API — Vite proxy em dev, Supabase Edge Function em prod
 const BASE = apiBase("asaas");
 
@@ -27,7 +27,7 @@ export interface AsaasBill {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await proxyFetch(`${BASE}${path}`);
   if (!res.ok) throw new Error(`Asaas ${path}: ${res.status}`);
   return res.json();
 }
@@ -53,12 +53,12 @@ export async function getAsaasOverdue(): Promise<{ data: AsaasPayment[]; totalCo
 }
 
 export async function sendAsaasNotification(paymentId: string): Promise<void> {
-  const res = await fetch(`${BASE}/payments/${paymentId}/sendNotification`, { method: "POST" });
+  const res = await proxyFetch(`${BASE}/payments/${paymentId}/sendNotification`, { method: "POST" });
   if (!res.ok) throw new Error(`Asaas sendNotification ${paymentId}: ${res.status}`);
 }
 
 export async function deleteAsaasPayment(paymentId: string): Promise<void> {
-  const res = await fetch(`${BASE}/payments/${paymentId}`, { method: "DELETE" });
+  const res = await proxyFetch(`${BASE}/payments/${paymentId}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Asaas deletePayment ${paymentId}: ${res.status}`);
 }
 

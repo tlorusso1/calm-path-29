@@ -9,7 +9,7 @@
  *      VITE_PERFIT_CONFIGURED=true
  */
 
-import { apiBase } from "@/lib/apiBase";
+import { apiBase, proxyFetch } from "@/lib/apiBase";
 const BASE = apiBase("perfit");
 
 // ── Interfaces ─────────────────────────────────────────────────
@@ -109,7 +109,7 @@ export function isPerfitConfigured(): boolean {
 }
 
 async function perfitGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await proxyFetch(`${BASE}${path}`);
   if (!res.ok) throw new Error(`Perfit ${path}: ${res.status}`);
   return res.json();
 }
