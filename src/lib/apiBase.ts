@@ -32,11 +32,7 @@ export async function proxyFetch(input: RequestInfo | URL, init: RequestInit = {
 
   const headers = new Headers(init.headers);
   headers.set("apikey", SUPABASE_PUBLISHABLE_KEY);
-
-  if (!headers.has("Authorization")) {
-    const { data } = await supabase.auth.getSession();
-    headers.set("Authorization", `Bearer ${data.session?.access_token ?? SUPABASE_PUBLISHABLE_KEY}`);
-  }
+  headers.set("Authorization", `Bearer ${SUPABASE_PUBLISHABLE_KEY}`);
 
   return fetch(input, { ...init, headers });
 }
