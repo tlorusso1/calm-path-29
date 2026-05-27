@@ -13,7 +13,7 @@ const TARGET = "https://api.asaas.com/v3";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "apikey, authorization, content-type, x-client-info",
 };
 
 serve(async (req: Request) => {
@@ -26,8 +26,10 @@ serve(async (req: Request) => {
 
   const headers = new Headers(req.headers);
   headers.set("access_token", ASAAS_TOKEN);
-  headers.set("User-Agent", "NiceBirdOS/1.0");
+  headers.set("User-Agent", "NiceOS/1.0");
   headers.delete("host");
+  headers.delete("authorization");
+  headers.delete("apikey");
 
   const res = await fetch(targetUrl, {
     method: req.method,

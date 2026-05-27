@@ -15,7 +15,7 @@ const TARGET = `https://api.myperfit.com/v2/${PERFIT_ACCOUNT}`;
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "apikey, authorization, content-type, x-client-info",
 };
 
 serve(async (req: Request) => {
@@ -28,6 +28,7 @@ serve(async (req: Request) => {
   const headers = new Headers(req.headers);
   headers.set("Authorization", `Bearer ${PERFIT_KEY}`);
   headers.delete("host");
+  headers.delete("apikey");
 
   const res = await fetch(targetUrl, {
     method: req.method,
