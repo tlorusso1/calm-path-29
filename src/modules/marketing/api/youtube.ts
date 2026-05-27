@@ -9,7 +9,7 @@
  *      VITE_YOUTUBE_CONFIGURED=true
  */
 
-import { apiBase } from "@/lib/apiBase";
+import { apiBase, proxyFetch } from "@/lib/apiBase";
 const BASE = apiBase("youtube");
 
 // ── Interfaces ─────────────────────────────────────────────────
@@ -133,7 +133,7 @@ function parseDuration(iso: string): number {
 }
 
 async function ytFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await proxyFetch(`${BASE}${path}`);
   if (!res.ok) throw new Error(`YouTube API ${path}: ${res.status}`);
   return res.json();
 }

@@ -11,7 +11,7 @@
  *      header: Authorization: Bearer <token>
  */
 
-import { apiBase } from "@/lib/apiBase";
+import { apiBase, proxyFetch } from "@/lib/apiBase";
 const AD_ACCOUNT = import.meta.env.VITE_META_AD_ACCOUNT_ID ?? "";
 const BASE = `${apiBase("meta")}/v20.0`;
 
@@ -97,7 +97,7 @@ export async function getMetaAccountInsights(datePreset = "this_month"): Promise
 
   const fields = "spend,impressions,clicks,reach,ctr,cpc,cpp,actions,action_values";
   // Token injetado pelo proxy (vite.config.ts) — não exposto no browser
-  const res = await fetch(`${BASE}/${AD_ACCOUNT}/insights?fields=${fields}&date_preset=${datePreset}`);
+  const res = await proxyFetch(`${BASE}/${AD_ACCOUNT}/insights?fields=${fields}&date_preset=${datePreset}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(`Meta Ads insights: ${res.status} — ${err?.error?.message ?? ""}`);
@@ -183,7 +183,7 @@ const MOCK_ADS: MetaAd[] = [
 export async function getMetaAdSets(): Promise<MetaAdSet[]> {
   if (!isMetaConfigured()) return MOCK_ADSETS;
   const fields = "id,name,status,daily_budget,targeting,insights{spend,impressions,clicks,reach,ctr,cpc,cpp,actions,action_values}";
-  const res = await fetch(`${BASE}/${AD_ACCOUNT}/adsets?fields=${fields}&date_preset=this_month&limit=30`);
+  const res = await proxyFetch(`${BASE}/${AD_ACCOUNT}/adsets?fields=${fields}&date_preset=this_month&limit=30`);
   if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(`Meta adsets: ${res.status} — ${err?.error?.message ?? ""}`); }
   const data = await res.json();
   return (data.data ?? []).map((raw: any): MetaAdSet => ({
@@ -197,7 +197,7 @@ export async function getMetaAdSets(): Promise<MetaAdSet[]> {
 export async function getMetaAds(): Promise<MetaAd[]> {
   if (!isMetaConfigured()) return MOCK_ADS;
   const fields = "id,name,status,creative{id,name,thumbnail_url,object_story_spec},insights{spend,impressions,clicks,reach,ctr,cpc,cpp,actions,action_values}";
-  const res = await fetch(`${BASE}/${AD_ACCOUNT}/ads?fields=${fields}&date_preset=this_month&limit=50`);
+  const res = await proxyFetch(`${BASE}/${AD_ACCOUNT}/ads?fields=${fields}&date_preset=this_month&limit=50`);
   if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(`Meta ads: ${res.status} — ${err?.error?.message ?? ""}`); }
   const data = await res.json();
   return (data.data ?? []).map((raw: any): MetaAd => ({
@@ -220,7 +220,7 @@ export async function uploadMetaImage(file: File): Promise<{ hash: string; url: 
   const form = new FormData();
   form.append("filename", file.name);
   form.append("bytes", file);
-  const res = await fetch(`${BASE}/${AD_ACCOUNT}/adimages`, { method: "POST", body: form });
+  const res = await proxyFetch(`${BASE}/${AD_ACCOUNT}/adimages`, { method: "POST", body: form });
   if (!res.ok) throw new Error(`Meta upload: ${res.status}`);
   const data = await res.json();
   const imgData = Object.values(data.images ?? {})[0] as any;
@@ -242,7 +242,7 @@ export async function updateMetaCampaign(id: string, updates: MetaCampaignUpdate
   if (updates.status) body.status = updates.status;
   if (updates.dailyBudget != null) body.daily_budget = Math.round(updates.dailyBudget * 100); // centavos
 
-  const res = await fetch(`${BASE}/${id}`, {
+  const res = await proxyFetch(`${BASE}/${id}`, {
     method: "POST", // Meta Graph API usa POST com ?method=PATCH ou POST direto pra updates
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(
@@ -259,7 +259,7 @@ export async function getMetaCampaigns(): Promise<MetaCampaign[]> {
   if (!isMetaConfigured()) return MOCK_CAMPAIGNS;
 
   const fields = "id,name,status,objective,daily_budget,insights{spend,impressions,clicks,reach,ctr,cpc,cpp,actions,action_values}";
-  const res = await fetch(`${BASE}/${AD_ACCOUNT}/campaigns?fields=${fields}&date_preset=this_month&limit=20`);
+  const res = await proxyFetch(`${BASE}/${AD_ACCOUNT}/campaigns?fields=${fields}&date_preset=this_month&limit=20`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(`Meta campaigns: ${res.status} — ${err?.error?.message ?? ""}`);

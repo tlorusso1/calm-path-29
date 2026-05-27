@@ -12,7 +12,7 @@
  *   5. Token injetado automaticamente pelo proxy /api/ga4 (vite.config.ts — Semana 3)
  */
 
-import { apiBase } from "@/lib/apiBase";
+import { apiBase, proxyFetch } from "@/lib/apiBase";
 const BASE = `${apiBase("ga4")}/v1beta`;
 const PROPERTY_ID = import.meta.env.VITE_GA4_PROPERTY_ID ?? "properties/000000000";
 
@@ -93,7 +93,7 @@ export function isGA4Configured(): boolean {
 async function runReport(request: GA4ReportRequest): Promise<{
   rows?: { dimensionValues: { value: string }[]; metricValues: { value: string }[] }[];
 }> {
-  const res = await fetch(`${BASE}/${PROPERTY_ID}:runReport`, {
+  const res = await proxyFetch(`${BASE}/${PROPERTY_ID}:runReport`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),

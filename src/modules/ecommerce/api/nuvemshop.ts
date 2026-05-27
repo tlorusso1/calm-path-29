@@ -11,7 +11,7 @@
  *   6. Deploy: supabase functions deploy proxy-nuvemshop
  */
 
-import { apiBase } from "@/lib/apiBase";
+import { apiBase, proxyFetch } from "@/lib/apiBase";
 
 const BASE = apiBase("nuvemshop");
 
@@ -185,7 +185,7 @@ function calcStats(orders: NSOrder[]): NSStats {
 
 async function get<T>(path: string, params: Record<string, string> = {}): Promise<T> {
   const qs = new URLSearchParams(params).toString();
-  const res = await fetch(`${BASE}${path}${qs ? `?${qs}` : ""}`);
+  const res = await proxyFetch(`${BASE}${path}${qs ? `?${qs}` : ""}`);
   if (!res.ok) throw new Error(`Nuvemshop ${path}: ${res.status}`);
   return res.json();
 }

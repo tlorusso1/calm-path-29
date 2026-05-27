@@ -9,7 +9,7 @@
  * Em dev: via Vite proxy (/api/tiny / /api/nuvemshop)
  */
 
-import { apiBase } from "@/lib/apiBase";
+import { apiBase, proxyFetch } from "@/lib/apiBase";
 
 const TINY_BASE = apiBase("tiny");
 const NS_BASE   = apiBase("nuvemshop");
@@ -71,7 +71,7 @@ function mockStats(): EstoqueStats {
 
 async function getTinyProdutos(): Promise<SKUEstoque[]> {
   const qs = new URLSearchParams({ token: TINY_TOKEN, formato: "json", situacao: "A" });
-  const res = await fetch(`${TINY_BASE}/produtos.pesquisa.php?${qs}`);
+  const res = await proxyFetch(`${TINY_BASE}/produtos.pesquisa.php?${qs}`);
   if (!res.ok) throw new Error(`Tiny produtos: ${res.status}`);
   const data = await res.json();
   const produtos = data?.retorno?.produtos ?? [];
@@ -95,7 +95,7 @@ async function getTinyProdutos(): Promise<SKUEstoque[]> {
 // ── Nuvemshop API helpers ──────────────────────────────────────
 
 async function getNSEstoque(): Promise<Map<string, number>> {
-  const res = await fetch(`${NS_BASE}/products?per_page=200`);
+  const res = await proxyFetch(`${NS_BASE}/products?per_page=200`);
   if (!res.ok) return new Map();
   const data = await res.json();
   const map = new Map<string, number>();
