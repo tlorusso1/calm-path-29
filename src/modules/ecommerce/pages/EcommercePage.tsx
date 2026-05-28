@@ -3,7 +3,7 @@ import {
   ShoppingCart, Package, TrendingUp, Clock, XCircle,
   RefreshCw, Info, Store, CreditCard, Truck, AlertCircle,
 } from "lucide-react";
-import { fetchNSOrders, fetchNSStats, isNuvemshopConfigured, type NSOrder } from "../api/nuvemshop";
+import { fetchNSOrders, fetchNSStats, isNuvemshopConfigured, NuvemshopAuthError, type NSOrder } from "../api/nuvemshop";
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -138,6 +138,7 @@ export default function EcommercePage() {
   });
 
   const isConfigured = isNuvemshopConfigured();
+  const authError = stats.error instanceof NuvemshopAuthError || orders.error instanceof NuvemshopAuthError;
 
   const handleRefresh = () => {
     stats.refetch();
@@ -185,6 +186,15 @@ export default function EcommercePage() {
         </div>
       )}
 
+      {authError && (
+        <div className="mx-4 md:mx-6 mb-3 flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-lg text-xs text-red-700 dark:text-red-400">
+          <XCircle size={13} className="mt-0.5 shrink-0" />
+          <span>
+            A Nuvemshop recusou o token configurado. Reinstale o app sob medida e atualize juntos o <strong>User ID</strong> e o <strong>Access Token</strong> da mesma instalação.
+          </span>
+        </div>
+      )}
+
       {/* ── KPIs ───────────────────────────────────────────── */}
       <div className="px-4 md:px-6 pb-4">
         {stats.isLoading ? (
@@ -226,6 +236,13 @@ export default function EcommercePage() {
               />
             </div>
           </>
+        ) : authError ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <KpiCard label="Hoje — Faturamento" value="—" sub="token inválido" icon={TrendingUp} color="slate" />
+            <KpiCard label="Mês — Faturamento" value="—" sub="token inválido" icon={ShoppingCart} color="slate" />
+            <KpiCard label="Ticket Médio" value="—" sub="token inválido" icon={CreditCard} color="slate" />
+            <KpiCard label="Aguardando" value="—" sub="token inválido" icon={AlertCircle} color="red" />
+          </div>
         ) : null}
 
         {/* ── Pedidos recentes ──────────────────────────── */}
