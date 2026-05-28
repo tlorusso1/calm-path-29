@@ -86,6 +86,13 @@ export interface NSStats {
   monthRevenue: number;
 }
 
+export class NuvemshopAuthError extends Error {
+  constructor(message = "Token inválido da Nuvemshop") {
+    super(message);
+    this.name = "NuvemshopAuthError";
+  }
+}
+
 // ── Mock data ──────────────────────────────────────────────────
 
 const MOCK_ORDERS: NSOrder[] = [
@@ -186,8 +193,12 @@ function calcStats(orders: NSOrder[]): NSStats {
 async function get<T>(path: string, params: Record<string, string> = {}): Promise<T> {
   const qs = new URLSearchParams(params).toString();
   const res = await proxyFetch(`${BASE}${path}${qs ? `?${qs}` : ""}`);
+  const data = await res.json();
+  if (data?.error === "NUVEMSHOP_INVALID_TOKEN") {
+    throw new NuvemshopAuthError(data.message);
+  }
   if (!res.ok) throw new Error(`Nuvemshop ${path}: ${res.status}`);
-  return res.json();
+  return data;
 }
 
 export async function fetchNSOrders(params: {
