@@ -8,8 +8,16 @@
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const NS_TOKEN = Deno.env.get("NUVEMSHOP_TOKEN") ?? "";
-const NS_STORE_ID = Deno.env.get("NUVEMSHOP_STORE_ID") ?? "";
+function cleanSecret(value: string): string {
+  return value.trim().replace(/^['"]|['"]$/g, "");
+}
+
+function cleanBearerToken(value: string): string {
+  return cleanSecret(value).replace(/^bearer\s+/i, "");
+}
+
+const NS_TOKEN = cleanBearerToken(Deno.env.get("NUVEMSHOP_TOKEN") ?? "");
+const NS_STORE_ID = cleanSecret(Deno.env.get("NUVEMSHOP_STORE_ID") ?? "");
 const TARGET = `https://api.nuvemshop.com.br/v1/${NS_STORE_ID}`;
 
 const CORS = {
@@ -20,6 +28,13 @@ const CORS = {
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+
+  if (!NS_TOKEN || !NS_STORE_ID) {
+    return new Response(JSON.stringify({ error: "Nuvemshop credentials are not configured" }), {
+      status: 500,
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
 
   const url = new URL(req.url);
   const path = url.pathname
@@ -39,6 +54,16 @@ serve(async (req: Request) => {
   });
 
   const body = await res.text();
+  if (res.status === 401) {
+    console.error("Nuvemshop rejected the configured access token", {
+      status: res.status,
+      path,
+      storeConfigured: Boolean(NS_STORE_ID),
+      tokenConfigured: Boolean(NS_TOKEN),
+      tokenPrefix: NS_TOKEN.slice(0, 4),
+    });
+  }
+
   return new Response(body, {
     status: res.status,
     headers: { ...CORS, "Content-Type": res.headers.get("Content-Type") ?? "application/json" },
