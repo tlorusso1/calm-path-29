@@ -62,6 +62,15 @@ serve(async (req: Request) => {
       tokenConfigured: Boolean(NS_TOKEN),
       tokenPrefix: NS_TOKEN.slice(0, 4),
     });
+
+    return new Response(JSON.stringify({
+      error: "NUVEMSHOP_INVALID_TOKEN",
+      message: "Nuvemshop rejected the configured access token. Reinstall the custom app and update NUVEMSHOP_TOKEN and NUVEMSHOP_STORE_ID from the same installation.",
+      upstreamStatus: 401,
+    }), {
+      status: 200,
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
   }
 
   return new Response(body, {
