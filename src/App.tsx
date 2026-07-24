@@ -85,6 +85,7 @@ const App = () => (
                           {/* Módulos novos */}
                           <Route path="/financeiro/*" element={<FinanceiroPage />} />
                           <Route path="/ecommerce/*"  element={<EcommercePage />} />
+                          <Route path="/canais/*"     element={<VendasCanaisPage />} />
                           <Route path="/marketing/*"  element={<MarketingPage />} />
                           <Route path="/atendimento/*" element={<AtendimentoPage />} />
                           <Route path="/supply/*"     element={<SupplyPage />} />
