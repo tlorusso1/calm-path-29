@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
+import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
 
 export default defineConfig(({ mode }) => {
   // Carrega TODAS as variáveis de ambiente (prefixo "" = todas)
@@ -144,6 +145,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       mode === "development" && componentTagger(),
+      mcpPlugin(),
       VitePWA({
         registerType: "autoUpdate",
         includeAssets: ["icons/*.png"],
@@ -162,7 +164,10 @@ export default defineConfig(({ mode }) => {
             { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
           ],
         },
-        workbox: { globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"] },
+        workbox: {
+          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+          navigateFallbackDenylist: [/^\/\.lovable\/oauth/, /^\/~oauth/],
+        },
       }),
     ].filter(Boolean),
     resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
