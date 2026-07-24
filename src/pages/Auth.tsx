@@ -114,6 +114,8 @@ const Auth = () => {
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  const next = safeNext(searchParams.get('next'));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,7 +126,7 @@ const Auth = () => {
         if (error) {
           toast({ variant: 'destructive', title: 'Erro no login', description: error.message });
         } else {
-          navigate('/');
+          navigate(next, { replace: true });
         }
       } else {
         const { error } = await signUp(email, password);
