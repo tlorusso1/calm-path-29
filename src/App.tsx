@@ -21,6 +21,7 @@ import NotFound from "./pages/NotFound";
 // Módulos com lazy loading
 const FinanceiroPage    = lazy(() => import("./modules/financeiro/pages/FinanceiroPage"));
 const EcommercePage     = lazy(() => import("./modules/ecommerce/pages/EcommercePage"));
+const VendasCanaisPage  = lazy(() => import("./modules/ecommerce/pages/VendasCanaisPage"));
 const MarketingPage     = lazy(() => import("./modules/marketing/pages/MarketingPage"));
 const AtendimentoPage   = lazy(() => import("./modules/atendimento/pages/AtendimentoPage"));
 const SupplyPage        = lazy(() => import("./modules/supply/pages/SupplyPage"));
