@@ -1,7 +1,18 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+
+function safeNext(raw: string | null): string {
+  if (!raw) return '/';
+  try {
+    // must be a same-origin relative path starting with a single '/'
+    if (!raw.startsWith('/') || raw.startsWith('//')) return '/';
+    return raw;
+  } catch {
+    return '/';
+  }
+}
 
 // ── Win95 helpers ─────────────────────────────────────────────────
 
@@ -103,6 +114,8 @@ const Auth = () => {
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  const next = safeNext(searchParams.get('next'));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,7 +126,7 @@ const Auth = () => {
         if (error) {
           toast({ variant: 'destructive', title: 'Erro no login', description: error.message });
         } else {
-          navigate('/');
+          navigate(next, { replace: true });
         }
       } else {
         const { error } = await signUp(email, password);

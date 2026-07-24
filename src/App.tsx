@@ -15,6 +15,7 @@ import { useModuleAccess } from "@/core/hooks/useModuleAccess";
 import Auth from "./pages/Auth";
 import Instalar from "./pages/Instalar";
 import EstoqueDashboard from "./pages/EstoqueDashboard";
+import OAuthConsent from "./pages/OAuthConsent";
 import NotFound from "./pages/NotFound";
 
 // Módulos com lazy loading
@@ -64,6 +65,10 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/instalar" element={<Instalar />} />
               <Route path="/estoques/:userId" element={<EstoqueDashboard />} />
+
+              {/* MCP OAuth consent — precisa de sessão mas fora do AppShell */}
+              <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+
 
               {/* App protegido com AppShell */}
               <Route
