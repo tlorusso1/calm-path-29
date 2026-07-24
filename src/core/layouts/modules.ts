@@ -1,6 +1,7 @@
 import {
   TrendingUp,
   ShoppingCart,
+  BarChart3,
   Megaphone,
   MessageCircle,
   Package,
