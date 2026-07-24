@@ -37,6 +37,13 @@ export const MODULES: ModuleConfig[] = [
     path: "/ecommerce",
   },
   {
+    id: "canais",
+    label: "Vendas por Canal",
+    shortLabel: "Canais",
+    icon: BarChart3,
+    path: "/canais",
+  },
+  {
     id: "marketing",
     label: "Marketing",
     shortLabel: "Mkt",
