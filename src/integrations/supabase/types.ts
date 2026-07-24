@@ -230,6 +230,84 @@ export type Database = {
         }
         Relationships: []
       }
+      vendas_canais: {
+        Row: {
+          atualizado_em: string
+          canal: string
+          created_at: string
+          faturamento: number
+          fonte: string | null
+          id: string
+          mes: string
+          pedidos: number
+          updated_at: string
+        }
+        Insert: {
+          atualizado_em?: string
+          canal: string
+          created_at?: string
+          faturamento?: number
+          fonte?: string | null
+          id?: string
+          mes: string
+          pedidos?: number
+          updated_at?: string
+        }
+        Update: {
+          atualizado_em?: string
+          canal?: string
+          created_at?: string
+          faturamento?: number
+          fonte?: string | null
+          id?: string
+          mes?: string
+          pedidos?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      vendas_produtos: {
+        Row: {
+          atualizado_em: string
+          canal: string
+          created_at: string
+          faturamento: number
+          fonte: string | null
+          id: string
+          mes: string
+          nome: string
+          qtd_vendida: number
+          sku: string | null
+          updated_at: string
+        }
+        Insert: {
+          atualizado_em?: string
+          canal: string
+          created_at?: string
+          faturamento?: number
+          fonte?: string | null
+          id?: string
+          mes: string
+          nome: string
+          qtd_vendida?: number
+          sku?: string | null
+          updated_at?: string
+        }
+        Update: {
+          atualizado_em?: string
+          canal?: string
+          created_at?: string
+          faturamento?: number
+          fonte?: string | null
+          id?: string
+          mes?: string
+          nome?: string
+          qtd_vendida?: number
+          sku?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       weekly_snapshots: {
         Row: {
           ads_maximo: number | null

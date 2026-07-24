@@ -3,6 +3,7 @@ import { create } from "zustand";
 export type ModuleId =
   | "financeiro"
   | "ecommerce"
+  | "canais"
   | "marketing"
   | "atendimento"
   | "supply"

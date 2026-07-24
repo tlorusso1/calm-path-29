@@ -1,6 +1,7 @@
 import {
   TrendingUp,
   ShoppingCart,
+  BarChart3,
   Megaphone,
   MessageCircle,
   Package,
@@ -34,6 +35,13 @@ export const MODULES: ModuleConfig[] = [
     shortLabel: "Ecom",
     icon: ShoppingCart,
     path: "/ecommerce",
+  },
+  {
+    id: "canais",
+    label: "Vendas por Canal",
+    shortLabel: "Canais",
+    icon: BarChart3,
+    path: "/canais",
   },
   {
     id: "marketing",
