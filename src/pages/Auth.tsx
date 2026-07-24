@@ -1,7 +1,18 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+
+function safeNext(raw: string | null): string {
+  if (!raw) return '/';
+  try {
+    // must be a same-origin relative path starting with a single '/'
+    if (!raw.startsWith('/') || raw.startsWith('//')) return '/';
+    return raw;
+  } catch {
+    return '/';
+  }
+}
 
 // ── Win95 helpers ─────────────────────────────────────────────────
 
