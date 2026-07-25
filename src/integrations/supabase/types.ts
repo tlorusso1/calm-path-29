@@ -14,6 +14,72 @@ export type Database = {
   }
   public: {
     Tables: {
+      vendas_canais: {
+        Row: {
+          id: string
+          mes: string
+          canal: string
+          pedidos: number
+          faturamento: number
+          fonte: string
+          atualizado_em: string
+        }
+        Insert: {
+          id?: string
+          mes: string
+          canal: string
+          pedidos?: number
+          faturamento?: number
+          fonte?: string
+          atualizado_em?: string
+        }
+        Update: {
+          id?: string
+          mes?: string
+          canal?: string
+          pedidos?: number
+          faturamento?: number
+          fonte?: string
+          atualizado_em?: string
+        }
+        Relationships: []
+      }
+      vendas_produtos: {
+        Row: {
+          id: string
+          mes: string
+          canal: string
+          nome: string
+          sku: string | null
+          qtd_vendida: number
+          faturamento: number
+          fonte: string
+          atualizado_em: string
+        }
+        Insert: {
+          id?: string
+          mes: string
+          canal: string
+          nome: string
+          sku?: string | null
+          qtd_vendida?: number
+          faturamento?: number
+          fonte?: string
+          atualizado_em?: string
+        }
+        Update: {
+          id?: string
+          mes?: string
+          canal?: string
+          nome?: string
+          sku?: string | null
+          qtd_vendida?: number
+          faturamento?: number
+          fonte?: string
+          atualizado_em?: string
+        }
+        Relationships: []
+      }
       app_config: {
         Row: {
           key: string

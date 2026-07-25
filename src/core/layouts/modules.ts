@@ -8,6 +8,7 @@ import {
   Lightbulb,
   ClipboardList,
   Users,
+  BarChart3,
   type LucideIcon,
 } from "lucide-react";
 import type { ModuleId } from "../store/navigation";
@@ -84,5 +85,12 @@ export const MODULES: ModuleConfig[] = [
     shortLabel: "B2B",
     icon: Users,
     path: "/b2b",
+  },
+  {
+    id: "canais",
+    label: "Vendas por Canal",
+    shortLabel: "Canais",
+    icon: BarChart3,
+    path: "/canais",
   },
 ];

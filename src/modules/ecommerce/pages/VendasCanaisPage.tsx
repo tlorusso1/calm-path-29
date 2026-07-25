@@ -1,379 +1,536 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/integrations/supabase/client'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from "recharts";
-import { BarChart3, Package, TrendingUp, Loader2 } from "lucide-react";
+  BarChart, Bar, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, Legend, CartesianGrid
+} from 'recharts'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Select, SelectContent, SelectItem,
+  SelectTrigger, SelectValue
+} from '@/components/ui/select'
+import { Package } from 'lucide-react'
 
-type VendaCanal = {
-  id: string;
-  mes: string;
-  canal: string;
-  pedidos: number;
-  faturamento: number;
-  fonte: string | null;
-};
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type VendaProduto = {
-  id: string;
-  mes: string;
-  canal: string;
-  nome: string;
-  sku: string | null;
-  qtd_vendida: number;
-  faturamento: number;
-  fonte: string | null;
-};
+interface VendasRow {
+  mes: string
+  canal: string
+  pedidos: number
+  faturamento: number
+}
 
-type Metric = "faturamento" | "pedidos";
-type Tab = "canal" | "produto";
+interface ProdutoRow {
+  mes: string
+  canal: string
+  nome: string
+  sku: string | null
+  qtd_vendida: number
+  faturamento: number
+}
 
-const PERIODOS = [
-  { label: "3 meses",  months: 3 },
-  { label: "6 meses",  months: 6 },
-  { label: "12 meses", months: 12 },
-  { label: "24 meses", months: 24 },
-  { label: "Tudo",     months: 0 },
-];
+// ─── Config ───────────────────────────────────────────────────────────────────
 
-const COLORS = [
-  "hsl(217 91% 60%)",
-  "hsl(142 71% 45%)",
-  "hsl(38 92% 50%)",
-  "hsl(340 82% 60%)",
-  "hsl(262 83% 58%)",
-  "hsl(174 62% 47%)",
-  "hsl(14 90% 55%)",
-  "hsl(199 89% 48%)",
-];
+const CANAL_CONFIG: Record<string, { label: string; color: string }> = {
+  nuvemshop: { label: 'Nuvemshop', color: '#2B7FFF' },
+  shopee:    { label: 'Shopee BR', color: '#FF6B00' },
+  ritz_pay:  { label: 'Ritz Pay',  color: '#E8A838' },
+  nice_sp:   { label: 'NICE SP',   color: '#4DC98A' },
+  b2b_tiny:  { label: 'B2B',       color: '#7C3AED' },
+}
 
-const fmtBRL = (v: number) =>
-  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-const fmtNum = (v: number) => v.toLocaleString("pt-BR");
-const fmtMes = (iso: string) =>
-  new Date(iso + "T00:00:00").toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
+const CANAL_ORDER = ['nuvemshop', 'shopee', 'ritz_pay', 'nice_sp', 'b2b_tiny']
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1)
+}
+
+function subMonths(d: Date, n: number): Date {
+  const r = new Date(d)
+  r.setMonth(r.getMonth() - n)
+  return startOfMonth(r)
+}
+
+function fmtIso(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
+
+function fmtMes(dateStr: string): string {
+  const parts = dateStr.split('-')
+  const year  = parts[0]
+  const month = parseInt(parts[1], 10)
+  const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+  return `${MONTHS[month - 1]}/${year.slice(2)}`
+}
+
+function fmtBRL(n: number): string {
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 })
+}
+
+// ─── Periods ──────────────────────────────────────────────────────────────────
+
+const _now = new Date()
+
+const PERIODS: Record<string, { label: string; start: string; end: string }> = {
+  '6m':   { label: '6 meses',  start: fmtIso(subMonths(_now, 6)),  end: fmtIso(_now) },
+  '12m':  { label: '12 meses', start: fmtIso(subMonths(_now, 12)), end: fmtIso(_now) },
+  '2026': { label: '2026',     start: '2026-01-01',                end: '2026-12-01' },
+  '2025': { label: '2025',     start: '2025-01-01',                end: '2025-12-01' },
+  '2024': { label: '2024',     start: '2024-01-01',                end: '2024-12-01' },
+}
+
+// ─── Custom Tooltip ───────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ChartTooltip({ active, payload, label, metrica }: any) {
+  if (!active || !payload?.length) return null
+  const total = payload.reduce((s: number, e: { value: number }) => s + (e.value || 0), 0)
+  return (
+    <div className="bg-background border rounded-lg p-3 shadow-lg text-sm min-w-40">
+      <p className="font-semibold mb-2">{label}</p>
+      {payload.map((entry: { dataKey: string; value: number; color: string }) => (
+        <div key={entry.dataKey} className="flex justify-between gap-4 py-0.5">
+          <span style={{ color: entry.color }}>
+            {CANAL_CONFIG[entry.dataKey]?.label ?? entry.dataKey}
+          </span>
+          <span className="font-mono tabular-nums">
+            {metrica === 'faturamento'
+              ? fmtBRL(entry.value)
+              : entry.value.toLocaleString('pt-BR')}
+          </span>
+        </div>
+      ))}
+      <div className="border-t mt-2 pt-1 flex justify-between font-semibold">
+        <span className="text-muted-foreground">Total</span>
+        <span className="font-mono tabular-nums">
+          {metrica === 'faturamento' ? fmtBRL(total) : total.toLocaleString('pt-BR')}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VendasCanaisPage() {
-  const [tab, setTab] = useState<Tab>("canal");
-  const [periodoIdx, setPeriodoIdx] = useState(2); // 12 meses
-  const [canalFiltro, setCanalFiltro] = useState<string>("todos");
-  const [metric, setMetric] = useState<Metric>("faturamento");
+  const [period, setPeriod]   = useState<string>('12m')
+  const [canal, setCanal]     = useState<string>('todos')
+  const [metrica, setMetrica] = useState<'faturamento' | 'pedidos'>('faturamento')
 
-  const dataCorte = useMemo(() => {
-    const months = PERIODOS[periodoIdx].months;
-    if (!months) return null;
-    const d = new Date();
-    d.setDate(1);
-    d.setMonth(d.getMonth() - (months - 1));
-    return d.toISOString().slice(0, 10);
-  }, [periodoIdx]);
+  const { start, end } = PERIODS[period] ?? PERIODS['12m']
 
-  const canaisQuery = useQuery({
-    queryKey: ["vendas_canais", dataCorte],
+  const { data: vendasData, isLoading: vendasLoading } = useQuery({
+    queryKey: ['vendas-canais', start, end],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vendas_canais')
+        .select('mes, canal, pedidos, faturamento')
+        .gte('mes', start)
+        .lte('mes', end)
+        .order('mes', { ascending: true })
+      if (error) throw error
+      return data as VendasRow[]
+    }
+  })
+
+  const { data: produtosData, isLoading: produtosLoading } = useQuery({
+    queryKey: ['vendas-produtos', start, end, canal],
     queryFn: async () => {
       let q = supabase
-        .from("vendas_canais")
-        .select("*")
-        .order("mes", { ascending: true });
-      if (dataCorte) q = q.gte("mes", dataCorte);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as VendaCanal[];
-    },
-  });
+        .from('vendas_produtos')
+        .select('mes, canal, nome, sku, qtd_vendida, faturamento')
+        .gte('mes', start)
+        .lte('mes', end)
+      if (canal !== 'todos') q = q.eq('canal', canal)
+      const { data, error } = await q
+      if (error) throw error
+      return data as ProdutoRow[]
+    }
+  })
 
-  const produtosQuery = useQuery({
-    queryKey: ["vendas_produtos", dataCorte, canalFiltro],
-    queryFn: async () => {
-      let q = supabase
-        .from("vendas_produtos")
-        .select("*")
-        .order("faturamento", { ascending: false });
-      if (dataCorte) q = q.gte("mes", dataCorte);
-      if (canalFiltro !== "todos") q = q.eq("canal", canalFiltro);
-      const { data, error } = await q.limit(500);
-      if (error) throw error;
-      return (data ?? []) as VendaProduto[];
-    },
-    enabled: tab === "produto",
-  });
+  const canaisAtivos = useMemo(() => {
+    if (!vendasData) return CANAL_ORDER
+    const set = new Set(vendasData.map(r => r.canal))
+    return CANAL_ORDER.filter(c => set.has(c))
+  }, [vendasData])
 
-  const canais = useMemo(() => {
-    const set = new Set<string>();
-    (canaisQuery.data ?? []).forEach((r) => set.add(r.canal));
-    return Array.from(set).sort();
-  }, [canaisQuery.data]);
+  const filteredVendas = useMemo(() => {
+    if (!vendasData) return []
+    return canal === 'todos' ? vendasData : vendasData.filter(r => r.canal === canal)
+  }, [vendasData, canal])
 
-  const dadosFiltrados = useMemo(() => {
-    const rows = canaisQuery.data ?? [];
-    return canalFiltro === "todos" ? rows : rows.filter((r) => r.canal === canalFiltro);
-  }, [canaisQuery.data, canalFiltro]);
+  const canaisDisplay = canal === 'todos'
+    ? canaisAtivos
+    : [canal].filter(c => canaisAtivos.includes(c))
 
-  // Pivot: uma linha por mês, colunas = canais
   const chartData = useMemo(() => {
-    const byMes = new Map<string, Record<string, number | string>>();
-    for (const r of dadosFiltrados) {
-      const key = r.mes;
-      if (!byMes.has(key)) byMes.set(key, { mes: key, label: fmtMes(key) });
-      const row = byMes.get(key)!;
-      row[r.canal] = ((row[r.canal] as number) ?? 0) + (metric === "faturamento" ? Number(r.faturamento) : r.pedidos);
+    const byMes: Record<string, Record<string, number>> = {}
+    for (const row of filteredVendas) {
+      if (!byMes[row.mes]) byMes[row.mes] = {}
+      byMes[row.mes][row.canal] = (byMes[row.mes][row.canal] ?? 0) +
+        (metrica === 'faturamento' ? Number(row.faturamento) : row.pedidos)
     }
-    return Array.from(byMes.values()).sort((a, b) => (a.mes as string).localeCompare(b.mes as string));
-  }, [dadosFiltrados, metric]);
+    return Object.entries(byMes)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([mes, vals]) => ({ mes: fmtMes(mes), ...vals }))
+  }, [filteredVendas, metrica])
 
-  const canaisNoChart = canalFiltro === "todos" ? canais : [canalFiltro];
-
-  // Totais por mês (para tabela)
-  const tabelaMensal = useMemo(() => {
-    const byMes = new Map<string, { mes: string; pedidos: number; faturamento: number; canais: Set<string> }>();
-    for (const r of dadosFiltrados) {
-      if (!byMes.has(r.mes)) byMes.set(r.mes, { mes: r.mes, pedidos: 0, faturamento: 0, canais: new Set() });
-      const row = byMes.get(r.mes)!;
-      row.pedidos += r.pedidos;
-      row.faturamento += Number(r.faturamento);
-      row.canais.add(r.canal);
+  const kpis = useMemo(() => {
+    const total    = filteredVendas.reduce((s, r) => s + Number(r.faturamento), 0)
+    const totalPed = filteredVendas.reduce((s, r) => s + r.pedidos, 0)
+    const byCanal: Record<string, { fat: number; ped: number }> = {}
+    for (const r of filteredVendas) {
+      if (!byCanal[r.canal]) byCanal[r.canal] = { fat: 0, ped: 0 }
+      byCanal[r.canal].fat += Number(r.faturamento)
+      byCanal[r.canal].ped += r.pedidos
     }
-    return Array.from(byMes.values()).sort((a, b) => b.mes.localeCompare(a.mes));
-  }, [dadosFiltrados]);
+    return { total, totalPed, byCanal }
+  }, [filteredVendas])
 
-  const totalFaturamento = tabelaMensal.reduce((s, r) => s + r.faturamento, 0);
-  const totalPedidos = tabelaMensal.reduce((s, r) => s + r.pedidos, 0);
-  const ticketMedio = totalPedidos > 0 ? totalFaturamento / totalPedidos : 0;
-
-  // Ranking de produtos
-  const rankingProdutos = useMemo(() => {
-    const rows = produtosQuery.data ?? [];
-    const bySku = new Map<string, VendaProduto & { key: string }>();
-    for (const r of rows) {
-      const key = `${r.sku ?? ""}::${r.nome}`;
-      if (!bySku.has(key)) {
-        bySku.set(key, { ...r, key });
-      } else {
-        const cur = bySku.get(key)!;
-        cur.qtd_vendida += r.qtd_vendida;
-        cur.faturamento = Number(cur.faturamento) + Number(r.faturamento);
-      }
+  const tabelaMeses = useMemo(() => {
+    const byMes: Record<string, Record<string, { fat: number; ped: number }>> = {}
+    for (const r of filteredVendas) {
+      if (!byMes[r.mes]) byMes[r.mes] = {}
+      if (!byMes[r.mes][r.canal]) byMes[r.mes][r.canal] = { fat: 0, ped: 0 }
+      byMes[r.mes][r.canal].fat += Number(r.faturamento)
+      byMes[r.mes][r.canal].ped += r.pedidos
     }
-    return Array.from(bySku.values()).sort((a, b) => Number(b.faturamento) - Number(a.faturamento));
-  }, [produtosQuery.data]);
+    return Object.entries(byMes)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([mes, canais]) => ({
+        mes,
+        canais,
+        totalFat: Object.values(canais).reduce((s, c) => s + c.fat, 0),
+        totalPed: Object.values(canais).reduce((s, c) => s + c.ped, 0),
+      }))
+  }, [filteredVendas])
+
+  const produtosAgg = useMemo(() => {
+    if (!produtosData) return []
+    const map: Record<string, { nome: string; sku: string | null; qtd: number; fat: number }> = {}
+    for (const r of produtosData) {
+      if (!map[r.nome]) map[r.nome] = { nome: r.nome, sku: r.sku, qtd: 0, fat: 0 }
+      map[r.nome].qtd += r.qtd_vendida
+      map[r.nome].fat += Number(r.faturamento)
+    }
+    return Object.values(map).sort((a, b) => b.fat - a.fat)
+  }, [produtosData])
+
+  const produtosTotal = produtosAgg.reduce((s, p) => s + p.fat, 0)
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 space-y-5">
       {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <BarChart3 size={22} className="text-primary" />
-            Vendas por Canal
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Consolidação mensal por canal e produto (Tiny B2B, Bling D2C)
-          </p>
-        </div>
-
-        {/* Tabs */}
-        <div className="inline-flex rounded-lg border border-border bg-card p-0.5 text-sm">
-          <button
-            onClick={() => setTab("canal")}
-            className={`px-3 py-1.5 rounded-md transition ${tab === "canal" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            Por Canal
-          </button>
-          <button
-            onClick={() => setTab("produto")}
-            className={`px-3 py-1.5 rounded-md transition ${tab === "produto" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            Por Produto
-          </button>
-        </div>
-      </header>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-lg border border-border bg-card p-0.5 text-xs">
-          {PERIODOS.map((p, i) => (
-            <button
-              key={p.label}
-              onClick={() => setPeriodoIdx(i)}
-              className={`px-2.5 py-1 rounded-md ${periodoIdx === i ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        <select
-          value={canalFiltro}
-          onChange={(e) => setCanalFiltro(e.target.value)}
-          className="text-xs bg-card border border-border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-        >
-          <option value="todos">Todos os canais</option>
-          {canais.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-
-        {tab === "canal" && (
-          <div className="inline-flex rounded-lg border border-border bg-card p-0.5 text-xs ml-auto">
-            <button
-              onClick={() => setMetric("faturamento")}
-              className={`px-2.5 py-1 rounded-md ${metric === "faturamento" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
-            >
-              Faturamento
-            </button>
-            <button
-              onClick={() => setMetric("pedidos")}
-              className={`px-2.5 py-1 rounded-md ${metric === "pedidos" ? "bg-muted text-foreground" : "text-muted-foreground"}`}
-            >
-              Pedidos
-            </button>
-          </div>
-        )}
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Vendas por Canal</h1>
+        <p className="text-muted-foreground text-sm mt-0.5">
+          Faturamento e pedidos por canal de venda
+        </p>
       </div>
 
-      {tab === "canal" ? (
-        <>
-          {/* KPIs */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <KPI icon={<TrendingUp size={16} />} label="Faturamento" value={fmtBRL(totalFaturamento)} />
-            <KPI icon={<Package size={16} />} label="Pedidos" value={fmtNum(totalPedidos)} />
-            <KPI icon={<BarChart3 size={16} />} label="Ticket médio" value={fmtBRL(ticketMedio)} />
-          </div>
+      {/* Controls */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="flex rounded-md border overflow-hidden divide-x text-sm">
+          {Object.entries(PERIODS).map(([key, { label }]) => (
+            <button
+              key={key}
+              onClick={() => setPeriod(key)}
+              className={`px-3 py-1.5 font-medium transition-colors ${
+                period === key
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-background hover:bg-muted'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-          {/* Chart */}
-          <div className="rounded-xl border border-border bg-card p-4">
-            <h2 className="text-sm font-medium mb-3">
-              {metric === "faturamento" ? "Faturamento mensal por canal" : "Pedidos mensais por canal"}
-            </h2>
-            <div className="h-80">
-              {canaisQuery.isLoading ? (
-                <div className="h-full flex items-center justify-center text-muted-foreground">
-                  <Loader2 size={20} className="animate-spin" />
+        <Select value={canal} onValueChange={setCanal}>
+          <SelectTrigger className="w-44 h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os canais</SelectItem>
+            {CANAL_ORDER.map(c => (
+              <SelectItem key={c} value={c}>{CANAL_CONFIG[c].label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="flex rounded-md border overflow-hidden divide-x text-sm">
+          {(['faturamento', 'pedidos'] as const).map(m => (
+            <button
+              key={m}
+              onClick={() => setMetrica(m)}
+              className={`px-3 py-1.5 font-medium transition-colors ${
+                metrica === m
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-background hover:bg-muted'
+              }`}
+            >
+              {m === 'faturamento' ? 'Faturamento' : 'Pedidos'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Card className="col-span-1">
+          <CardContent className="pt-4 pb-3 px-4">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">
+              Total
+            </p>
+            <p className="text-xl font-semibold mt-1 tabular-nums">{fmtBRL(kpis.total)}</p>
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {kpis.totalPed.toLocaleString('pt-BR')} pedidos
+            </p>
+          </CardContent>
+        </Card>
+
+        {canaisDisplay.map(c => {
+          const cfg = CANAL_CONFIG[c]
+          const d   = kpis.byCanal[c]
+          if (!d) return null
+          const pct = kpis.total > 0 ? ((d.fat / kpis.total) * 100).toFixed(0) : '0'
+          return (
+            <Card key={c}>
+              <CardContent className="pt-4 pb-3 px-4">
+                <p className="text-[10px] uppercase tracking-widest font-medium" style={{ color: cfg.color }}>
+                  {cfg.label}
+                </p>
+                <p className="text-lg font-semibold mt-1 tabular-nums">{fmtBRL(d.fat)}</p>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {d.ped > 0 ? `${d.ped.toLocaleString('pt-BR')} ped.` : '—'}{' '}
+                  <span className="opacity-60">{pct}%</span>
+                </p>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* Main tabs */}
+      <Tabs defaultValue="canais">
+        <TabsList>
+          <TabsTrigger value="canais">Por Canal</TabsTrigger>
+          <TabsTrigger value="produtos">Por Produto</TabsTrigger>
+        </TabsList>
+
+        {/* Por Canal */}
+        <TabsContent value="canais" className="space-y-5 mt-4">
+          <Card>
+            <CardHeader className="pb-0 pt-4">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {metrica === 'faturamento' ? 'Faturamento R$' : 'Pedidos'} — evolução mensal
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-3">
+              {vendasLoading ? (
+                <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                  Carregando…
                 </div>
-              ) : chartData.length === 0 ? (
-                <EmptyState />
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={chartData} margin={{ left: 0, right: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                    <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis
                       tick={{ fontSize: 11 }}
-                      stroke="hsl(var(--muted-foreground))"
-                      tickFormatter={(v) => metric === "faturamento" ? `${(v/1000).toFixed(0)}k` : String(v)}
+                      tickFormatter={v =>
+                        metrica === 'faturamento'
+                          ? `R$${(v / 1000).toFixed(0)}k`
+                          : v.toLocaleString('pt-BR')
+                      }
+                      width={60}
+                      axisLine={false}
+                      tickLine={false}
                     />
                     <Tooltip
-                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-                      formatter={(v: number) => metric === "faturamento" ? fmtBRL(v) : fmtNum(v)}
+                      content={(props) => <ChartTooltip {...props} metrica={metrica} />}
+                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
                     />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                    {canaisNoChart.map((c, i) => (
-                      <Bar key={c} dataKey={c} stackId="a" fill={COLORS[i % COLORS.length]} radius={i === canaisNoChart.length - 1 ? [4,4,0,0] : 0} />
+                    <Legend
+                      iconType="square"
+                      iconSize={10}
+                      formatter={v => (
+                        <span className="text-xs">{CANAL_CONFIG[v]?.label ?? v}</span>
+                      )}
+                    />
+                    {canaisDisplay.map(c => (
+                      <Bar
+                        key={c}
+                        dataKey={c}
+                        stackId="a"
+                        fill={CANAL_CONFIG[c].color}
+                        name={c}
+                        radius={canaisDisplay.indexOf(c) === canaisDisplay.length - 1
+                          ? [3, 3, 0, 0]
+                          : [0, 0, 0, 0]}
+                      />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          {/* Tabela mensal */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-border">
-              <h2 className="text-sm font-medium">Detalhamento mensal</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40 text-xs text-muted-foreground">
-                  <tr>
-                    <th className="text-left px-4 py-2 font-medium">Mês</th>
-                    <th className="text-right px-4 py-2 font-medium">Pedidos</th>
-                    <th className="text-right px-4 py-2 font-medium">Faturamento</th>
-                    <th className="text-right px-4 py-2 font-medium">Ticket médio</th>
-                    <th className="text-right px-4 py-2 font-medium">Canais</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tabelaMensal.length === 0 && !canaisQuery.isLoading && (
-                    <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">Sem dados no período</td></tr>
-                  )}
-                  {tabelaMensal.map((r) => (
-                    <tr key={r.mes} className="border-t border-border hover:bg-muted/20">
-                      <td className="px-4 py-2 capitalize">{fmtMes(r.mes)}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{fmtNum(r.pedidos)}</td>
-                      <td className="px-4 py-2 text-right tabular-nums font-medium">{fmtBRL(r.faturamento)}</td>
-                      <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
-                        {r.pedidos > 0 ? fmtBRL(r.faturamento / r.pedidos) : "—"}
-                      </td>
-                      <td className="px-4 py-2 text-right text-xs text-muted-foreground">{r.canais.size}</td>
+          <Card>
+            <CardHeader className="pb-2 pt-4">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Detalhe por mês
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                        Mês
+                      </th>
+                      {canaisDisplay.map(c => (
+                        <th
+                          key={c}
+                          className="text-right py-2.5 px-3 font-medium text-xs uppercase tracking-wide"
+                          style={{ color: CANAL_CONFIG[c].color }}
+                        >
+                          {CANAL_CONFIG[c].label}
+                        </th>
+                      ))}
+                      <th className="text-right py-2.5 px-4 font-medium text-xs uppercase tracking-wide text-muted-foreground">
+                        Total
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      ) : (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-            <h2 className="text-sm font-medium">Ranking de produtos por faturamento</h2>
-            <span className="text-xs text-muted-foreground">{rankingProdutos.length} itens</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-xs text-muted-foreground">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium w-10">#</th>
-                  <th className="text-left px-4 py-2 font-medium">Produto</th>
-                  <th className="text-left px-4 py-2 font-medium">SKU</th>
-                  <th className="text-left px-4 py-2 font-medium">Canal</th>
-                  <th className="text-right px-4 py-2 font-medium">Qtd</th>
-                  <th className="text-right px-4 py-2 font-medium">Faturamento</th>
-                </tr>
-              </thead>
-              <tbody>
-                {produtosQuery.isLoading && (
-                  <tr><td colSpan={6} className="text-center py-8"><Loader2 size={18} className="animate-spin inline text-muted-foreground" /></td></tr>
-                )}
-                {!produtosQuery.isLoading && rankingProdutos.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Sem produtos no período</td></tr>
-                )}
-                {rankingProdutos.slice(0, 100).map((p, i) => (
-                  <tr key={p.key} className="border-t border-border hover:bg-muted/20">
-                    <td className="px-4 py-2 text-muted-foreground tabular-nums">{i + 1}</td>
-                    <td className="px-4 py-2">{p.nome}</td>
-                    <td className="px-4 py-2 text-xs text-muted-foreground font-mono">{p.sku ?? "—"}</td>
-                    <td className="px-4 py-2 text-xs">{p.canal}</td>
-                    <td className="px-4 py-2 text-right tabular-nums">{fmtNum(p.qtd_vendida)}</td>
-                    <td className="px-4 py-2 text-right tabular-nums font-medium">{fmtBRL(Number(p.faturamento))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                  </thead>
+                  <tbody>
+                    {tabelaMeses.map(({ mes, canais, totalFat, totalPed }) => (
+                      <tr key={mes} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                        <td className="py-2.5 px-4 font-medium">{fmtMes(mes)}</td>
+                        {canaisDisplay.map(c => {
+                          const d = canais[c]
+                          return (
+                            <td key={c} className="text-right py-2.5 px-3 tabular-nums text-sm">
+                              {d
+                                ? metrica === 'faturamento'
+                                  ? fmtBRL(d.fat)
+                                  : d.ped.toLocaleString('pt-BR')
+                                : <span className="text-muted-foreground">—</span>}
+                            </td>
+                          )
+                        })}
+                        <td className="text-right py-2.5 px-4 font-semibold tabular-nums">
+                          {metrica === 'faturamento'
+                            ? fmtBRL(totalFat)
+                            : totalPed.toLocaleString('pt-BR')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-function KPI({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        {icon} <span>{label}</span>
-      </div>
-      <div className="text-xl font-semibold mt-1 tabular-nums">{value}</div>
+        {/* Por Produto */}
+        <TabsContent value="produtos" className="mt-4">
+          <Card>
+            <CardHeader className="pb-2 pt-4">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Package size={14} />
+                Produtos mais vendidos
+                {canal !== 'todos' && (
+                  <Badge variant="secondary" className="text-xs">
+                    {CANAL_CONFIG[canal]?.label}
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {produtosLoading ? (
+                <div className="h-40 flex items-center justify-center text-muted-foreground text-sm">
+                  Carregando…
+                </div>
+              ) : produtosAgg.length === 0 ? (
+                <div className="h-48 flex flex-col items-center justify-center text-muted-foreground gap-2 px-6 text-center">
+                  <Package size={28} className="opacity-30" />
+                  <p className="font-medium">Sincronização de produtos pendente</p>
+                  <p className="text-xs text-balance leading-relaxed">
+                    Os dados de produto serão preenchidos quando o backfill for executado.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2.5 px-4 font-medium text-xs uppercase tracking-wide text-muted-foreground w-8">#</th>
+                        <th className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-muted-foreground">Produto</th>
+                        <th className="text-right py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-muted-foreground">Qtd</th>
+                        <th className="text-right py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-muted-foreground">Faturamento</th>
+                        <th className="text-right py-2.5 px-4 font-medium text-xs uppercase tracking-wide text-muted-foreground">% total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {produtosAgg.map((p, i) => {
+                        const pct = produtosTotal > 0 ? (p.fat / produtosTotal) * 100 : 0
+                        return (
+                          <tr key={p.nome} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                            <td className="py-2.5 px-4 text-muted-foreground text-xs font-mono">{i + 1}</td>
+                            <td className="py-2.5 px-3">
+                              <div className="font-medium leading-tight">{p.nome}</div>
+                              {p.sku && (
+                                <div className="text-xs text-muted-foreground font-mono">{p.sku}</div>
+                              )}
+                            </td>
+                            <td className="text-right py-2.5 px-3 tabular-nums">{p.qtd.toLocaleString('pt-BR')}</td>
+                            <td className="text-right py-2.5 px-3 tabular-nums font-medium">{fmtBRL(p.fat)}</td>
+                            <td className="py-2.5 px-4">
+                              <div className="flex items-center gap-2 justify-end">
+                                <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden flex-shrink-0">
+                                  <div
+                                    className="h-full rounded-full bg-primary transition-all"
+                                    style={{ width: `${Math.min(pct, 100)}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs tabular-nums w-9 text-right text-muted-foreground">
+                                  {pct.toFixed(1)}%
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t bg-muted/20">
+                        <td className="py-2.5 px-4" />
+                        <td className="py-2.5 px-3 font-medium text-muted-foreground text-xs">
+                          {produtosAgg.length} produtos
+                        </td>
+                        <td className="text-right py-2.5 px-3 tabular-nums font-medium">
+                          {produtosAgg.reduce((s, p) => s + p.qtd, 0).toLocaleString('pt-BR')}
+                        </td>
+                        <td className="text-right py-2.5 px-3 tabular-nums font-semibold">
+                          {fmtBRL(produtosTotal)}
+                        </td>
+                        <td className="py-2.5 px-4" />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground">
-      <BarChart3 size={28} className="mb-2 opacity-50" />
-      <p className="text-sm">Ainda não há vendas registradas no período.</p>
-      <p className="text-xs mt-1">Rode <code className="px-1 py-0.5 rounded bg-muted">sync-vendas</code> para popular a tabela.</p>
-    </div>
-  );
+  )
 }
