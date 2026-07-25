@@ -118,9 +118,10 @@ function ChartTooltip({ active, payload, label, metrica }: any) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VendasCanaisPage() {
-  const [period, setPeriod]   = useState<string>('12m')
-  const [canal, setCanal]     = useState<string>('todos')
-  const [metrica, setMetrica] = useState<'faturamento' | 'pedidos'>('faturamento')
+  const [period, setPeriod]       = useState<string>('12m')
+  const [canal, setCanal]         = useState<string>('todos')
+  const [metrica, setMetrica]     = useState<'faturamento' | 'pedidos'>('faturamento')
+  const [tabelaView, setTabelaView] = useState<'somado' | 'canal'>('somado')
 
   const { start, end } = PERIODS[period] ?? PERIODS['12m']
 
@@ -382,58 +383,97 @@ export default function VendasCanaisPage() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 pt-4">
+            <CardHeader className="pb-2 pt-4 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Detalhe por mês
               </CardTitle>
+              <div className="flex rounded-md border overflow-hidden divide-x text-xs">
+                <button
+                  onClick={() => setTabelaView('somado')}
+                  className={`px-2.5 py-1 font-medium transition-colors ${tabelaView === 'somado' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
+                >
+                  Somado
+                </button>
+                <button
+                  onClick={() => setTabelaView('canal')}
+                  className={`px-2.5 py-1 font-medium transition-colors ${tabelaView === 'canal' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
+                >
+                  Por canal
+                </button>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs uppercase tracking-wide">
-                        Mês
-                      </th>
-                      {canaisDisplay.map(c => (
-                        <th
-                          key={c}
-                          className="text-right py-2.5 px-3 font-medium text-xs uppercase tracking-wide"
-                          style={{ color: CANAL_CONFIG[c].color }}
-                        >
-                          {CANAL_CONFIG[c].label}
-                        </th>
-                      ))}
-                      <th className="text-right py-2.5 px-4 font-medium text-xs uppercase tracking-wide text-muted-foreground">
-                        Total
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tabelaMeses.map(({ mes, canais, totalFat, totalPed }) => (
-                      <tr key={mes} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="py-2.5 px-4 font-medium">{fmtMes(mes)}</td>
-                        {canaisDisplay.map(c => {
-                          const d = canais[c]
-                          return (
-                            <td key={c} className="text-right py-2.5 px-3 tabular-nums text-sm">
-                              {d
-                                ? metrica === 'faturamento'
-                                  ? fmtBRL(d.fat)
-                                  : d.ped.toLocaleString('pt-BR')
-                                : <span className="text-muted-foreground">—</span>}
-                            </td>
-                          )
-                        })}
-                        <td className="text-right py-2.5 px-4 font-semibold tabular-nums">
-                          {metrica === 'faturamento'
-                            ? fmtBRL(totalFat)
-                            : totalPed.toLocaleString('pt-BR')}
-                        </td>
+                {tabelaView === 'somado' ? (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs uppercase tracking-wide">Mês</th>
+                        <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Pedidos</th>
+                        <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Faturamento</th>
+                        <th className="text-right py-2.5 px-4 font-medium text-muted-foreground text-xs uppercase tracking-wide">Ticket médio</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {tabelaMeses.map(({ mes, totalFat, totalPed }) => (
+                        <tr key={mes} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                          <td className="py-2.5 px-4 font-medium">{fmtMes(mes)}</td>
+                          <td className="text-right py-2.5 px-3 tabular-nums">{totalPed.toLocaleString('pt-BR')}</td>
+                          <td className="text-right py-2.5 px-3 tabular-nums font-medium">{fmtBRL(totalFat)}</td>
+                          <td className="text-right py-2.5 px-4 tabular-nums text-muted-foreground">
+                            {totalPed > 0 ? fmtBRL(totalFat / totalPed) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t bg-muted/20 font-semibold">
+                        <td className="py-2.5 px-4 text-xs text-muted-foreground">Total</td>
+                        <td className="text-right py-2.5 px-3 tabular-nums">
+                          {tabelaMeses.reduce((s, r) => s + r.totalPed, 0).toLocaleString('pt-BR')}
+                        </td>
+                        <td className="text-right py-2.5 px-3 tabular-nums">
+                          {fmtBRL(tabelaMeses.reduce((s, r) => s + r.totalFat, 0))}
+                        </td>
+                        <td className="py-2.5 px-4" />
+                      </tr>
+                    </tfoot>
+                  </table>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs uppercase tracking-wide">Mês</th>
+                        {canaisDisplay.map(c => (
+                          <th key={c} className="text-right py-2.5 px-3 font-medium text-xs uppercase tracking-wide" style={{ color: CANAL_CONFIG[c].color }}>
+                            {CANAL_CONFIG[c].label}
+                          </th>
+                        ))}
+                        <th className="text-right py-2.5 px-4 font-medium text-xs uppercase tracking-wide text-muted-foreground">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tabelaMeses.map(({ mes, canais, totalFat, totalPed }) => (
+                        <tr key={mes} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                          <td className="py-2.5 px-4 font-medium">{fmtMes(mes)}</td>
+                          {canaisDisplay.map(c => {
+                            const d = canais[c]
+                            return (
+                              <td key={c} className="text-right py-2.5 px-3 tabular-nums text-sm">
+                                {d
+                                  ? metrica === 'faturamento' ? fmtBRL(d.fat) : d.ped.toLocaleString('pt-BR')
+                                  : <span className="text-muted-foreground">—</span>}
+                              </td>
+                            )
+                          })}
+                          <td className="text-right py-2.5 px-4 font-semibold tabular-nums">
+                            {metrica === 'faturamento' ? fmtBRL(totalFat) : totalPed.toLocaleString('pt-BR')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </CardContent>
           </Card>
