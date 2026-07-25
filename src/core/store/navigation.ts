@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 export type ModuleId =
+  | "dashboard"
   | "financeiro"
   | "ecommerce"
   | "canais"

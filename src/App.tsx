@@ -19,6 +19,7 @@ import OAuthConsent from "./pages/OAuthConsent";
 import NotFound from "./pages/NotFound";
 
 // Módulos com lazy loading
+const DashboardPage     = lazy(() => import("./modules/dashboard/pages/DashboardPage"));
 const FinanceiroPage    = lazy(() => import("./modules/financeiro/pages/FinanceiroPage"));
 const EcommercePage     = lazy(() => import("./modules/ecommerce/pages/EcommercePage"));
 const VendasCanaisPage  = lazy(() => import("./modules/ecommerce/pages/VendasCanaisPage"));
@@ -82,6 +83,7 @@ const App = () => (
                           <Route path="/" element={<RoleRedirect />} />
 
                           {/* Módulos novos */}
+                          <Route path="/dashboard/*" element={<DashboardPage />} />
                           <Route path="/financeiro/*" element={<FinanceiroPage />} />
                           <Route path="/ecommerce/*"  element={<EcommercePage />} />
                           <Route path="/canais/*"     element={<VendasCanaisPage />} />

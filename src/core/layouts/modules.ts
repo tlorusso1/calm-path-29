@@ -1,4 +1,5 @@
 import {
+  LayoutDashboard,
   TrendingUp,
   ShoppingCart,
   BarChart3,
@@ -22,6 +23,13 @@ export interface ModuleConfig {
 }
 
 export const MODULES: ModuleConfig[] = [
+  {
+    id: "dashboard",
+    label: "Visão Geral",
+    shortLabel: "Home",
+    icon: LayoutDashboard,
+    path: "/dashboard",
+  },
   {
     id: "financeiro",
     label: "Financeiro",

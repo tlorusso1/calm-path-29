@@ -7,7 +7,7 @@ type AppRole = "admin" | "marketing" | "operacional" | "comercial";
 
 // Map of role → allowed modules
 export const ROLE_MODULES: Record<AppRole, ModuleId[]> = {
-  admin:       ["financeiro", "ecommerce", "canais", "marketing", "atendimento", "supply", "produtos", "operacoes", "b2b"],
+  admin:       ["dashboard", "financeiro", "ecommerce", "canais", "marketing", "atendimento", "supply", "produtos", "operacoes", "b2b"],
   marketing:   ["marketing", "ecommerce", "canais", "produtos"],
   operacional: ["supply", "operacoes", "b2b"],
   comercial:   ["b2b", "canais"],
@@ -15,7 +15,7 @@ export const ROLE_MODULES: Record<AppRole, ModuleId[]> = {
 
 // Default redirect path per role (first module in their list)
 export const ROLE_DEFAULT_PATH: Record<AppRole, string> = {
-  admin:       "/financeiro",
+  admin:       "/dashboard",
   marketing:   "/marketing",
   operacional: "/supply",
   comercial:   "/b2b",
