@@ -117,8 +117,8 @@ export default function DashboardPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("vendas_canais")
-        .select("mes, canal, total")
-        .in("mes", [mesAtual, mesAnterior]);
+        .select("mes, canal, faturamento")
+        .in("mes", [`${mesAtual}-01`, `${mesAnterior}-01`]);
       return data ?? [];
     },
     staleTime: 1000 * 60 * 5,
@@ -141,9 +141,11 @@ export default function DashboardPage() {
 
   const atual:    Record<string, number> = {};
   const anterior: Record<string, number> = {};
-  (vendasData ?? []).forEach((r) => {
-    if (r.mes === mesAtual)    atual[r.canal]    = (atual[r.canal]    ?? 0) + r.total;
-    if (r.mes === mesAnterior) anterior[r.canal] = (anterior[r.canal] ?? 0) + r.total;
+  (vendasData ?? []).forEach((r: any) => {
+    const mesKey = typeof r.mes === "string" ? r.mes.slice(0, 7) : "";
+    const val = Number(r.faturamento) || 0;
+    if (mesKey === mesAtual)    atual[r.canal]    = (atual[r.canal]    ?? 0) + val;
+    if (mesKey === mesAnterior) anterior[r.canal] = (anterior[r.canal] ?? 0) + val;
   });
 
   const totalAtual    = Object.values(atual).reduce((s, v) => s + v, 0);
