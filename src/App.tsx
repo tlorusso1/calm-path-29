@@ -28,7 +28,6 @@ const SupplyPage        = lazy(() => import("./modules/supply/pages/SupplyPage")
 const ProdutosPage      = lazy(() => import("./modules/produtos/pages/ProdutosPage"));
 const OperacoesPage     = lazy(() => import("./modules/operacoes/pages/OperacoesPage"));
 const B2BPage           = lazy(() => import("./modules/b2b/pages/B2BPage"));
-const VendasCanaisPage  = lazy(() => import("./modules/ecommerce/pages/VendasCanaisPage"));
 
 // Módulo legado (mantido intacto durante a transição)
 const LegacyIndex       = lazy(() => import("./pages/Index"));
@@ -71,7 +70,6 @@ const App = () => (
               {/* MCP OAuth consent — precisa de sessão mas fora do AppShell */}
               <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
 
-
               {/* App protegido com AppShell */}
               <Route
                 path="/*"
@@ -93,7 +91,6 @@ const App = () => (
                           <Route path="/produtos/*"   element={<ProdutosPage />} />
                           <Route path="/operacoes/*"  element={<OperacoesPage />} />
                           <Route path="/b2b/*"        element={<B2BPage />} />
-                          <Route path="/canais/*"     element={<VendasCanaisPage />} />
 
                           {/* Legado: acesso ao dashboard original em /ritmo */}
                           <Route path="/ritmo/*"      element={<LegacyIndex />} />

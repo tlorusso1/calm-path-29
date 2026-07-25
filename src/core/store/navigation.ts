@@ -9,8 +9,7 @@ export type ModuleId =
   | "supply"
   | "produtos"
   | "operacoes"
-  | "b2b"
-  | "canais";
+  | "b2b";
 
 interface NavigationStore {
   activeModule: ModuleId;

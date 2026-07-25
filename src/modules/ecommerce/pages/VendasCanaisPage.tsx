@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Fragment } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/integrations/supabase/client'
 import {
@@ -7,12 +7,15 @@ import {
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue
 } from '@/components/ui/select'
-import { Package } from 'lucide-react'
+import { Package, Download, ChevronRight } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,17 +75,43 @@ function fmtBRL(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 })
 }
 
+function fmtDateTime(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 // ─── Periods ──────────────────────────────────────────────────────────────────
 
-const _now = new Date()
-
-const PERIODS: Record<string, { label: string; start: string; end: string }> = {
-  '6m':   { label: '6 meses',  start: fmtIso(subMonths(_now, 6)),  end: fmtIso(_now) },
-  '12m':  { label: '12 meses', start: fmtIso(subMonths(_now, 12)), end: fmtIso(_now) },
-  '2026': { label: '2026',     start: '2026-01-01',                end: '2026-12-01' },
-  '2025': { label: '2025',     start: '2025-01-01',                end: '2025-12-01' },
-  '2024': { label: '2024',     start: '2024-01-01',                end: '2024-12-01' },
+function getPeriodRange(key: string): { start: string; end: string } {
+  const now = new Date()
+  switch (key) {
+    case 'atual':
+      return { start: `${now.getFullYear()}-01-01`, end: `${now.getFullYear()}-12-01` }
+    case '6m':
+      return { start: fmtIso(subMonths(now, 5)), end: fmtIso(now) }
+    case '12m':
+      return { start: fmtIso(subMonths(now, 11)), end: fmtIso(now) }
+    case 'tudo':
+      return { start: '2000-01-01', end: '2099-12-01' }
+    case '2023':
+    case '2024':
+    case '2025':
+      return { start: `${key}-01-01`, end: `${key}-12-01` }
+    default:
+      return { start: `${now.getFullYear()}-01-01`, end: `${now.getFullYear()}-12-01` }
+  }
 }
+
+const PERIOD_OPTIONS = [
+  { key: '2023',  label: '2023' },
+  { key: '2024',  label: '2024' },
+  { key: '2025',  label: '2025' },
+  { key: 'atual', label: 'Ano atual' },
+  { key: '6m',    label: 'Últimos 6m' },
+  { key: '12m',   label: 'Últimos 12m' },
+  { key: 'tudo',  label: 'Tudo' },
+]
 
 // ─── Custom Tooltip ───────────────────────────────────────────────────────────
 
@@ -115,15 +144,34 @@ function ChartTooltip({ active, payload, label, metrica }: any) {
   )
 }
 
+// ─── CSV Export ───────────────────────────────────────────────────────────────
+
+function downloadCSV(rows: string[][], filename: string) {
+  const csv = rows.map(r => r.map(c => {
+    const s = String(c ?? '')
+    return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }).join(';')).join('\n')
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  window.URL.revokeObjectURL(url)
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VendasCanaisPage() {
-  const [period, setPeriod]       = useState<string>('12m')
-  const [canal, setCanal]         = useState<string>('todos')
-  const [metrica, setMetrica]     = useState<'faturamento' | 'pedidos'>('faturamento')
-  const [tabelaView, setTabelaView] = useState<'somado' | 'canal'>('somado')
+  const [period, setPeriod]   = useState<string>('atual')
+  const [canal, setCanal]     = useState<string>('todos')
+  const [metrica, setMetrica] = useState<'faturamento' | 'pedidos'>('faturamento')
+  const [tableView, setTableView] = useState<'somado' | 'canal'>('somado')
+  const [expandedMes, setExpandedMes] = useState<string | null>(null)
 
-  const { start, end } = PERIODS[period] ?? PERIODS['12m']
+  const { start, end } = getPeriodRange(period)
 
   const { data: vendasData, isLoading: vendasLoading } = useQuery({
     queryKey: ['vendas-canais', start, end],
@@ -139,6 +187,19 @@ export default function VendasCanaisPage() {
     }
   })
 
+  const { data: lastUpdate } = useQuery({
+    queryKey: ['vendas-canais-last-update'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vendas_canais')
+        .select('atualizado_em')
+        .order('atualizado_em', { ascending: false })
+        .limit(1)
+      if (error) throw error
+      return (data?.[0] as { atualizado_em: string } | undefined)?.atualizado_em ?? null
+    }
+  })
+
   const { data: produtosData, isLoading: produtosLoading } = useQuery({
     queryKey: ['vendas-produtos', start, end, canal],
     queryFn: async () => {
@@ -147,6 +208,21 @@ export default function VendasCanaisPage() {
         .select('mes, canal, nome, sku, qtd_vendida, faturamento')
         .gte('mes', start)
         .lte('mes', end)
+      if (canal !== 'todos') q = q.eq('canal', canal)
+      const { data, error } = await q
+      if (error) throw error
+      return data as ProdutoRow[]
+    }
+  })
+
+  const { data: drillProdutos, isLoading: drillLoading } = useQuery({
+    queryKey: ['vendas-produtos-mes', expandedMes, canal],
+    enabled: !!expandedMes,
+    queryFn: async () => {
+      let q = supabase
+        .from('vendas_produtos')
+        .select('nome, sku, canal, qtd_vendida, faturamento')
+        .eq('mes', expandedMes!)
       if (canal !== 'todos') q = q.eq('canal', canal)
       const { data, error } = await q
       if (error) throw error
@@ -211,6 +287,12 @@ export default function VendasCanaisPage() {
       }))
   }, [filteredVendas])
 
+  const totaisTabela = useMemo(() => {
+    const fat = tabelaMeses.reduce((s, r) => s + r.totalFat, 0)
+    const ped = tabelaMeses.reduce((s, r) => s + r.totalPed, 0)
+    return { fat, ped, ticket: ped > 0 ? fat / ped : 0 }
+  }, [tabelaMeses])
+
   const produtosAgg = useMemo(() => {
     if (!produtosData) return []
     const map: Record<string, { nome: string; sku: string | null; qtd: number; fat: number }> = {}
@@ -224,6 +306,33 @@ export default function VendasCanaisPage() {
 
   const produtosTotal = produtosAgg.reduce((s, p) => s + p.fat, 0)
 
+  const handleExport = () => {
+    const now = new Date()
+    const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`
+    if (tableView === 'somado') {
+      const rows: string[][] = [['Mês', 'Pedidos', 'Faturamento', 'Ticket médio']]
+      for (const r of tabelaMeses) {
+        const ticket = r.totalPed > 0 ? r.totalFat / r.totalPed : 0
+        rows.push([fmtMes(r.mes), String(r.totalPed), r.totalFat.toFixed(2), ticket.toFixed(2)])
+      }
+      downloadCSV(rows, `vendas-canais-${stamp}.csv`)
+    } else {
+      const rows: string[][] = [['Mês', ...canaisDisplay.map(c => CANAL_CONFIG[c].label), 'Total']]
+      for (const r of tabelaMeses) {
+        rows.push([
+          fmtMes(r.mes),
+          ...canaisDisplay.map(c => {
+            const d = r.canais[c]
+            if (!d) return '0'
+            return (metrica === 'faturamento' ? d.fat : d.ped).toFixed(2)
+          }),
+          (metrica === 'faturamento' ? r.totalFat : r.totalPed).toFixed(2),
+        ])
+      }
+      downloadCSV(rows, `vendas-canais-${stamp}.csv`)
+    }
+  }
+
   return (
     <div className="p-6 space-y-5">
       {/* Header */}
@@ -232,25 +341,28 @@ export default function VendasCanaisPage() {
         <p className="text-muted-foreground text-sm mt-0.5">
           Faturamento e pedidos por canal de venda
         </p>
+        {lastUpdate && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Última atualização: {fmtDateTime(lastUpdate)}
+          </p>
+        )}
       </div>
 
       {/* Controls */}
       <div className="flex flex-wrap gap-3 items-center">
-        <div className="flex rounded-md border overflow-hidden divide-x text-sm">
-          {Object.entries(PERIODS).map(([key, { label }]) => (
-            <button
-              key={key}
-              onClick={() => setPeriod(key)}
-              className={`px-3 py-1.5 font-medium transition-colors ${
-                period === key
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-background hover:bg-muted'
-              }`}
-            >
+        <ToggleGroup
+          type="single"
+          value={period}
+          onValueChange={(v) => v && setPeriod(v)}
+          variant="outline"
+          size="sm"
+        >
+          {PERIOD_OPTIONS.map(({ key, label }) => (
+            <ToggleGroupItem key={key} value={key} className="text-xs px-3">
               {label}
-            </button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
 
         <Select value={canal} onValueChange={setCanal}>
           <SelectTrigger className="w-44 h-8 text-sm">
@@ -282,40 +394,52 @@ export default function VendasCanaisPage() {
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Card className="col-span-1">
-          <CardContent className="pt-4 pb-3 px-4">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">
-              Total
-            </p>
-            <p className="text-xl font-semibold mt-1 tabular-nums">{fmtBRL(kpis.total)}</p>
-            <p className="text-xs text-muted-foreground tabular-nums">
-              {kpis.totalPed.toLocaleString('pt-BR')} pedidos
-            </p>
-          </CardContent>
-        </Card>
+      {vendasLoading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}><CardContent className="pt-4 pb-3 px-4 space-y-2">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-3 w-20" />
+            </CardContent></Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <Card className="col-span-1">
+            <CardContent className="pt-4 pb-3 px-4">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">
+                Total
+              </p>
+              <p className="text-xl font-semibold mt-1 tabular-nums">{fmtBRL(kpis.total)}</p>
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {kpis.totalPed.toLocaleString('pt-BR')} pedidos
+              </p>
+            </CardContent>
+          </Card>
 
-        {canaisDisplay.map(c => {
-          const cfg = CANAL_CONFIG[c]
-          const d   = kpis.byCanal[c]
-          if (!d) return null
-          const pct = kpis.total > 0 ? ((d.fat / kpis.total) * 100).toFixed(0) : '0'
-          return (
-            <Card key={c}>
-              <CardContent className="pt-4 pb-3 px-4">
-                <p className="text-[10px] uppercase tracking-widest font-medium" style={{ color: cfg.color }}>
-                  {cfg.label}
-                </p>
-                <p className="text-lg font-semibold mt-1 tabular-nums">{fmtBRL(d.fat)}</p>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {d.ped > 0 ? `${d.ped.toLocaleString('pt-BR')} ped.` : '—'}{' '}
-                  <span className="opacity-60">{pct}%</span>
-                </p>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+          {canaisDisplay.map(c => {
+            const cfg = CANAL_CONFIG[c]
+            const d   = kpis.byCanal[c]
+            if (!d) return null
+            const pct = kpis.total > 0 ? ((d.fat / kpis.total) * 100).toFixed(0) : '0'
+            return (
+              <Card key={c}>
+                <CardContent className="pt-4 pb-3 px-4">
+                  <p className="text-[10px] uppercase tracking-widest font-medium" style={{ color: cfg.color }}>
+                    {cfg.label}
+                  </p>
+                  <p className="text-lg font-semibold mt-1 tabular-nums">{fmtBRL(d.fat)}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {d.ped > 0 ? `${d.ped.toLocaleString('pt-BR')} ped.` : '—'}{' '}
+                    <span className="opacity-60">{pct}%</span>
+                  </p>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       {/* Main tabs */}
       <Tabs defaultValue="canais">
@@ -334,9 +458,7 @@ export default function VendasCanaisPage() {
             </CardHeader>
             <CardContent className="pt-3">
               {vendasLoading ? (
-                <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-                  Carregando…
-                </div>
+                <Skeleton className="h-[280px] w-full" />
               ) : (
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={chartData} margin={{ left: 0, right: 8 }}>
@@ -383,98 +505,176 @@ export default function VendasCanaisPage() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 pt-4 flex flex-row items-center justify-between">
+            <CardHeader className="pb-2 pt-4 flex-row items-center justify-between space-y-0 gap-3 flex-wrap">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Detalhe por mês
               </CardTitle>
-              <div className="flex rounded-md border overflow-hidden divide-x text-xs">
-                <button
-                  onClick={() => setTabelaView('somado')}
-                  className={`px-2.5 py-1 font-medium transition-colors ${tabelaView === 'somado' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
+              <div className="flex items-center gap-2">
+                <ToggleGroup
+                  type="single"
+                  value={tableView}
+                  onValueChange={(v) => v && setTableView(v as 'somado' | 'canal')}
+                  variant="outline"
+                  size="sm"
                 >
-                  Somado
-                </button>
-                <button
-                  onClick={() => setTabelaView('canal')}
-                  className={`px-2.5 py-1 font-medium transition-colors ${tabelaView === 'canal' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
-                >
-                  Por canal
-                </button>
+                  <ToggleGroupItem value="somado" className="text-xs px-3">Somado</ToggleGroupItem>
+                  <ToggleGroupItem value="canal" className="text-xs px-3">Por canal</ToggleGroupItem>
+                </ToggleGroup>
+                <Button variant="outline" size="sm" onClick={handleExport} className="h-8 text-xs gap-1.5">
+                  <Download size={13} />
+                  Exportar CSV
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                {tabelaView === 'somado' ? (
+              {vendasLoading ? (
+                <div className="p-4 space-y-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-9 w-full" />
+                  ))}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
-                        <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs uppercase tracking-wide">Mês</th>
-                        <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Pedidos</th>
-                        <th className="text-right py-2.5 px-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">Faturamento</th>
-                        <th className="text-right py-2.5 px-4 font-medium text-muted-foreground text-xs uppercase tracking-wide">Ticket médio</th>
+                        <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                          Mês
+                        </th>
+                        {tableView === 'somado' ? (
+                          <>
+                            <th className="text-right py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-muted-foreground">Pedidos</th>
+                            <th className="text-right py-2.5 px-3 font-medium text-xs uppercase tracking-wide text-muted-foreground">Faturamento</th>
+                            <th className="text-right py-2.5 px-4 font-medium text-xs uppercase tracking-wide text-muted-foreground">Ticket médio</th>
+                          </>
+                        ) : (
+                          <>
+                            {canaisDisplay.map(c => (
+                              <th
+                                key={c}
+                                className="text-right py-2.5 px-3 font-medium text-xs uppercase tracking-wide"
+                                style={{ color: CANAL_CONFIG[c].color }}
+                              >
+                                <span className="inline-flex items-center gap-1.5 justify-end">
+                                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CANAL_CONFIG[c].color }} />
+                                  {CANAL_CONFIG[c].label}
+                                </span>
+                              </th>
+                            ))}
+                            <th className="text-right py-2.5 px-4 font-medium text-xs uppercase tracking-wide text-muted-foreground">
+                              Total
+                            </th>
+                          </>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
-                      {tabelaMeses.map(({ mes, totalFat, totalPed }) => (
-                        <tr key={mes} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                          <td className="py-2.5 px-4 font-medium">{fmtMes(mes)}</td>
-                          <td className="text-right py-2.5 px-3 tabular-nums">{totalPed.toLocaleString('pt-BR')}</td>
-                          <td className="text-right py-2.5 px-3 tabular-nums font-medium">{fmtBRL(totalFat)}</td>
-                          <td className="text-right py-2.5 px-4 tabular-nums text-muted-foreground">
-                            {totalPed > 0 ? fmtBRL(totalFat / totalPed) : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t bg-muted/20 font-semibold">
-                        <td className="py-2.5 px-4 text-xs text-muted-foreground">Total</td>
-                        <td className="text-right py-2.5 px-3 tabular-nums">
-                          {tabelaMeses.reduce((s, r) => s + r.totalPed, 0).toLocaleString('pt-BR')}
-                        </td>
-                        <td className="text-right py-2.5 px-3 tabular-nums">
-                          {fmtBRL(tabelaMeses.reduce((s, r) => s + r.totalFat, 0))}
-                        </td>
-                        <td className="py-2.5 px-4" />
-                      </tr>
-                    </tfoot>
-                  </table>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs uppercase tracking-wide">Mês</th>
-                        {canaisDisplay.map(c => (
-                          <th key={c} className="text-right py-2.5 px-3 font-medium text-xs uppercase tracking-wide" style={{ color: CANAL_CONFIG[c].color }}>
-                            {CANAL_CONFIG[c].label}
-                          </th>
-                        ))}
-                        <th className="text-right py-2.5 px-4 font-medium text-xs uppercase tracking-wide text-muted-foreground">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tabelaMeses.map(({ mes, canais, totalFat, totalPed }) => (
-                        <tr key={mes} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                          <td className="py-2.5 px-4 font-medium">{fmtMes(mes)}</td>
-                          {canaisDisplay.map(c => {
-                            const d = canais[c]
-                            return (
-                              <td key={c} className="text-right py-2.5 px-3 tabular-nums text-sm">
-                                {d
-                                  ? metrica === 'faturamento' ? fmtBRL(d.fat) : d.ped.toLocaleString('pt-BR')
-                                  : <span className="text-muted-foreground">—</span>}
+                      {tabelaMeses.map(({ mes, canais, totalFat, totalPed }) => {
+                        const expanded = expandedMes === mes
+                        const ticket = totalPed > 0 ? totalFat / totalPed : 0
+                        const colSpan = tableView === 'somado' ? 4 : canaisDisplay.length + 2
+                        return (
+                          <Fragment key={mes}>
+                            <tr
+                              className="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                              onClick={() => setExpandedMes(expanded ? null : mes)}
+                            >
+                              <td className="py-2.5 px-4 font-medium">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <ChevronRight
+                                    size={13}
+                                    className={`text-muted-foreground transition-transform ${expanded ? 'rotate-90' : ''}`}
+                                  />
+                                  {fmtMes(mes)}
+                                </span>
                               </td>
-                            )
-                          })}
-                          <td className="text-right py-2.5 px-4 font-semibold tabular-nums">
-                            {metrica === 'faturamento' ? fmtBRL(totalFat) : totalPed.toLocaleString('pt-BR')}
-                          </td>
-                        </tr>
-                      ))}
+                              {tableView === 'somado' ? (
+                                <>
+                                  <td className="text-right py-2.5 px-3 tabular-nums">{totalPed.toLocaleString('pt-BR')}</td>
+                                  <td className="text-right py-2.5 px-3 tabular-nums font-medium">{fmtBRL(totalFat)}</td>
+                                  <td className="text-right py-2.5 px-4 tabular-nums text-muted-foreground">{fmtBRL(ticket)}</td>
+                                </>
+                              ) : (
+                                <>
+                                  {canaisDisplay.map(c => {
+                                    const d = canais[c]
+                                    return (
+                                      <td key={c} className="text-right py-2.5 px-3 tabular-nums text-sm">
+                                        {d
+                                          ? metrica === 'faturamento'
+                                            ? fmtBRL(d.fat)
+                                            : d.ped.toLocaleString('pt-BR')
+                                          : <span className="text-muted-foreground">—</span>}
+                                      </td>
+                                    )
+                                  })}
+                                  <td className="text-right py-2.5 px-4 font-semibold tabular-nums">
+                                    {metrica === 'faturamento'
+                                      ? fmtBRL(totalFat)
+                                      : totalPed.toLocaleString('pt-BR')}
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                            {expanded && (
+                              <tr className="bg-muted/20 border-b">
+                                <td colSpan={colSpan} className="p-0">
+                                  {drillLoading ? (
+                                    <div className="p-4 space-y-2">
+                                      {Array.from({ length: 3 }).map((_, i) => (
+                                        <Skeleton key={i} className="h-6 w-full" />
+                                      ))}
+                                    </div>
+                                  ) : !drillProdutos || drillProdutos.length === 0 ? (
+                                    <div className="p-4 text-xs text-muted-foreground text-center">
+                                      Sem dados de produto para este mês.
+                                    </div>
+                                  ) : (
+                                    <div className="px-4 py-3">
+                                      <table className="w-full text-xs">
+                                        <thead>
+                                          <tr className="text-muted-foreground uppercase tracking-wide">
+                                            <th className="text-left py-1.5 font-medium">Produto</th>
+                                            <th className="text-left py-1.5 font-medium">SKU</th>
+                                            <th className="text-right py-1.5 font-medium">Qtd</th>
+                                            <th className="text-right py-1.5 font-medium">Faturamento</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {[...drillProdutos]
+                                            .sort((a, b) => Number(b.faturamento) - Number(a.faturamento))
+                                            .map((p, i) => (
+                                              <tr key={`${p.nome}-${p.sku}-${i}`} className="border-t border-border/50">
+                                                <td className="py-1.5 pr-3">{p.nome}</td>
+                                                <td className="py-1.5 pr-3 font-mono text-muted-foreground">{p.sku ?? '—'}</td>
+                                                <td className="py-1.5 text-right tabular-nums">{p.qtd_vendida.toLocaleString('pt-BR')}</td>
+                                                <td className="py-1.5 text-right tabular-nums font-medium">{fmtBRL(Number(p.faturamento))}</td>
+                                              </tr>
+                                            ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        )
+                      })}
                     </tbody>
+                    {tableView === 'somado' && tabelaMeses.length > 0 && (
+                      <tfoot>
+                        <tr className="border-t bg-muted/20">
+                          <td className="py-2.5 px-4 font-medium text-muted-foreground text-xs uppercase tracking-wide">Total</td>
+                          <td className="text-right py-2.5 px-3 tabular-nums font-semibold">{totaisTabela.ped.toLocaleString('pt-BR')}</td>
+                          <td className="text-right py-2.5 px-3 tabular-nums font-semibold">{fmtBRL(totaisTabela.fat)}</td>
+                          <td className="text-right py-2.5 px-4 tabular-nums font-semibold text-muted-foreground">{fmtBRL(totaisTabela.ticket)}</td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
-                )}
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -495,8 +695,10 @@ export default function VendasCanaisPage() {
             </CardHeader>
             <CardContent className="p-0">
               {produtosLoading ? (
-                <div className="h-40 flex items-center justify-center text-muted-foreground text-sm">
-                  Carregando…
+                <div className="p-4 space-y-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-9 w-full" />
+                  ))}
                 </div>
               ) : produtosAgg.length === 0 ? (
                 <div className="h-48 flex flex-col items-center justify-center text-muted-foreground gap-2 px-6 text-center">
