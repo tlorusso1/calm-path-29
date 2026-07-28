@@ -695,7 +695,11 @@ export default function VendasCanaisPage() {
                   </Badge>
                 )}
               </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Baseado em saída de estoque (nota fiscal — Tiny/Bling). Kits/PACKs são explodidos nos SKUs que realmente saíram.
+              </p>
             </CardHeader>
+
             <CardContent className="p-0">
               {produtosLoading ? (
                 <div className="p-4 space-y-2">
