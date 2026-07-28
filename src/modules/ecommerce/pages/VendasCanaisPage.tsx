@@ -206,6 +206,7 @@ export default function VendasCanaisPage() {
       let q = supabase
         .from('vendas_produtos')
         .select('mes, canal, nome, sku, qtd_vendida, faturamento')
+        .eq('fonte', 'nf')
         .gte('mes', start)
         .lte('mes', end)
       if (canal !== 'todos') q = q.eq('canal', canal)
@@ -222,6 +223,7 @@ export default function VendasCanaisPage() {
       let q = supabase
         .from('vendas_produtos')
         .select('nome, sku, canal, qtd_vendida, faturamento')
+        .eq('fonte', 'nf')
         .eq('mes', expandedMes!)
       if (canal !== 'todos') q = q.eq('canal', canal)
       const { data, error } = await q
@@ -229,6 +231,7 @@ export default function VendasCanaisPage() {
       return data as ProdutoRow[]
     }
   })
+
 
   const canaisAtivos = useMemo(() => {
     if (!vendasData) return CANAL_ORDER
